@@ -45,6 +45,7 @@ from xml.etree.ElementTree import (
     SubElement,
     tostring
 )
+from pathlib import Path
 from PySide6.QtSvgWidgets import QSvgWidget
 import subprocess
 import paramiko
@@ -64,8 +65,8 @@ maintenance_mode = 0
 
 PING_TIMEOUT = 100  # Tiempo de espera para el ping en milisegundos.
 SSH_TIMEOUT = 5.0  # Tiempo de espera para la conexión SSH, 5.0 para operación en tren.
-TEST_TIMEOUT = 4000 # Tiempo de refresco de los datos de diagnóstico, 4000 para operación en tren.
-MONITOR_INTERVAL = 10 # Tiempo de refresco para la evaluación de las conexiones.
+TEST_TIMEOUT = 1000 # Tiempo de refresco de los datos de diagnóstico, 4000 para operación en tren.
+MONITOR_INTERVAL = 5 # Tiempo de refresco para la evaluación de las conexiones.
 RESET_PAUSE = 5000 # Tiempo de pausa entre órdenes del reseteo de fallos. 
 
 MODO_PRUEBA = False
@@ -78,7 +79,7 @@ class TCMS_vars:
         
         #TIPOS DE COCHE EN FUNCIÓN DEL PROYECTO
         self.COACH_TYPES_DB={1: "L9215", 2: "C4340", 3: "C4301", 4: "C4306", 5: "C4314", 6: "C4315", 7: "C4322", 8: "C4302S", 9: "C4302P", 10: "C4302C", 11: "C4328"}
-        self.COACH_TYPES_DSB={1: "1", 2: "2", 3: "C4701", 4: "4", 5: "C4714", 6: "6", 7: "7", 8: "C4702S", 9: "C4702P", 10: "10", 11: "C4728"}
+        self.COACH_TYPES_DSB={3: "C4701", 5: "C4714", 8: "C4702S", 9: "C4702P", 11: "C4728"}
         #VARIABLE DE TCMS QUE INDICA EL TIPO DE COCHE
         self.COACH_TYPE = ['oVCUCH_TRDP_DS_A000.COM_Vehicle_Type']
         #VARIABLES DEL LAZO DE SEGURIDAD, INCLUYENDO LAS DEL PMR
@@ -107,7 +108,13 @@ class TCMS_vars:
         'RIOMSC1_MVB1_DS_2E7_Failure_Rate', #Tasa de fallos RIOM 1 Principal
         'RIOMSC1r_MVB2_DS_2E7_Failure_Rate', #Tasa de fallos RIOM 1 Redundante
         'RIOMSC2_MVB1_DS_2FB_Failure_Rate', #Tasa de fallos RIOM 2 Principal (sólo PMR)
-        'RIOMSC2r_MVB2_DS_2FB_Failure_Rate' #Tasa de fallos RIOM 2 Redundante (sólo PMR)
+        'RIOMSC2r_MVB2_DS_2FB_Failure_Rate', #Tasa de fallos RIOM 2 Redundante (sólo PMR)
+        'RIOMSC2_MVB1_DS_2FE.DigitalInput10', #S60 PRINCIPAL
+        'RIOMSC2r_MVB2_DS_2FE.DigitalInput10', #S60 REDUNDANTE
+        'RIOMSC2_MVB1_DS_2FE.DigitalInput11', #S62 PRINCIPAL
+        'RIOMSC2r_MVB2_DS_2FE.DigitalInput11', #S62 REDUNDANTE
+        'RIOMSC2_MVB1_DS_2FE.DigitalInput4', #S256 PRINCIPAL
+        'RIOMSC2r_MVB2_DS_2FE.DigitalInput4', #S256 REDUNDANTE
         ]
         self.TSC_COACH_VARS_DB = [
         'iVCUCH_IO_DS_A602_S45_X1.DIu_RiomS1isOK',
@@ -116,13 +123,8 @@ class TCMS_vars:
         'iVCUCH_IO_DS_A602_S42_X1.DIu_RiomS1isOKB1',
         'iVCUCH_IO_DS_A602_S43_X1.DIu_SafCon1LoopB1',
         '_INPUT_LAYER.BRK_TST_F_Emg_Brk.iIO_DS_A602_S43_X1_DIu_SafCon2Loop_B1',
-        'iVCUCH_IO_DS_A602_S46_X1.DIu_STCMSBypass',
-        'iVCUCH_IO_DS_A602_S42_X1.DIu_EmBrakValvsOpen',
-        'iVCUCH_IO_DS_A602_S46_X1.DIu_SIFA1Cond',
-        'iVCUCH_IO_DS_A602_S46_X1.DIu_SIFA2Cond',
         'iVCUCH_IO_DS_A602_S45_X1.DIu_BypCoachActiv',
         'iVCUCH_IO_DS_A602_S45_X1.DIu_BypPRMActiv',
-        'iVCUCH_IO_DS_A602_S46_X1.DIu_SafBypasLoopOff',
         'RIOMSC1_MVB1_DS_2EA.DigitalInput10', #S60 PRINCIPAL
         'RIOMSC1r_MVB2_DS_2EA.DigitalInput10', #S60 REDUNDANTE
         'RIOMSC1_MVB1_DS_2EA.DigitalInput11', #S62 PRINCIPAL
@@ -131,6 +133,16 @@ class TCMS_vars:
         'RIOMSC1r_MVB2_DS_2EA.DigitalInput4', #S256 REDUNDANTE
         'RIOMSC1_MVB1_DS_2EA.DigitalInput3', #S255 PRINCIPAL
         'RIOMSC1r_MVB2_DS_2EA.DigitalInput3', #S255 REDUNDANTE
+        'RIOMSC1_MVB1_DS_2E7_Failure_Rate', #Tasa de fallos RIOM 1 Principal
+        'RIOMSC1r_MVB2_DS_2E7_Failure_Rate', #Tasa de fallos RIOM 1 Redundante
+        'RIOMSC2_MVB1_DS_2FB_Failure_Rate', #Tasa de fallos RIOM 2 Principal (sólo PMR)
+        'RIOMSC2r_MVB2_DS_2FB_Failure_Rate', #Tasa de fallos RIOM 2 Redundante (sólo PMR)
+        'RIOMSC2_MVB1_DS_2FE.DigitalInput10', #S60 PRINCIPAL (sólo PMR)
+        'RIOMSC2r_MVB2_DS_2FE.DigitalInput10', #S60 REDUNDANTE (sólo PMR)
+        'RIOMSC2_MVB1_DS_2FE.DigitalInput11', #S62 PRINCIPAL (sólo PMR)
+        'RIOMSC2r_MVB2_DS_2FE.DigitalInput11', #S62 REDUNDANTE (sólo PMR)
+        'RIOMSC2_MVB1_DS_2FE.DigitalInput4', #S256 PRINCIPAL (sólo PMR)
+        'RIOMSC2r_MVB2_DS_2FE.DigitalInput4', #S256 REDUNDANTE (sólo PMR)
         ]
         self.TSC_CC_VARS_DB = [
         'RIOMPUP1_MVB1_DS_17D.DIp_BrakeHandlEmer1', #S8
@@ -647,7 +659,9 @@ class TCMS_vars:
         'BCUCH2_MVB1_DS_311.sDiagnosis22_b7', 
         'BCUCH2_MVB1_DS_311.sDiagnosis23_b0', 
         'BCUCH2_MVB1_DS_311.sDiagnosis23_b1', 
-        'BCUCH2_MVB1_DS_311.sDiagnosis23_b2'
+        'BCUCH2_MVB1_DS_311.sDiagnosis23_b2',
+        'BCUCH1_MVB2_DS_30F.bDIMGA_S0',
+        'BCUCH2_MVB1_DS_30F.bDIMGA_S0'
         ]
         self.BCU_DIAGNOSIS_CC = [
         'BCUB90_MVB1_DS_614.sDiagnosis01_b1',
@@ -847,6 +861,7 @@ class TCMS_vars:
     ]
         #DICCIONARIO PARA INTERPRETAR LA DIAGNÓSIS
         self.BCU_DIAGNOSIS_DICT = {
+        'bDIMGA_S0': {'Error Code': 'bDIMGA_S0', 'Description': 'Improperly MTB applied'},    
         'sDiagnosis01_b0': {'Error Code': 'DIA_BOARD_EB02B_07', 'Description': 'Malfunction Board EB02B Node 07 in BCU B9x '},
         'sDiagnosis01_b1': {'Error Code': 'DIA_BOARDCODING_EB02B_07', 'Description': 'The board coding is not correct: either the mode or the node information coded does not comply with the expected codification for the board'},
         'sDiagnosis01_b2': {'Error Code': 'DIA_CAN_COMM_EB02B_07', 'Description': 'Internal CAN Communications error'},
@@ -1195,8 +1210,11 @@ class ConnectionMonitorThread(QThread):
     
     def run(self):
         with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
-            # print("FUNCIONANDO")
+            
             while not self.stop_event.is_set():
+                
+                # print("FUNCIONANDO")
+
                 future_to_vcu = {executor.submit(self.check_VCU_status, vcu): vcu for vcu in self.vcu_list}
                 
                 for future in as_completed(future_to_vcu):
@@ -1224,6 +1242,7 @@ class ConnectionMonitorThread(QThread):
     def check_VCU_status(self, vcu):
 
         if not vcu.SSH_alive():
+            # print(f"VCU del coche: {self.vcu_list.index(vcu) + 1} sin vida")
             status = vcu.reconnect_SSH()
             return status
     
@@ -1282,10 +1301,11 @@ class VCU:
 
             status = self.link_SSH()
             self.connection_status = status  # sincroniza estado
+            # print(f"IP: {self.ip} reconectada, status: {status}")
             return status
         except Exception as e:
             self.connection_status = "failure"
-            # print(f"[{self.ip}] Reconnect failed: {e}")
+            print(f"[{self.ip}] Reconnect failed: {e}")
             return "failure"
 
     def SSH_alive(self):
@@ -1378,12 +1398,13 @@ class ScanThread(QThread):
     scan_progress = Signal(int, int)
     scan_completed = Signal(list)
 
-    def __init__(self, ip_list, max_initial_ips, project, cabcar_ips):
+    def __init__(self, ip_list, max_initial_ips, project, cabcar_VCUCH_ips, cabcar_VCUPH_ips):
         super().__init__()
         self.ip_list = ip_list
         self.max_initial_ips = max_initial_ips
         self.project = project
-        self.cabcar_ips = cabcar_ips
+        self.cabcar_vcuch_ips = cabcar_VCUCH_ips
+        self.cabcar_vcuph_ips = cabcar_VCUPH_ips
 
     def run(self):
 
@@ -1398,24 +1419,29 @@ class ScanThread(QThread):
             self.scan_progress.emit(progress, coach_number)
         
         if self.project == "DB":
-            # valid_ips[-1] = self.cabcar_ips[len(valid_ips)-1]
-            valid_ips.insert(len(valid_ips) - 1, self.cabcar_ips[len(valid_ips) - 1])
+            valid_ips.insert(len(valid_ips) - 1, self.cabcar_vcuch_ips[len(valid_ips) - 1])
+            valid_ips[-1] = self.cabcar_vcuph_ips[len(valid_ips)-2]
 
         self.scan_completed.emit(valid_ips)
 
 class TSCGenerator(QSvgWidget):
     
-    def __init__(self, vcu_list, coach_types, tsc_vars, project_coach_types, tsc_cc_vars):
+    def __init__(self, project, vcu_list, coach_types, tsc_vars, project_coach_types, tsc_cc_vars):
         
         super().__init__()
-        
+        self.project = project
         self.vcu_list = vcu_list
         self.coaches_type = coach_types
-        self.num_coaches = len(self.vcu_list)
         self.tsc_vars = tsc_vars
         self.tsc_cc_vars = tsc_cc_vars
 
+        if self.project == "DSB":
+            self.num_coaches = len(self.vcu_list)
+        elif self.project == "DB":
+            self.num_coaches = len(self.vcu_list) - 1  # Exclude cab car
+
         print(f"Número de coches: {self.num_coaches}")
+        print(f"Número de IPs: {len(self.vcu_list)}")
         
         self.project_coach_types = project_coach_types
 
@@ -1508,9 +1534,7 @@ class TSCGenerator(QSvgWidget):
             futures = {executor.submit(self.process_coach, self.vcu_list[i], self.coaches_type[i], self.tsc_vars, self.project_coach_types, self.tsc_cc_vars): i for i in range(self.num_coaches)}
             for future in as_completed(futures):
                 index = futures[future]  # Obtener el índice del coche
-                
                 try:
-
                     coach = future.result()  # Obtener el elemento SVG del coche
                     if coach is not None: 
                         x_pos = index * 100
@@ -1543,18 +1567,11 @@ class TSCGenerator(QSvgWidget):
 
         self.svg_widget.setMinimumSize(self.num_coaches * 100, 125)
 
-        if self.project == "DSB":
-            try:
-                if self.coaches_type[self.coaches_type.index('5')] is not None:
-                    self.svg_widget.setMinimumSize(svg_width, 125)
-            except:
-                pass
-        if self.project == "DB":
-            try:
-                if self.coaches_type[self.coaches_type.index('5')] is not None:
-                    self.svg_widget.setMinimumSize(svg_width, 125)
-            except:
-                pass
+        try:
+            if self.coaches_type[self.coaches_type.index('5')] is not None:
+                self.svg_widget.setMinimumSize(svg_width, 125)
+        except:
+            pass
 
         return self.svg_widget
         
@@ -1788,7 +1805,7 @@ class TSCGenerator(QSvgWidget):
             SubElement(coach, "text", x="50", y="75",**{"text-anchor": "middle","font-style": "italic","font-size": "6.5", "fill": "red"}).text = "RIOM SCr APAGADA"
         elif k800_state and k802_state and not k801_state:
             SubElement(coach, "text", x="50", y="75",**{"text-anchor": "middle","font-style": "italic","font-size": "6.5", "fill": "green"}).text = "CERRADO POR REDUNDANTE"
-        elif k801_state and not k800_state and k802_state:
+        elif k801_state and not k800_state:
             SubElement(coach, "text", x="50", y="75",**{"text-anchor": "middle","font-style": "italic","font-size": "6.5", "fill": "green"}).text = "CERRADO POR PRINCIPAL"
         elif k800_state and not k801_state and not k802_state:
             SubElement(coach, "text", x="50", y="75",**{"text-anchor": "middle","font-style": "italic","font-size": "6.5", "fill": "red"}).text = "ABIERTO"
@@ -2099,7 +2116,7 @@ class TSCGenerator(QSvgWidget):
         
         return coach
 
-    def pmr_dsb1(self, coach_name, coach_pos, k801_state, k800_state, k802_state, k810_state, k811_state, k812_state, sifa1_state, sifa2_state, sifa1_forzed, sifa2_forzed, k804_state, k814_state, k753_state, s25_state, s60, s60_r, s62, s62_r, s256, s256_r, s255, s255_r, fr_riom_sc1, fr_riom_sc1r, fr_riom_sc2, fr_riom_sc2r):
+    def pmr_dsb1(self, coach_name, coach_pos, k801_state, k800_state, k802_state, k810_state, k811_state, k812_state, sifa1_state, sifa2_state, sifa1_forzed, sifa2_forzed, k804_state, k814_state, k753_state, s25_state, s60, s60_r, s62, s62_r, s256, s256_r, s255, s255_r, fr_riom_sc1, fr_riom_sc1r, fr_riom_sc2, fr_riom_sc2r, s60_b1, s60_r_b1, s62_b1, s62_r_b1, s256_b1, s256_r_b1):
         
         coach = Element("g")
         
@@ -2371,8 +2388,13 @@ class TSCGenerator(QSvgWidget):
 
         SubElement(coach, "text", x="5", y="176",**{"text-anchor": "right","font-style": "italic","font-size": "9"}).text = "S60:"
         SubElement(coach, "text", x="5", y="188",**{"text-anchor": "right","font-style": "italic","font-size": "9"}).text = "S62:"
-        SubElement(coach, "text", x="50", y="176",**{"text-anchor": "right","font-style": "italic","font-size": "9"}).text = "S255:"
+        # SubElement(coach, "text", x="50", y="176",**{"text-anchor": "right","font-style": "italic","font-size": "9"}).text = "S255:"
         SubElement(coach, "text", x="50", y="188",**{"text-anchor": "right","font-style": "italic","font-size": "9"}).text = "S256:"
+
+        SubElement(coach, "text", x="220", y="176",**{"text-anchor": "right","font-style": "italic","font-size": "9"}).text = "S60_B1:"
+        SubElement(coach, "text", x="220", y="188",**{"text-anchor": "right","font-style": "italic","font-size": "9"}).text = "S62_B1:"
+        # SubElement(coach, "text", x="50", y="176",**{"text-anchor": "right","font-style": "italic","font-size": "9"}).text = "S255:"
+        SubElement(coach, "text", x="278", y="188",**{"text-anchor": "right","font-style": "italic","font-size": "9"}).text = "S256_B1:"
 
         if s60 != s60_r:
             SubElement(coach, "text", x="22", y="176",**{"text-anchor": "right","font-style": "italic","font-size": "9", "fill": "yellow"}).text = "Error"
@@ -2394,6 +2416,27 @@ class TSCGenerator(QSvgWidget):
             SubElement(coach, "text", x="72", y="188",**{"text-anchor": "right","font-style": "italic","font-size": "9", "fill": "green"}).text = "Off"
         else:
             SubElement(coach, "text", x="72", y="188",**{"text-anchor": "right","font-style": "italic","font-size": "9", "fill": "red"}).text = "Activo"
+
+        if s60_b1 != s60_r_b1:
+            SubElement(coach, "text", x="252", y="176",**{"text-anchor": "right","font-style": "italic","font-size": "9", "fill": "yellow"}).text = "Error"
+        elif s60_b1 == "0":
+            SubElement(coach, "text", x="252", y="176",**{"text-anchor": "right","font-style": "italic","font-size": "9",  "fill": "green"}).text = "Off"
+        else:
+            SubElement(coach, "text", x="252", y="176",**{"text-anchor": "right","font-style": "italic","font-size": "9", "fill": "red"}).text = "Activo"
+
+        if s62_b1 != s62_r_b1:
+            SubElement(coach, "text", x="252", y="188",**{"text-anchor": "right","font-style": "italic","font-size": "9", "fill": "yellow"}).text = "Error"
+        elif s62_b1 == "0":
+            SubElement(coach, "text", x="252", y="188",**{"text-anchor": "right","font-style": "italic","font-size": "9", "fill": "green"}).text = "Off"
+        else:
+            SubElement(coach, "text", x="252", y="188",**{"text-anchor": "right","font-style": "italic","font-size": "9", "fill": "red"}).text = "Activo"
+
+        if s256_b1 != s256_r_b1:
+            SubElement(coach, "text", x="315", y="188",**{"text-anchor": "right","font-style": "italic","font-size": "9", "fill": "yellow"}).text = "Error"
+        elif s256_b1 == "0":
+            SubElement(coach, "text", x="315", y="188",**{"text-anchor": "right","font-style": "italic","font-size": "9", "fill": "green"}).text = "Off"
+        else:
+            SubElement(coach, "text", x="315", y="188",**{"text-anchor": "right","font-style": "italic","font-size": "9", "fill": "red"}).text = "Activo"
         
         SubElement(coach, "rect", x="-300", y="195", width="442", height="120", fill=bypass_backcolor, opacity="0.15")
         SubElement(coach, "rect", x="142", y="230", width="75", height="100", fill=bypass_backcolor, opacity="0.15")
@@ -2407,7 +2450,7 @@ class TSCGenerator(QSvgWidget):
         
         return coach
 
-    def pmr_db_dsb2(self, coach_name, coach_pos, k801_state, k800_state, k802_state, k810_state, k811_state, k812_state, k804_state, k814_state, s60, s60_r, s62, s62_r, s256, s256_r):
+    def pmr_db_dsb2(self, coach_name, coach_pos, k801_state, k800_state, k802_state, k810_state, k811_state, k812_state, k804_state, k814_state, s60, s60_r, s62, s62_r, s256, s256_r, fr_riom_sc1, fr_riom_sc1r, fr_riom_sc2, fr_riom_sc2r, s60_b1, s60_r_b1, s62_b1, s62_r_b1, s256_b1, s256_r_b1):
         
         coach = Element("g")
         
@@ -2486,7 +2529,11 @@ class TSCGenerator(QSvgWidget):
         lower_path.append(self.create_contact_svg(k802_state, x_offset=40, label="K802"))  # Desplazado 40 unidades a la derecha
 
         #Determina si el comportamiento de las RIOMS es correcto
-        if k800_state and k802_state and not k801_state:
+        if int(fr_riom_sc1)>199:
+            SubElement(coach, "text", x="50", y="75",**{"text-anchor": "middle","font-style": "italic","font-size": "6.5", "fill": "red"}).text = "RIOM SC APAGADA"     
+        elif int(fr_riom_sc1r)>199:
+            SubElement(coach, "text", x="50", y="75",**{"text-anchor": "middle","font-style": "italic","font-size": "6.5", "fill": "red"}).text = "RIOM SCr APAGADA"
+        elif k800_state and k802_state and not k801_state:
             SubElement(coach, "text", x="50", y="75",**{"text-anchor": "middle","font-style": "italic","font-size": "6.5", "fill": "green"}).text = "CERRADO POR REDUNDANTE"
         elif k801_state and not k800_state and k802_state:
             SubElement(coach, "text", x="50", y="75",**{"text-anchor": "middle","font-style": "italic","font-size": "6.5", "fill": "green"}).text = "CERRADO POR PRINCIPAL"
@@ -2510,7 +2557,11 @@ class TSCGenerator(QSvgWidget):
         lower_path.append(self.create_contact_svg(k812_state, x_offset=40, label="K812")) 
 
         #Determina si el comportamiento de las RIOMS es correcto
-        if k810_state and k812_state and not k811_state:
+        if int(fr_riom_sc2)>199:
+            SubElement(coach, "text", x="150", y="75",**{"text-anchor": "middle","font-style": "italic","font-size": "6.5", "fill": "red"}).text = "RIOM SC2 APAGADA"
+        elif int(fr_riom_sc2r)>199:
+            SubElement(coach, "text", x="150", y="75",**{"text-anchor": "middle","font-style": "italic","font-size": "6.5", "fill": "red"}).text = "RIOM SC2r APAGADA"
+        elif k810_state and k812_state and not k811_state:
             SubElement(coach, "text", x="150", y="75",**{"text-anchor": "middle","font-style": "italic","font-size": "6.5", "fill": "green"}).text = "CERRADO POR REDUNDANTE"
         elif k811_state and not k810_state and k812_state:
             SubElement(coach, "text", x="150", y="75",**{"text-anchor": "middle","font-style": "italic","font-size": "6.5", "fill": "green"}).text = "CERRADO POR PRINCIPAL"
@@ -2552,31 +2603,58 @@ class TSCGenerator(QSvgWidget):
         SubElement(coach, "rect", x="0", y="95", width="200", height="100", fill=background_color, opacity="0.15")
                         
 
-        SubElement(coach, "text", x="55", y="176",**{"text-anchor": "right","font-style": "italic","font-size": "9"}).text = "S60:"
-        SubElement(coach, "text", x="55", y="188",**{"text-anchor": "right","font-style": "italic","font-size": "9"}).text = "S62:"
+        SubElement(coach, "text", x="5", y="176",**{"text-anchor": "right","font-style": "italic","font-size": "9"}).text = "S60:"
+        SubElement(coach, "text", x="5", y="188",**{"text-anchor": "right","font-style": "italic","font-size": "9"}).text = "S62:"
         # SubElement(coach, "text", x="100", y="176",**{"text-anchor": "right","font-style": "italic","font-size": "9"}).text = "S255:"
-        SubElement(coach, "text", x="100", y="188",**{"text-anchor": "right","font-style": "italic","font-size": "9"}).text = "S256:"
+        SubElement(coach, "text", x="45", y="188",**{"text-anchor": "right","font-style": "italic","font-size": "9"}).text = "S256:"
+
+        SubElement(coach, "text", x="65", y="176",**{"text-anchor": "right","font-style": "italic","font-size": "9"}).text = "S60_B1:"
+        SubElement(coach, "text", x="95", y="188",**{"text-anchor": "right","font-style": "italic","font-size": "9"}).text = "S62_B1:"
+        # SubElement(coach, "text", x="50", y="176",**{"text-anchor": "right","font-style": "italic","font-size": "9"}).text = "S255:"
+        SubElement(coach, "text", x="128", y="176",**{"text-anchor": "right","font-style": "italic","font-size": "9"}).text = "S256_B1:"
 
         if s60 != s60_r:
-            SubElement(coach, "text", x="72", y="176",**{"text-anchor": "right","font-style": "italic","font-size": "9", "fill": "yellow"}).text = "Error"
+            SubElement(coach, "text", x="22", y="176",**{"text-anchor": "right","font-style": "italic","font-size": "9", "fill": "yellow"}).text = "Error"
         elif s60 == "0":
-            SubElement(coach, "text", x="72", y="176",**{"text-anchor": "right","font-style": "italic","font-size": "9",  "fill": "green"}).text = "Off"
+            SubElement(coach, "text", x="22", y="176",**{"text-anchor": "right","font-style": "italic","font-size": "9",  "fill": "green"}).text = "Off"
         else:
-            SubElement(coach, "text", x="72", y="176",**{"text-anchor": "right","font-style": "italic","font-size": "9", "fill": "red"}).text = "Activo"
+            SubElement(coach, "text", x="22", y="176",**{"text-anchor": "right","font-style": "italic","font-size": "9", "fill": "red"}).text = "Activo"
 
         if s62 != s62_r:
-            SubElement(coach, "text", x="72", y="188",**{"text-anchor": "right","font-style": "italic","font-size": "9", "fill": "yellow"}).text = "Error"
+            SubElement(coach, "text", x="22", y="188",**{"text-anchor": "right","font-style": "italic","font-size": "9", "fill": "yellow"}).text = "Error"
         elif s62 == "0":
-            SubElement(coach, "text", x="72", y="188",**{"text-anchor": "right","font-sTtyle": "italic","font-size": "9", "fill": "green"}).text = "Off"
+            SubElement(coach, "text", x="22", y="188",**{"text-anchor": "right","font-sTtyle": "italic","font-size": "9", "fill": "green"}).text = "Off"
         else:
-            SubElement(coach, "text", x="72", y="188",**{"text-anchor": "right","font-style": "italic","font-size": "9", "fill": "red"}).text = "Activo"
+            SubElement(coach, "text", x="22", y="188",**{"text-anchor": "right","font-style": "italic","font-size": "9", "fill": "red"}).text = "Activo"
 
         if s256 != s256_r:
-            SubElement(coach, "text", x="122", y="188",**{"text-anchor": "right","font-style": "italic","font-size": "9", "fill": "yellow"}).text = "Error"
+            SubElement(coach, "text", x="67", y="188",**{"text-anchor": "right","font-style": "italic","font-size": "9", "fill": "yellow"}).text = "Error"
         elif s256 == "0":
-            SubElement(coach, "text", x="122", y="188",**{"text-anchor": "right","font-style": "italic","font-size": "9", "fill": "green"}).text = "Off"
+            SubElement(coach, "text", x="67", y="188",**{"text-anchor": "right","font-style": "italic","font-size": "9", "fill": "green"}).text = "Off"
         else:
-            SubElement(coach, "text", x="122", y="188",**{"text-anchor": "right","font-style": "italic","font-size": "9", "fill": "red"}).text = "Activo"
+            SubElement(coach, "text", x="67", y="188",**{"text-anchor": "right","font-style": "italic","font-size": "9", "fill": "red"}).text = "Activo"
+
+        if s60_b1 != s60_r_b1:
+            SubElement(coach, "text", x="97", y="176",**{"text-anchor": "right","font-style": "italic","font-size": "9", "fill": "yellow"}).text = "Error"
+        elif s60_b1 == "0":
+            SubElement(coach, "text", x="97", y="176",**{"text-anchor": "right","font-style": "italic","font-size": "9",  "fill": "green"}).text = "Off"
+        else:
+            SubElement(coach, "text", x="97", y="176",**{"text-anchor": "right","font-style": "italic","font-size": "9", "fill": "red"}).text = "Activo"
+
+        if s62_b1 != s62_r_b1:
+            SubElement(coach, "text", x="127", y="188",**{"text-anchor": "right","font-style": "italic","font-size": "9", "fill": "yellow"}).text = "Error"
+        elif s62_b1 == "0":
+            SubElement(coach, "text", x="127", y="188",**{"text-anchor": "right","font-style": "italic","font-size": "9", "fill": "green"}).text = "Off"
+        else:
+            SubElement(coach, "text", x="127", y="188",**{"text-anchor": "right","font-style": "italic","font-size": "9", "fill": "red"}).text = "Activo"
+
+        if s256_b1 != s256_r_b1:
+            SubElement(coach, "text", x="165", y="176",**{"text-anchor": "right","font-style": "italic","font-size": "9", "fill": "yellow"}).text = "Error"
+        elif s256_b1 == "0":
+            SubElement(coach, "text", x="165", y="176",**{"text-anchor": "right","font-style": "italic","font-size": "9", "fill": "green"}).text = "Off"
+        else:
+            SubElement(coach, "text", x="165", y="176",**{"text-anchor": "right","font-style": "italic","font-size": "9", "fill": "red"}).text = "Activo"
+
 
         SubElement(coach, "text", x="100", y="292",**{"text-anchor": "middle","font-style": "italic","font-size": "10"}).text = f"Coche {coach_pos+1}: {coach_name}"
         
@@ -2614,6 +2692,8 @@ class TSCGenerator(QSvgWidget):
     def cabcar(self, coach_name, coach_pos, k801_state, k800_state, k802_state, k804_state, s60, s60_r, s62, s62_r, s255, s255_r, s256, s256_r, s8, s8_r, s6, s6_r, s10, k1, k80, k81, k82, k83, sifa1_cond, sifa2_cond, s700, s701, s702, s703, s704, k700, k701, k710, k711, k708, k709, k731, k732, k740, k741, s25, s25_r, k753):
 
         coach = Element("g")
+
+        # print(sifa1_cond, sifa2_cond)
 
         if int(k800_state)==1:
             
@@ -2860,10 +2940,10 @@ class TSCGenerator(QSvgWidget):
         k82_coil.append(self.create_electovalve(int(k82),0, "K82"))
         
         sifa_1=SubElement(coach, "g", transform="translate(635, 40)")
-        sifa_1.append(self.create_sifa(not int(k82), int(sifa1_cond),0,"SIFA 1"))
+        sifa_1.append(self.create_sifa(not int(k82), not int(sifa1_cond),0,"SIFA 1"))
 
         sifa_2=SubElement(coach, "g", transform="translate(675, 40)")
-        sifa_2.append(self.create_sifa(not int(k83), int(sifa2_cond),0, "SIFA 2"))
+        sifa_2.append(self.create_sifa(not int(k83), not int(sifa2_cond),0, "SIFA 2"))
         
         k83_coil=SubElement(coach, "g", transform="translate(712.5, 40)")
         k83_coil.append(self.create_electovalve(int(k83),0,"K83"))
@@ -3005,6 +3085,7 @@ class TSCGenerator(QSvgWidget):
         if index == len(self.vcu_list)-2 and self.project == "DB":
 
             tsc_data_cc = self.vcu_list[-1].SSH_read(tsc_cc_vars)
+            # print(f"Indice {index} IP {self.vcu_list[-1].ip}")
             # print(f"TSC CC: {tsc_data_cc}")
         coach = Element("g")
 
@@ -3012,24 +3093,16 @@ class TSCGenerator(QSvgWidget):
             tsc_data=list(map(str,random.choices([0, 1], k=len(tsc_data)))) # Crea una lista de valores aleatorios en formato str
             if index == len(self.vcu_list)-2 and self.project == "DB":
                 tsc_data_cc=list(map(str,random.choices([0, 1], k=len(tsc_data_cc)))) # Crea una lista de valores aleatorios en formato str
+                # print(tsc_data_cc)
 
-        if any(not signal.isdigit() for signal in tsc_data):
+        if any(not signal.isdigit() for signal in tsc_data) or coach_type == "Not_SSH" or coach_type == "N/A":
             
-            if self.project == "DSB":
-                    SubElement(coach, "rect", x="0", y="0", width="100", height="305", fill="black", opacity="0.5")
-                    SubElement(coach, "line", x1="100", y1="0", x2="100", y2="315", stroke="black", **{"stroke-width": "1", "stroke-dasharray": "5, 5"},opacity="0.35")
-                    SubElement(coach, "text", x="50", y="292",**{"text-anchor": "middle","font-style": "italic","font-size": "10"}).text = f"Coche {index+1}"
-                    SubElement(coach, "text", x="50", y="162.5", fill="white", **{"text-anchor": "middle","dominant-baseline": "central","font-style": "italic","font-size": "30","transform": "rotate(-90, 50, 152.5)"}).text = "OFFLINE"
+            SubElement(coach, "rect", x="0", y="0", width="100", height="305", fill="black", opacity="0.5")
+            SubElement(coach, "line", x1="100", y1="0", x2="100", y2="315", stroke="black", **{"stroke-width": "1", "stroke-dasharray": "5, 5"},opacity="0.35")
+            SubElement(coach, "text", x="50", y="292",**{"text-anchor": "middle","font-style": "italic","font-size": "10"}).text = f"Coche {index+1}"
+            SubElement(coach, "text", x="50", y="162.5", fill="white", **{"text-anchor": "middle","dominant-baseline": "central","font-style": "italic","font-size": "30","transform": "rotate(-90, 50, 152.5)"}).text = "OFFLINE"
 
-                    return coach
-            
-            if self.project == "DB":
-                    SubElement(coach, "rect", x="0", y="0", width="100", height="305", fill="black", opacity="0.5")
-                    SubElement(coach, "line", x1="100", y1="0", x2="100", y2="315", stroke="black", **{"stroke-width": "1", "stroke-dasharray": "5, 5"},opacity="0.35")
-                    SubElement(coach, "text", x="50", y="292",**{"text-anchor": "middle","font-style": "italic","font-size": "10"}).text = f"Coche {index+1}"
-                    SubElement(coach, "text", x="50", y="162.5", fill="white", **{"text-anchor": "middle","dominant-baseline": "central","font-style": "italic","font-size": "30","transform": "rotate(-90, 50, 152.5)"}).text = "OFFLINE"
-
-                    return coach
+            return coach
         
         if self.project == "DSB":
             k800 = tsc_data[0] # 'iVCUCH_IO_DS_A602_S45_X1.DIu_RiomS1isOK'
@@ -3057,6 +3130,12 @@ class TSCGenerator(QSvgWidget):
             fr_riom_sc1r = tsc_data[22] # 'RIOMSC1r_MVB2_DS_2E7'
             fr_riom_sc2 = tsc_data[23] # 'RIOMSC2_MVB1_DS_2E7'
             fr_riom_sc2r = tsc_data[24] # 'RIOMSC2r_MVB2_DS_2E7'
+            s60_b1 = tsc_data[25]  # 'RIOMSC2_MVB1_DS_2FE.DigitalInput10' S60 PRINCIPAL
+            s60_r_b1 = tsc_data[26] # 'RIOMSC2r_MVB2_DS_2FE.DigitalInput10' S60 REDUNDANTE
+            s62_b1 = tsc_data[27] # 'RIOMSC2_MVB1_DS_2FE.DigitalInput11' S62 PRINCIPAL
+            s62_r_b1 = tsc_data[28] # 'RIOMSC2r_MVB2_DS_2FE.DigitalInput11' S62 REDUNDANTE
+            s256_b1 = tsc_data[29] # 'RIOMSC2_MVB1_DS_2FE.DigitalInput4' S256 PRINCIPAL
+            s256_r_b1 = tsc_data[30] # 'RIOMSC2r_MVB2_DS_2FE.DigitalInput4' S256 REDUNDANTE
 
         elif self.project == "DB":
             k800 = tsc_data[0] # 'iVCUCH_IO_DS_A602_S45_X1.DIu_RiomS1isOK'
@@ -3064,7 +3143,7 @@ class TSCGenerator(QSvgWidget):
             k802 = tsc_data[2] # 'iVCUCH_IO_DS_A602_S45_X1.DIu_SafCon2Loop'
             k810 = tsc_data[3] # 'iVCUCH_IO_DS_A602_S42_X1.DIu_RiomS1isOKB1'
             k811 = tsc_data[4] # 'iVCUCH_IO_DS_A602_S43_X1.DIu_SafCon1LoopB1'
-            k812 = tsc_data[5] # 'iVCUCH_IO_DS_A602_S43_X1.DIu_SafCon2LoopB1'
+            k812 = tsc_data[5] # '_INPUT_LAYER.BRK_TST_F_Emg_Brk.iIO_DS_A602_S43_X1_DIu_SafCon2Loop_B1'
             k804 = tsc_data[6] # 'iVCUCH_IO_DS_A602_S45_X1.DIu_BypCoachActiv'
             k814 = tsc_data[7] # 'iVCUCH_IO_DS_A602_S45_X1.DIu_BypPRMActiv'
             s60 = tsc_data[8]  # 'RIOMSC1_MVB1_DS_2EA.DigitalInput10' S60 PRINCIPAL
@@ -3075,6 +3154,16 @@ class TSCGenerator(QSvgWidget):
             s256_r = tsc_data[13] # 'RIOMSC1r_MVB2_DS_2EA.DigitalInput4' S256 REDUNDANTE
             s255 = tsc_data[14] # 'RIOMSC1_MVB1_DS_2EA.DigitalInput3' S255 PRINCIPAL
             s255_r = tsc_data[15] # 'RIOMSC1r_MVB2_DS_2EA.DigitalInput3' S255 REDUNDANTE
+            fr_riom_sc1 = tsc_data[16] # 'RIOMSC1_MVB1_DS_2E7'
+            fr_riom_sc1r = tsc_data[17] # 'RIOMSC1r_MVB2_DS_2E7'
+            fr_riom_sc2 = tsc_data[18] # 'RIOMSC2_MVB1_DS_2E7'
+            fr_riom_sc2r = tsc_data[19] # 'RIOMSC2r_MVB2_DS_2E7'
+            s60_b1 = tsc_data[20]  # 'RIOMSC2_MVB1_DS_2FE.DigitalInput10' S60 PRINCIPAL
+            s60_r_b1 = tsc_data[21] # 'RIOMSC2r_MVB2_DS_2FE.DigitalInput10' S60 REDUNDANTE
+            s62_b1 = tsc_data[22] # 'RIOMSC2_MVB1_DS_2FE.DigitalInput11' S62 PRINCIPAL
+            s62_r_b1 = tsc_data[23] # 'RIOMSC2r_MVB2_DS_2FE.DigitalInput11' S62 REDUNDANTE
+            s256_b1 = tsc_data[24] # 'RIOMSC2_MVB1_DS_2FE.DigitalInput4' S256 PRINCIPAL
+            s256_r_b1 = tsc_data[25] # 'RIOMSC2r_MVB2_DS_2FE.DigitalInput4' S256 REDUNDANTE
 
             if index == len(self.vcu_list)-2 and self.project == "DB":
                 s8 = tsc_data_cc[0]
@@ -3113,9 +3202,9 @@ class TSCGenerator(QSvgWidget):
         elif coach_type in ['3', '4', '6', '7', '8', '9', '10']:
             coach = self.normal_coach(project_coach_types[int(coach_type)], index, k801, k800, k802, k804, s60, s60_r, s62, s62_r, s256, s256_r, self.pmr_index, fr_riom_sc1, fr_riom_sc1r)
         elif coach_type == '5' and self.project == "DSB":
-            coach = self.pmr_dsb1(project_coach_types[int(coach_type)], index, k801, k800, k802, k810, k811, k812, sifa, sifa, sifa1_cond, sifa2_cond, k804, k814, k753, s25, s60, s60_r, s62, s62_r, s256, s256_r, s255, s255_r, fr_riom_sc1, fr_riom_sc1r, fr_riom_sc2, fr_riom_sc2r)
+            coach = self.pmr_dsb1(project_coach_types[int(coach_type)], index, k801, k800, k802, k810, k811, k812, sifa, sifa, sifa1_cond, sifa2_cond, k804, k814, k753, s25, s60, s60_r, s62, s62_r, s256, s256_r, s255, s255_r, fr_riom_sc1, fr_riom_sc1r, fr_riom_sc2, fr_riom_sc2r, s60_b1, s60_r_b1, s62_b1, s62_r_b1, s256_b1, s256_r_b1)
         elif coach_type == '5' and self.project == "DB":
-            coach = self.pmr_db_dsb2(project_coach_types[int(coach_type)], index, k801, k800, k802, k810, k811, k812, k804, k814, s60, s60_r, s62, s62_r, s256, s256_r)
+            coach = self.pmr_db_dsb2(project_coach_types[int(coach_type)], index, k801, k800, k802, k810, k811, k812, k804, k814, s60, s60_r, s62, s62_r, s256, s256_r, fr_riom_sc1, fr_riom_sc1r, fr_riom_sc2, fr_riom_sc2r, s60_b1, s60_r_b1, s62_b1, s62_r_b1, s256_b1, s256_r_b1)
         elif coach_type == '2' and self.project == "DB":
             coach = self.cabcar(project_coach_types[int(coach_type)], index, k801, k800, k802, k804, s60, s60_r, s62, s62_r, s255, s255_r, s256, s256_r, s8, s8_r, s6, s6_r, s10, k1, k80, k81, k82, k83, sifa1_cond, sifa2_cond, s700, s701, s702, s703, s704, k700, k701, k710, k711, k708, k709, k731, k732, k740, k741, s25, s25_r, k753)
         return coach
@@ -3123,6 +3212,10 @@ class TSCGenerator(QSvgWidget):
 class MainWindow(QMainWindow):
     
     scan_progress_signal = Signal(int)
+
+    def resource_path(self, relative_path):
+        base_path = getattr(sys, '_MEIPASS', os.path.dirname(__file__))
+        return os.path.join(base_path, relative_path)
 
     def __init__(self):
         super().__init__()
@@ -3141,10 +3234,14 @@ class MainWindow(QMainWindow):
                     '10.0.10.192', '10.0.11.0', '10.0.11.64', '10.0.11.128', '10.0.11.192',
                     '10.0.12.0', '10.0.12.64', '10.0.12.128', '10.0.12.192', '10.0.13.0', '10.0.13.64'],
             "LOK": ['10.0.16.67'],
-            "DB_CABCAR": ['10.0.16.96', '10.0.16.160', '10.0.16.224', '10.0.17.32', '10.0.17.96',
+            "DB_VCUCH_CABCAR": ['10.0.16.96', '10.0.16.160', '10.0.16.224', '10.0.17.32', '10.0.17.96',
                            '10.0.17.160', '10.0.17.224', '10.0.18.32', '10.0.18.96', '10.0.18.160',
                              '10.0.18.224', '10.0.19.32', '10.0.19.96', '10.0.19.160', '10.0.19.224',
-                               '10.0.20.32', '10.0.20.96', '10.0.20.160', '10.0.20.224', '10.0.21.32', '10.0.21.96']
+                               '10.0.20.32', '10.0.20.96', '10.0.20.160', '10.0.20.224', '10.0.21.32', '10.0.21.96'],
+            "DB_VCUPH_CABCAR": ['10.0.16.64', '10.0.16.128', '10.0.16.192', '10.0.17.0', '10.0.17.64',
+                                    '10.0.17.128', '10.0.17.192', '10.0.18.0', '10.0.18.64', '10.0.18.128',
+                                    '10.0.18.192', '10.0.19.0', '10.0.19.64', '10.0.19.128', '10.0.19.192',
+                                    '10.0.20.0', '10.0.20.64', '10.0.20.128', '10.0.20.192', '10.0.21.0', '10.0.21.64']
         }
         
         self.TCMS_vars = TCMS_vars()
@@ -3159,7 +3256,7 @@ class MainWindow(QMainWindow):
         self.setFixedSize(self.default_width, self.default_height)
 
         self.current_dir = os.path.dirname(__file__)
-        self.background_pixmap = QPixmap(os.path.join(self.current_dir, "Talgo_logo.png"))
+        self.background_pixmap = QPixmap(self.resource_path("Talgo_logo.png"))
         self.project = None
         self.connection_monitor = None
         
@@ -3336,7 +3433,7 @@ class MainWindow(QMainWindow):
         self.valid_ips = []
         
 
-        self.scan_thread = ScanThread(self.ip_data[self.project], self.max_initial_ips, self.project, self.ip_data["DB_CABCAR"])
+        self.scan_thread = ScanThread(self.ip_data[self.project], self.max_initial_ips, self.project, self.ip_data["DB_VCUCH_CABCAR"], self.ip_data["DB_VCUPH_CABCAR"])
         self.scan_thread.scan_progress.connect(self.coach_scan_progress)
         self.scan_thread.scan_completed.connect(self.on_scan_completed)
         self.scan_thread.start()
@@ -3378,7 +3475,14 @@ class MainWindow(QMainWindow):
             
             ip_item=self.table.item(0,col)
 
-            if maintenance_mode == 0 and status != "failure":
+            if status == "success":
+                ip_item.setBackground(QColor(175, 242, 175))
+            elif status == "ping_only":
+                ip_item.setBackground(QColor(214, 163, 0))
+            elif status == "failure":
+                ip_item.setBackground(QColor(255, 131, 131))
+
+            if maintenance_mode == 0 and status =="success":
 
                 coach_type = self.trainset_coaches[col].SSH_read(self.TCMS_vars.COACH_TYPE)
 
@@ -3391,8 +3495,11 @@ class MainWindow(QMainWindow):
                 else:
                     valid_types = {}
 
-                if str(coach_type).isdigit() and int(coach_type) not in self.TCMS_vars.COACH_TYPES_DB and col != len(self.trainset_coaches)-1:
+                if str(coach_type).isdigit() and int(coach_type) not in valid_types and col != len(self.trainset_coaches)-1: # Si el coche devuelve un número, pero no es de los válidos para el tipo de proyecto y no hablamos de cabcar entonces...
                 
+                    status = "failure"
+                    coach_type = "Not_SSH"
+
                     self.connection_monitor.stop()
                     self.connection_monitor.wait()
 
@@ -3417,7 +3524,8 @@ class MainWindow(QMainWindow):
                         coach_type = option_keys[selected_index]
                         self.trainset_coaches[col].SSH_write_lock('oVCUCH_TRDP_DS_A000.COM_Vehicle_Type', int(coach_type))
 
-                    self.connection_monitor.run()
+                    # self.connection_monitor.run()
+                    self.connection_monitor.start()
 
                 self.coach_types[col] = coach_type
             
@@ -3457,15 +3565,7 @@ class MainWindow(QMainWindow):
 
             self.connection_states[ip] = status
             
-            if status == "success":
-                ip_item.setBackground(QColor(175, 242, 175))
-            elif status == "ping_only":
-                ip_item.setBackground(QColor(214, 163, 0))
-            elif status == "failure":
-                ip_item.setBackground(QColor(255, 131, 131))
-
         except Exception:
-            print("aqui")
             pass
 
     def create_table(self):
@@ -3627,7 +3727,7 @@ class MainWindow(QMainWindow):
             self.trainset_failures_scan.clicked.connect(self.trainset_tsc_failures)
 
         if not hasattr(self, 'reset_failures'):
-            self.reset_failures = QPushButton("Resetear fallos TAR a composición")
+            self.reset_failures = QPushButton("Reestablecer fallos a composición")
             self.layout.addWidget(self.reset_failures)
             self.reset_failures.clicked.connect(self.reset_TAR_TEMP_failures)
     
@@ -3643,9 +3743,9 @@ class MainWindow(QMainWindow):
         # Regenera el TSCGenerator si el proyecto ha cambiado
         if not hasattr(self, 'tsc') or self.project != getattr(self, 'tsc_project', None):
             if self.project == "DSB":
-                self.tsc = TSCGenerator(self.trainset_coaches, self.coach_types, self.TCMS_vars.TSC_COACH_VARS_DSB, self.TCMS_vars.COACH_TYPES_DSB, self.TCMS_vars.TSC_CC_VARS_DB)
+                self.tsc = TSCGenerator(self.project, self.trainset_coaches, self.coach_types, self.TCMS_vars.TSC_COACH_VARS_DSB, self.TCMS_vars.COACH_TYPES_DSB, self.TCMS_vars.TSC_CC_VARS_DB)
             elif self.project == "DB":
-                self.tsc = TSCGenerator(self.trainset_coaches, self.coach_types, self.TCMS_vars.TSC_COACH_VARS_DB, self.TCMS_vars.COACH_TYPES_DB, self.TCMS_vars.TSC_CC_VARS_DB)
+                self.tsc = TSCGenerator(self.project, self.trainset_coaches, self.coach_types, self.TCMS_vars.TSC_COACH_VARS_DB, self.TCMS_vars.COACH_TYPES_DB, self.TCMS_vars.TSC_CC_VARS_DB)
             self.tsc_project = self.project  # Guarda el proyecto actual
 
         # Regenera siempre el SVG para reflejar cambios en los datos
@@ -3678,7 +3778,11 @@ class MainWindow(QMainWindow):
                         result = vcu.SSH_read(part)  # Ejecuta el diagnóstico
                         BCU_results_cc.extend(result)
 
-                    print(BCU_results_cc)
+                    if maintenance_mode == 1: 
+                        BCU_results_cc = []
+                        BCU_results_cc=list(map(str,random.choices([0, 1], k=len(self.TCMS_vars.BCU_DIAGNOSIS_CC)))) # Crea una lista de valores aleatorios en formato str
+
+                    # print(BCU_results_cc)
 
                                         # Identificar errores activos en BCU
                     active_errors = []
@@ -3689,6 +3793,8 @@ class MainWindow(QMainWindow):
                             error_code = error_info.get("Error Code", "Código no disponible")
                             description = error_info.get("Description", "Descripción no disponible")
                             active_errors.append((ip, error_code, description))
+
+                            
 
                 else: #Para el resto de coches normales
                     
@@ -3739,8 +3845,9 @@ class MainWindow(QMainWindow):
                 return ip
 
     def export_to_excel(self, table):
-        """Exportar los datos de la tabla a un archivo Excel incluyendo número y tipo de coche"""
-
+        """Exportar los datos de la tabla a un archivo Excel incluyendo número y tipo de coche.
+        Mejora: estilo visual, autofiltro, freeze pane y ancho de columnas adaptado al contenido.
+        """
         options = QFileDialog.Options()
         file_path, _ = QFileDialog.getSaveFileName(
             self,
@@ -3750,85 +3857,154 @@ class MainWindow(QMainWindow):
             options=options
         )
 
-        if file_path:
-            workbook = xlsxwriter.Workbook(file_path)
-            worksheet = workbook.add_worksheet("Errores TSC")
+        if not file_path:
+            return
 
-            # Formatos
-            header_format = workbook.add_format({'bold': True, 'bg_color': '#D7E4BC', 'border': 1})
-            cell_format = workbook.add_format({'border': 1})
+        # Asegurar extensión
+        if not file_path.lower().endswith(".xlsx"):
+            file_path += ".xlsx"
 
-            # Encabezados
-            headers = ["Coche", "Tipo", "IP", "Código de Error", "Descripción"]
-            for col, header in enumerate(headers):
-                worksheet.write(0, col, header, header_format)
+        workbook = xlsxwriter.Workbook(file_path)
+        worksheet = workbook.add_worksheet("Errores TSC")
 
-            row_index = 1
-            current_coche = ""
-            current_ip = ""
-            coach_index = -1
-            current_tipo = ""
+        # Formatos
+        header_format = workbook.add_format({
+            'bold': True, 'bg_color': '#2F5496', 'font_color': '#FFFFFF',
+            'border': 1, 'align': 'center', 'valign': 'vcenter'
+        })
+        coach_header_format = workbook.add_format({
+            'bold': True, 'bg_color': '#595959', 'font_color': '#FFFFFF',
+            'border': 1, 'align': 'center'
+        })
+        tipo_format = workbook.add_format({'border': 1, 'align': 'center'})
+        cell_format = workbook.add_format({'border': 1, 'text_wrap': True, 'valign': 'top', 'align': 'left'})
+        no_errors_format = workbook.add_format({'border': 1, 'bg_color': '#D9D9D9', 'align': 'center'})
+        error_code_format = workbook.add_format({'border': 1, 'font_color': '#C00000', 'align': 'center'})
 
-            # Diccionario de tipos según proyecto
-            if self.project == "DB":
-                type_dict = self.TCMS_vars.COACH_TYPES_DB
-            elif self.project == "DSB":
-                type_dict = self.TCMS_vars.COACH_TYPES_DSB
-            else:
-                type_dict = {}
+        # Encabezados
+        headers = ["Coche", "Tipo", "IP", "Código de Error", "Descripción"]
+        for col, header in enumerate(headers):
+            worksheet.write(0, col, header, header_format)
 
-            print(type_dict)
+        # Recorremos la tabla Qt y construimos las filas de exportación
+        row_index = 1
+        current_coche = ""
+        current_ip = ""
+        coach_index = -1
+        current_tipo = ""
 
-            for row in range(table.rowCount()):
-                ip_item = table.item(row, 0)
-                ip_text = ip_item.text() if ip_item else ""
+        # Diccionario de tipos según proyecto
+        if self.project == "DB":
+            type_dict = self.TCMS_vars.COACH_TYPES_DB
+        elif self.project == "DSB":
+            type_dict = self.TCMS_vars.COACH_TYPES_DSB
+        else:
+            type_dict = {}
 
-                # Fila de encabezado tipo "COCHE X (VCU_CH) IP: ..."
-                if "COCHE" in ip_text and "IP:" in ip_text:
-                    import re
-                    match = re.match(r"COCHE\s+(\d+).*IP:\s+([\d\.]+)", ip_text)
-                    if match:
-                        coche_num = int(match.group(1))
-                        ip = match.group(2)
-                        current_coche = f"COCHE {coche_num}"
-                        current_ip = ip
+        # Guardar filas para calcular anchos
+        rows_for_width = [["Coche", "Tipo", "IP", "Código de Error", "Descripción"]]
 
-                        # Buscar índice del IP
-                        coach_index = next((i for i, coach in enumerate(self.trainset_coaches) if coach.ip == ip), -1)
+        for row in range(table.rowCount()):
+            ip_item = table.item(row, 0)
+            ip_text = ip_item.text() if ip_item else ""
 
-                        # Obtener tipo numérico
-                        if 0 <= coach_index < len(self.coach_types):
-                            tipo_num = self.coach_types[coach_index]
+            # Fila de encabezado tipo "COCHE X (VCU_CH) IP: ..."
+            if "COCHE" in ip_text and "IP:" in ip_text:
+                import re
+                match = re.match(r"COCHE\s+(\d+).*IP:\s+([\d\.]+)", ip_text)
+                if match:
+                    coche_num = int(match.group(1))
+                    ip = match.group(2)
+                    current_coche = f"COCHE {coche_num}"
+                    current_ip = ip
 
-                            # Si es el último VCU en proyecto DB, forzar tipo del anterior
-                            if self.project == "DB" and coach_index == len(self.coach_types) - 1:
-                                tipo_num = self.coach_types[coach_index - 1]
+                    # Buscar índice del IP
+                    coach_index = next((i for i, coach in enumerate(self.trainset_coaches) if coach.ip == ip), -1)
 
+                    # Obtener tipo numérico
+                    if 0 <= coach_index < len(self.coach_types):
+                        tipo_num = self.coach_types[coach_index]
+
+                        # Si es el último VCU en proyecto DB, forzar tipo del anterior
+                        if self.project == "DB" and coach_index == len(self.coach_types) - 1:
+                            tipo_num = self.coach_types[coach_index - 1]
+
+                        try:
                             tipo_name = type_dict.get(int(tipo_num), "???")
-                            print(tipo_num, tipo_name)
-                            current_tipo = f"{tipo_num} ({tipo_name})"
-                        else:
-                            current_tipo = "???"
+                        except Exception:
+                            tipo_name = type_dict.get(tipo_num, "???")
+                        current_tipo = f"{tipo_num} ({tipo_name})"
+                    else:
+                        current_tipo = "???"
+                # No escribimos fila de encabezado como fila de detalle, sólo la usamos como contexto
+                continue
 
-                    continue  # Saltar fila de encabezado
+            # Fila de error
+            if ip_text:  # si hay algo en columna 0, usamos esa IP
+                ip = ip_text
+            else:
+                ip = current_ip
 
-                # Fila de error
-                if ip_text:  # si hay algo en columna 0, usamos esa IP
-                    ip = ip_text
-                else:
-                    ip = current_ip
+            error_code = table.item(row, 1).text() if table.item(row, 1) else ""
+            description = table.item(row, 2).text() if table.item(row, 2) else ""
 
-                error_code = table.item(row, 1).text() if table.item(row, 1) else ""
-                description = table.item(row, 2).text() if table.item(row, 2) else ""
+            # Si no tenemos coche contextual, intentar inferir por IP
+            if not current_coche:
+                coach_index = next((i for i, coach in enumerate(self.trainset_coaches) if coach.ip == ip), -1)
+                if coach_index >= 0:
+                    current_coche = f"COCHE {coach_index + 1}"
+                    tipo_num = self.coach_types[coach_index] if 0 <= coach_index < len(self.coach_types) else None
+                    try:
+                        tipo_name = type_dict.get(int(tipo_num), "???") if tipo_num is not None else "???"
+                    except Exception:
+                        tipo_name = type_dict.get(tipo_num, "???")
+                    current_tipo = f"{tipo_num} ({tipo_name})" if tipo_num is not None else "???"
 
-                worksheet.write(row_index, 0, current_coche, cell_format)
-                worksheet.write(row_index, 1, current_tipo, cell_format)
-                worksheet.write(row_index, 2, ip, cell_format)
+            worksheet.write(row_index, 0, current_coche, tipo_format)
+            worksheet.write(row_index, 1, current_tipo, tipo_format)
+
+            # IP
+            worksheet.write(row_index, 2, ip, cell_format)
+
+            # Código de error (resaltar en rojo si no es "Sin errores activos")
+            if error_code and "Sin errores" not in error_code:
+                worksheet.write(row_index, 3, error_code, error_code_format)
+            elif "Sin errores" in error_code:
+                worksheet.write(row_index, 3, error_code, no_errors_format)
+            else:
                 worksheet.write(row_index, 3, error_code, cell_format)
-                worksheet.write(row_index, 4, description, cell_format)
-                row_index += 1
 
-            workbook.close()
+            worksheet.write(row_index, 4, description, cell_format)
+
+            rows_for_width.append([current_coche, current_tipo, ip, error_code or "", description or ""])
+            row_index += 1
+
+        # Autofiltro y freeze pane
+        if row_index > 1:
+            worksheet.autofilter(0, 0, row_index - 1, len(headers) - 1)
+        worksheet.freeze_panes(1, 0)
+
+        # Ajustar anchos de columnas basados en contenido
+        max_widths = [0] * len(headers)
+        for r in rows_for_width:
+            for c, cell in enumerate(r):
+                length = len(str(cell))
+                if length > max_widths[c]:
+                    max_widths[c] = length
+
+        # Convertir longitud de caracteres a ancho razonable en Excel (aprox)
+        for col, max_ch in enumerate(max_widths):
+            # limit width and add padding
+            width = min(max(10, max_ch + 4), 60)
+            worksheet.set_column(col, col, width)
+
+        workbook.close()
+
+        # Mensaje corto al usuario
+        try:
+            QMessageBox.information(self, "Exportado", f"Exportado correctamente a:\n{file_path}")
+        except Exception:
+            pass
 
     def trainset_tsc_failures(self):
 
@@ -3881,9 +4057,13 @@ class MainWindow(QMainWindow):
         export_action.triggered.connect(lambda: self.export_to_excel(table))  # Conectar evento
 
         # Convertir resultados_dict en una lista de filas para la tabla
+        # Construir table_data en el mismo orden que self.trainset_coaches (orden por coche)
         table_data = []
-        for ip, errors in self.results_dict.items():
-            table_data.append((ip, None, None))  # Indicador de fila combinada
+        for coach in self.trainset_coaches:
+            ip = coach.ip
+            # Si no hay entradas para la IP, mostramos "Sin errores activos"
+            errors = self.results_dict.get(ip, [("Sin errores activos", "", "")])
+            table_data.append((ip, None, None))  # Indicador de fila combinada (encabezado por coche/IP)
             for error in errors:
                 table_data.append(error)
 
@@ -3935,7 +4115,7 @@ class MainWindow(QMainWindow):
             total_width += table.verticalScrollBar().width()
 
         # Ajustar el tamaño de la ventana al ancho total de la tabla
-        self.trainset_failures_window.resize(total_width + 50, 400)  # Altura fija, pero podrías ajustarla también
+        self.trainset_failures_window.resize(total_width + 50, 800)  # Altura fija, pero podrías ajustarla también
 
         table_layout.addWidget(menu_bar)
         table_layout.addWidget(table)
@@ -3963,290 +4143,290 @@ class MainWindow(QMainWindow):
                     break
             self.open_coach_diagnostic_window(coach_index)
 
-    def open_coach_diagnostic_window(self, coach_index):
+    # def open_coach_diagnostic_window(self, coach_index):
 
-        if self.connection_states[self.trainset_coaches[coach_index].ip] != "success" and maintenance_mode==0:
-            self.timer.start()
-            return
+    #     if self.connection_states[self.trainset_coaches[coach_index].ip] != "success" and maintenance_mode==0:
+    #         self.timer.start()
+    #         return
         
-        tsc_diag_data, BCU_diag_data_1, BCU_diag_data_2, BCU_diag_data_3, BCU_diag_data_4, BCU_diag_data_5, BCU_diag_data_cc_1, BCU_diag_data_cc_2, BCU_diag_data_cc_3, BCU_diag_data_cc_4, BCU_diag_data_cc_5, BCU_diag_data_cc_6, BCU_diag_data_cc_7, BCU_diag_data_cc_8, BCU_diag_data_cc_9, BCU_diag_data_cc_10 = self.tsc.report_tsc_diag(self.trainset_coaches[coach_index], self.TCMS_vars.TSC_DIAG_VARS, self.TCMS_vars.BCU_DIAGNOSIS, self.TCMS_vars.BCU_DIAGNOSIS_CC)
+    #     tsc_diag_data, BCU_diag_data_1, BCU_diag_data_2, BCU_diag_data_3, BCU_diag_data_4, BCU_diag_data_5, BCU_diag_data_cc_1, BCU_diag_data_cc_2, BCU_diag_data_cc_3, BCU_diag_data_cc_4, BCU_diag_data_cc_5, BCU_diag_data_cc_6, BCU_diag_data_cc_7, BCU_diag_data_cc_8, BCU_diag_data_cc_9, BCU_diag_data_cc_10 = self.tsc.report_tsc_diag(self.trainset_coaches[coach_index], self.TCMS_vars.TSC_DIAG_VARS, self.TCMS_vars.BCU_DIAGNOSIS, self.TCMS_vars.BCU_DIAGNOSIS_CC)
         
-        if maintenance_mode == 1: 
-            BCU_diag_data = concatenate([BCU_diag_data_1, BCU_diag_data_2, BCU_diag_data_3, BCU_diag_data_4, BCU_diag_data_5])
-        else:
-            BCU_diag_data = BCU_diag_data_1 + BCU_diag_data_2 + BCU_diag_data_3 + BCU_diag_data_4 + BCU_diag_data_5
-            BCU_diag_data_cc = BCU_diag_data_cc_1 + BCU_diag_data_cc_2 + BCU_diag_data_cc_3 + BCU_diag_data_cc_4 + BCU_diag_data_cc_5 + BCU_diag_data_cc_6 + BCU_diag_data_cc_7 + BCU_diag_data_cc_8 + BCU_diag_data_cc_9 + BCU_diag_data_cc_10
+    #     if maintenance_mode == 1: 
+    #         BCU_diag_data = concatenate([BCU_diag_data_1, BCU_diag_data_2, BCU_diag_data_3, BCU_diag_data_4, BCU_diag_data_5])
+    #     else:
+    #         BCU_diag_data = BCU_diag_data_1 + BCU_diag_data_2 + BCU_diag_data_3 + BCU_diag_data_4 + BCU_diag_data_5
+    #         BCU_diag_data_cc = BCU_diag_data_cc_1 + BCU_diag_data_cc_2 + BCU_diag_data_cc_3 + BCU_diag_data_cc_4 + BCU_diag_data_cc_5 + BCU_diag_data_cc_6 + BCU_diag_data_cc_7 + BCU_diag_data_cc_8 + BCU_diag_data_cc_9 + BCU_diag_data_cc_10
             
-            if len(self.TCMS_vars.TSC_DIAG_VARS) + len(self.TCMS_vars.BCU_DIAGNOSIS) != len(BCU_diag_data) + len(tsc_diag_data):
-                print("SE HAN PERDIDO VARIABLES")
+    #         if len(self.TCMS_vars.TSC_DIAG_VARS) + len(self.TCMS_vars.BCU_DIAGNOSIS) != len(BCU_diag_data) + len(tsc_diag_data):
+    #             print("SE HAN PERDIDO VARIABLES")
 
-        # print(tsc_diag_data)
-        # print(BCU_diag_data)
+    #     # print(tsc_diag_data)
+    #     # print(BCU_diag_data)
 
-        diag_window = QWidget()
-        diag_window.setWindowTitle(f"Diagnóstico Coche {coach_index + 1}")
-        layout = QVBoxLayout()
+    #     diag_window = QWidget()
+    #     diag_window.setWindowTitle(f"Diagnóstico Coche {coach_index + 1}")
+    #     layout = QVBoxLayout()
 
-        # Tab principal
-        tab_widget = QTabWidget()
+    #     # Tab principal
+    #     tab_widget = QTabWidget()
 
-        # Crear las tabs
-        # loop_opening_tab = QWidget()
-        bearing_temp_tab = QWidget()
-        TAR_tab = QWidget()
-        BCU_diag_tab = QWidget()
+    #     # Crear las tabs
+    #     # loop_opening_tab = QWidget()
+    #     bearing_temp_tab = QWidget()
+    #     TAR_tab = QWidget()
+    #     BCU_diag_tab = QWidget()
 
-        # tab_widget.addTab(loop_opening_tab, "CAUSA DE APERTURA DE LAZO DE SEGURIDAD")
-        tab_widget.addTab(bearing_temp_tab, "TEMPERATURA DE RODAMIENTOS")
-        tab_widget.addTab(TAR_tab, "INESTABILIDAD DE RODADURA (TAR)")
-        tab_widget.addTab(BCU_diag_tab, "DIAGNÓSIS DE BCU")
+    #     # tab_widget.addTab(loop_opening_tab, "CAUSA DE APERTURA DE LAZO DE SEGURIDAD")
+    #     tab_widget.addTab(bearing_temp_tab, "TEMPERATURA DE RODAMIENTOS")
+    #     tab_widget.addTab(TAR_tab, "INESTABILIDAD DE RODADURA (TAR)")
+    #     tab_widget.addTab(BCU_diag_tab, "DIAGNÓSIS DE BCU")
 
-        # Calcular el ancho necesario en función de los tabs
-        total_tab_width = sum(tab_widget.tabBar().tabRect(i).width() for i in range(tab_widget.count()))
-        total_tab_width += 30
+    #     # Calcular el ancho necesario en función de los tabs
+    #     total_tab_width = sum(tab_widget.tabBar().tabRect(i).width() for i in range(tab_widget.count()))
+    #     total_tab_width += 30
 
-        # Función para calcular la altura
-        def calculate_window_height(index):
-            current_widget = tab_widget.widget(index)
-            if current_widget:
-                # Calcular el tamaño sugerido para el widget actual
-                recommended_height = current_widget.sizeHint().height()
-                diag_window.setFixedSize(900, recommended_height + 50)  # Ajustar margen
+    #     # Función para calcular la altura
+    #     def calculate_window_height(index):
+    #         current_widget = tab_widget.widget(index)
+    #         if current_widget:
+    #             # Calcular el tamaño sugerido para el widget actual
+    #             recommended_height = current_widget.sizeHint().height()
+    #             diag_window.setFixedSize(900, recommended_height + 50)  # Ajustar margen
 
-        # Conectar el evento de cambio de pestaña
-        tab_widget.currentChanged.connect(calculate_window_height)
+    #     # Conectar el evento de cambio de pestaña
+    #     tab_widget.currentChanged.connect(calculate_window_height)
 
-        # LAYOUT PARA LAS TEMPERATURAS DE RODAMIENTOS
-        temp_vbox = QVBoxLayout()
-        temp_unav_vbox = QVBoxLayout()
+    #     # LAYOUT PARA LAS TEMPERATURAS DE RODAMIENTOS
+    #     temp_vbox = QVBoxLayout()
+    #     temp_unav_vbox = QVBoxLayout()
 
-        vertical_splitter = QFrame()
-        vertical_splitter.setFrameShape(QFrame.VLine)
-        vertical_splitter.setFrameShadow(QFrame.Sunken)
+    #     vertical_splitter = QFrame()
+    #     vertical_splitter.setFrameShape(QFrame.VLine)
+    #     vertical_splitter.setFrameShadow(QFrame.Sunken)
 
-        bearing_temps_layout = QHBoxLayout()
+    #     bearing_temps_layout = QHBoxLayout()
 
-        # Bandera para indicar si se debe cambiar el color del tab
-        highlight_tab_temp = False
-        highlight_tab_tar = False
+    #     # Bandera para indicar si se debe cambiar el color del tab
+    #     highlight_tab_temp = False
+    #     highlight_tab_tar = False
 
-        if self.project == "DSB":
-            # Lógica para temperaturas
-            if coach_index == 3:
-                for i, bearing in enumerate(self.TCMS_vars.BEARING_NAMES):
-                    value = tsc_diag_data[i]
-                    unav_value = tsc_diag_data[i + 31]
+    #     if self.project == "DSB":
+    #         # Lógica para temperaturas
+    #         if coach_index == 3:
+    #             for i, bearing in enumerate(self.TCMS_vars.BEARING_NAMES):
+    #                 value = tsc_diag_data[i]
+    #                 unav_value = tsc_diag_data[i + 31]
 
-                    # Crear el label para temperatura
-                    label = QLabel(f"{bearing}: {value}")
-                    if int(unav_value) != 0:
-                        label.setStyleSheet("background-color: yellow")
-                        highlight_tab_temp = True
-                    temp_vbox.addWidget(label)
+    #                 # Crear el label para temperatura
+    #                 label = QLabel(f"{bearing}: {value}")
+    #                 if int(unav_value) != 0:
+    #                     label.setStyleSheet("background-color: yellow")
+    #                     highlight_tab_temp = True
+    #                 temp_vbox.addWidget(label)
 
-                    line = QFrame()
-                    line.setFrameShape(QFrame.HLine)
-                    line.setFrameShadow(QFrame.Sunken)
-                    temp_vbox.addWidget(line)
+    #                 line = QFrame()
+    #                 line.setFrameShape(QFrame.HLine)
+    #                 line.setFrameShadow(QFrame.Sunken)
+    #                 temp_vbox.addWidget(line)
 
-                    # Crear el label para indisponibilidad
-                    unav_label = QLabel(f"{self.TCMS_vars.TEMP_UNAV_NAMES[i]}: {unav_value}")
-                    if int(unav_value) != 0:
-                        unav_label.setStyleSheet("background-color: yellow")
-                    temp_unav_vbox.addWidget(unav_label)
+    #                 # Crear el label para indisponibilidad
+    #                 unav_label = QLabel(f"{self.TCMS_vars.TEMP_UNAV_NAMES[i]}: {unav_value}")
+    #                 if int(unav_value) != 0:
+    #                     unav_label.setStyleSheet("background-color: yellow")
+    #                 temp_unav_vbox.addWidget(unav_label)
 
-                    line = QFrame()
-                    line.setFrameShape(QFrame.HLine)
-                    line.setFrameShadow(QFrame.Sunken)
-                    temp_unav_vbox.addWidget(line)
-            else:
-                for i, bearing in enumerate(self.TCMS_vars.BEARING_NAMES[:8]):
-                    value = tsc_diag_data[i]
-                    unav_value = tsc_diag_data[i + 31]
+    #                 line = QFrame()
+    #                 line.setFrameShape(QFrame.HLine)
+    #                 line.setFrameShadow(QFrame.Sunken)
+    #                 temp_unav_vbox.addWidget(line)
+    #         else:
+    #             for i, bearing in enumerate(self.TCMS_vars.BEARING_NAMES[:8]):
+    #                 value = tsc_diag_data[i]
+    #                 unav_value = tsc_diag_data[i + 31]
 
-                    label = QLabel(f"{bearing}: {value}")
-                    if int(unav_value) != 0:
-                        label.setStyleSheet("background-color: yellow")
-                        highlight_tab_temp = True
-                    temp_vbox.addWidget(label)
+    #                 label = QLabel(f"{bearing}: {value}")
+    #                 if int(unav_value) != 0:
+    #                     label.setStyleSheet("background-color: yellow")
+    #                     highlight_tab_temp = True
+    #                 temp_vbox.addWidget(label)
 
-                    line = QFrame()
-                    line.setFrameShape(QFrame.HLine)
-                    line.setFrameShadow(QFrame.Sunken)
-                    temp_vbox.addWidget(line)
+    #                 line = QFrame()
+    #                 line.setFrameShape(QFrame.HLine)
+    #                 line.setFrameShadow(QFrame.Sunken)
+    #                 temp_vbox.addWidget(line)
 
-                    unav_label = QLabel(f"{self.TCMS_vars.TEMP_UNAV_NAMES[i]}: {unav_value}")
-                    if int(unav_value) != 0:
-                        unav_label.setStyleSheet("background-color: yellow")
-                    temp_unav_vbox.addWidget(unav_label)
+    #                 unav_label = QLabel(f"{self.TCMS_vars.TEMP_UNAV_NAMES[i]}: {unav_value}")
+    #                 if int(unav_value) != 0:
+    #                     unav_label.setStyleSheet("background-color: yellow")
+    #                 temp_unav_vbox.addWidget(unav_label)
 
-                    line = QFrame()
-                    line.setFrameShape(QFrame.HLine)
-                    line.setFrameShadow(QFrame.Sunken)
-                    temp_unav_vbox.addWidget(line)
+    #                 line = QFrame()
+    #                 line.setFrameShape(QFrame.HLine)
+    #                 line.setFrameShadow(QFrame.Sunken)
+    #                 temp_unav_vbox.addWidget(line)
 
-            # Cambiar el color del texto del tab si es necesario
-            if highlight_tab_temp:
-                tab_widget.tabBar().setTabTextColor(0, Qt.red)
+    #         # Cambiar el color del texto del tab si es necesario
+    #         if highlight_tab_temp:
+    #             tab_widget.tabBar().setTabTextColor(0, Qt.red)
 
-            # Crear widgets contenedores y establecer layouts
-            temp_widget = QWidget()
-            temp_widget.setLayout(temp_vbox)
-            temp_unav_widget = QWidget()
-            temp_unav_widget.setLayout(temp_unav_vbox)
+    #         # Crear widgets contenedores y establecer layouts
+    #         temp_widget = QWidget()
+    #         temp_widget.setLayout(temp_vbox)
+    #         temp_unav_widget = QWidget()
+    #         temp_unav_widget.setLayout(temp_unav_vbox)
 
-            bearing_temps_layout.addWidget(temp_widget)  # Temperaturas
-            bearing_temps_layout.addWidget(vertical_splitter)  # Separador
-            bearing_temps_layout.addWidget(temp_unav_widget)  # Indisponibilidad de temperaturas
+    #         bearing_temps_layout.addWidget(temp_widget)  # Temperaturas
+    #         bearing_temps_layout.addWidget(vertical_splitter)  # Separador
+    #         bearing_temps_layout.addWidget(temp_unav_widget)  # Indisponibilidad de temperaturas
 
-            # Asignar layout al tab de temperaturas de rodamientos
-            bearing_temp_tab.setLayout(bearing_temps_layout)
+    #         # Asignar layout al tab de temperaturas de rodamientos
+    #         bearing_temp_tab.setLayout(bearing_temps_layout)
 
-            # LAYOUT PARA TAR
-            tar_vbox = QVBoxLayout()
-            tar_unav_vbox = QVBoxLayout()
+    #         # LAYOUT PARA TAR
+    #         tar_vbox = QVBoxLayout()
+    #         tar_unav_vbox = QVBoxLayout()
 
-            tar_splitter = QFrame()
-            tar_splitter.setFrameShape(QFrame.VLine)
-            tar_splitter.setFrameShadow(QFrame.Sunken)
+    #         tar_splitter = QFrame()
+    #         tar_splitter.setFrameShape(QFrame.VLine)
+    #         tar_splitter.setFrameShadow(QFrame.Sunken)
 
-            tar_layout = QHBoxLayout()
+    #         tar_layout = QHBoxLayout()
 
-            # Definir número de TAR según el índice del coche
-            if coach_index == 3:
-                tar_count = 4
-            else:
-                tar_count = 2
+    #         # Definir número de TAR según el índice del coche
+    #         if coach_index == 3:
+    #             tar_count = 4
+    #         else:
+    #             tar_count = 2
 
-            # Procesar TAR y TAR_UNAV
-            for i in range(tar_count):
-                tar_index = 16 + i
-                tar_unav_index = 20 + i
+    #         # Procesar TAR y TAR_UNAV
+    #         for i in range(tar_count):
+    #             tar_index = 16 + i
+    #             tar_unav_index = 20 + i
 
-                # Nombres y valores de TAR
-                tar_name = self.TCMS_vars.TAR_NAMES[i]
-                tar_value = tsc_diag_data[tar_index]
+    #             # Nombres y valores de TAR
+    #             tar_name = self.TCMS_vars.TAR_NAMES[i]
+    #             tar_value = tsc_diag_data[tar_index]
 
-                # Crear el label para TAR
-                tar_label = QLabel(f"{tar_name}: {tar_value}")
-                if int(tsc_diag_data[tar_unav_index]) != 0:
-                    tar_label.setStyleSheet("background-color: yellow")
-                    highlight_tab_tar = True
-                tar_vbox.addWidget(tar_label)
+    #             # Crear el label para TAR
+    #             tar_label = QLabel(f"{tar_name}: {tar_value}")
+    #             if int(tsc_diag_data[tar_unav_index]) != 0:
+    #                 tar_label.setStyleSheet("background-color: yellow")
+    #                 highlight_tab_tar = True
+    #             tar_vbox.addWidget(tar_label)
 
-                # Crear una nueva línea horizontal y añadirla al layout TAR
-                line_tar = QFrame()
-                line_tar.setFrameShape(QFrame.HLine)
-                line_tar.setFrameShadow(QFrame.Sunken)
-                tar_vbox.addWidget(line_tar)
+    #             # Crear una nueva línea horizontal y añadirla al layout TAR
+    #             line_tar = QFrame()
+    #             line_tar.setFrameShape(QFrame.HLine)
+    #             line_tar.setFrameShadow(QFrame.Sunken)
+    #             tar_vbox.addWidget(line_tar)
 
-                # Nombres y valores de TAR_UNAV
-                tar_unav_name = self.TCMS_vars.TAR_UNAV_NAMES[i]
-                tar_unav_value = tsc_diag_data[tar_unav_index]
-                tar_unav_label = QLabel(f"{tar_unav_name}: {tar_unav_value}")
-                if int(tar_unav_value) != 0:
-                    tar_unav_label.setStyleSheet("background-color: yellow")
-                tar_unav_vbox.addWidget(tar_unav_label)
+    #             # Nombres y valores de TAR_UNAV
+    #             tar_unav_name = self.TCMS_vars.TAR_UNAV_NAMES[i]
+    #             tar_unav_value = tsc_diag_data[tar_unav_index]
+    #             tar_unav_label = QLabel(f"{tar_unav_name}: {tar_unav_value}")
+    #             if int(tar_unav_value) != 0:
+    #                 tar_unav_label.setStyleSheet("background-color: yellow")
+    #             tar_unav_vbox.addWidget(tar_unav_label)
 
-                # Crear una nueva línea horizontal y añadirla al layout TAR_UNAV
-                line_tar_unav = QFrame()
-                line_tar_unav.setFrameShape(QFrame.HLine)
-                line_tar_unav.setFrameShadow(QFrame.Sunken)
-                tar_unav_vbox.addWidget(line_tar_unav)
+    #             # Crear una nueva línea horizontal y añadirla al layout TAR_UNAV
+    #             line_tar_unav = QFrame()
+    #             line_tar_unav.setFrameShape(QFrame.HLine)
+    #             line_tar_unav.setFrameShadow(QFrame.Sunken)
+    #             tar_unav_vbox.addWidget(line_tar_unav)
 
-            # Cambiar el color del texto del tab TAR si es necesario
-            if highlight_tab_tar:
-                tab_widget.tabBar().setTabTextColor(1, Qt.red)
+    #         # Cambiar el color del texto del tab TAR si es necesario
+    #         if highlight_tab_tar:
+    #             tab_widget.tabBar().setTabTextColor(1, Qt.red)
 
-            # Crear widgets contenedores y establecer layouts
-            tar_widget = QWidget()
-            tar_widget.setLayout(tar_vbox)
-            tar_unav_widget = QWidget()
-            tar_unav_widget.setLayout(tar_unav_vbox)
+    #         # Crear widgets contenedores y establecer layouts
+    #         tar_widget = QWidget()
+    #         tar_widget.setLayout(tar_vbox)
+    #         tar_unav_widget = QWidget()
+    #         tar_unav_widget.setLayout(tar_unav_vbox)
 
-            tar_layout.addWidget(tar_widget)
-            tar_layout.addWidget(tar_splitter)
-            tar_layout.addWidget(tar_unav_widget)
+    #         tar_layout.addWidget(tar_widget)
+    #         tar_layout.addWidget(tar_splitter)
+    #         tar_layout.addWidget(tar_unav_widget)
 
-            # Asignar layout al tab TAR
-            TAR_tab.setLayout(tar_layout)
+    #         # Asignar layout al tab TAR
+    #         TAR_tab.setLayout(tar_layout)
 
-        # #LAYOUT PARA LA DIAGNÓSIS DE BCU
+    #     # #LAYOUT PARA LA DIAGNÓSIS DE BCU
 
-        active_errors = []
+    #     active_errors = []
 
-        for index, value in enumerate(BCU_diag_data):
-            if value == '1':  # Error activo
-                var_name = self.TCMS_vars.BCU_DIAGNOSIS[index]
-                error_info = self.TCMS_vars.BCU_DIAGNOSIS_DICT.get(var_name.split('.')[-1], {})
-                error_code = error_info.get("Error Code", "Código no disponible")
-                description = error_info.get("Description", "Descripción no disponible")
-                active_errors.append((var_name, error_code, description))
+    #     for index, value in enumerate(BCU_diag_data):
+    #         if value == '1':  # Error activo
+    #             var_name = self.TCMS_vars.BCU_DIAGNOSIS[index]
+    #             error_info = self.TCMS_vars.BCU_DIAGNOSIS_DICT.get(var_name.split('.')[-1], {})
+    #             error_code = error_info.get("Error Code", "Código no disponible")
+    #             description = error_info.get("Description", "Descripción no disponible")
+    #             active_errors.append((var_name, error_code, description))
 
-        for index, value in enumerate(BCU_diag_data_cc):
-            if value == '1':  # Error activo
-                var_name = self.TCMS_vars.BCU_DIAGNOSIS_CC[index]
-                error_info = self.TCMS_vars.BCU_DIAGNOSIS_DICT.get(var_name.split('.')[-1], {})
-                error_code = error_info.get("Error Code", "Código no disponible")
-                description = error_info.get("Description", "Descripción no disponible")
-                active_errors.append((var_name, error_code, description))
+    #     for index, value in enumerate(BCU_diag_data_cc):
+    #         if value == '1':  # Error activo
+    #             var_name = self.TCMS_vars.BCU_DIAGNOSIS_CC[index]
+    #             error_info = self.TCMS_vars.BCU_DIAGNOSIS_DICT.get(var_name.split('.')[-1], {})
+    #             error_code = error_info.get("Error Code", "Código no disponible")
+    #             description = error_info.get("Description", "Descripción no disponible")
+    #             active_errors.append((var_name, error_code, description))
 
-        # Crear el layout para el tab de BCU Diagnosis
-        BCU_diag_layout = QVBoxLayout()
+    #     # Crear el layout para el tab de BCU Diagnosis
+    #     BCU_diag_layout = QVBoxLayout()
 
-        if active_errors:
-            # Crear la tabla
-            table = QTableWidget()
-            table.setRowCount(len(active_errors))
-            table.setColumnCount(3)
-            table.setHorizontalHeaderLabels(["Variable", "Código de Error", "Descripción"])
+    #     if active_errors:
+    #         # Crear la tabla
+    #         table = QTableWidget()
+    #         table.setRowCount(len(active_errors))
+    #         table.setColumnCount(3)
+    #         table.setHorizontalHeaderLabels(["Variable", "Código de Error", "Descripción"])
 
-            # Hacer que la tabla ocupe todo el ancho disponible
-            table.horizontalHeader().setStretchLastSection(True)
-            table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+    #         # Hacer que la tabla ocupe todo el ancho disponible
+    #         table.horizontalHeader().setStretchLastSection(True)
+    #         table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
 
-            # Llenar la tabla con los diagnósticos activos
-            for row, (var_name, error_code, description) in enumerate(active_errors):
-                table.setItem(row, 0, QTableWidgetItem(var_name))
-                table.setItem(row, 1, QTableWidgetItem(error_code))
-                table.setItem(row, 2, QTableWidgetItem(description))
+    #         # Llenar la tabla con los diagnósticos activos
+    #         for row, (var_name, error_code, description) in enumerate(active_errors):
+    #             table.setItem(row, 0, QTableWidgetItem(var_name))
+    #             table.setItem(row, 1, QTableWidgetItem(error_code))
+    #             table.setItem(row, 2, QTableWidgetItem(description))
 
-            # Añadir la tabla al layout
-            BCU_diag_layout.addWidget(table)
+    #         # Añadir la tabla al layout
+    #         BCU_diag_layout.addWidget(table)
 
-            # Cambiar el color del texto del tab a rojo si hay diagnósticos activos
-            tab_index = tab_widget.indexOf(BCU_diag_tab)
-            tab_widget.tabBar().setTabTextColor(tab_index, Qt.red)
+    #         # Cambiar el color del texto del tab a rojo si hay diagnósticos activos
+    #         tab_index = tab_widget.indexOf(BCU_diag_tab)
+    #         tab_widget.tabBar().setTabTextColor(tab_index, Qt.red)
 
-        else:
-            # No hay fallos, mostrar un mensaje
-            no_fails_label = QLabel("La diagnósis de BCU no reporta fallos")
-            no_fails_label.setAlignment(Qt.AlignCenter)
-            BCU_diag_layout.addWidget(no_fails_label)
+    #     else:
+    #         # No hay fallos, mostrar un mensaje
+    #         no_fails_label = QLabel("La diagnósis de BCU no reporta fallos")
+    #         no_fails_label.setAlignment(Qt.AlignCenter)
+    #         BCU_diag_layout.addWidget(no_fails_label)
 
-        # Asignar el layout al tab de BCU Diagnosis
-        BCU_diag_tab.setLayout(BCU_diag_layout)
+    #     # Asignar el layout al tab de BCU Diagnosis
+    #     BCU_diag_tab.setLayout(BCU_diag_layout)
 
-        # Añadir el tab_widget al layout principal
-        layout.addWidget(tab_widget)
-        diag_window.setLayout(layout)
+    #     # Añadir el tab_widget al layout principal
+    #     layout.addWidget(tab_widget)
+    #     diag_window.setLayout(layout)
 
-        current_widget = tab_widget.widget(0)
-        recommended_height = current_widget.sizeHint().height()
-        diag_window.setFixedSize(900, recommended_height + 50)  # Ajustar margen
+    #     current_widget = tab_widget.widget(0)
+    #     recommended_height = current_widget.sizeHint().height()
+    #     diag_window.setFixedSize(900, recommended_height + 50)  # Ajustar margen
 
-        # Mostrar ventana
-        diag_window.show()
+    #     # Mostrar ventana
+    #     diag_window.show()
 
-        # Evento para cerrar la ventana y reiniciar el temporizador
-        def on_close_event(event):
-            self.timer.start()
-            event.accept()
+    #     # Evento para cerrar la ventana y reiniciar el temporizador
+    #     def on_close_event(event):
+    #         self.timer.start()
+    #         event.accept()
 
-        diag_window.closeEvent = on_close_event
+    #     diag_window.closeEvent = on_close_event
 
-        # Guardar referencia a la ventana
-        self.diag_windows.append(diag_window)
+    #     # Guardar referencia a la ventana
+    #     self.diag_windows.append(diag_window)
 
     def set_timer_function(self, new_function):
 
