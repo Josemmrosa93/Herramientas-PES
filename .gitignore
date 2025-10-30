@@ -1,0 +1,12 @@
+# Ignorar carpetas de build
+build/
+dist/
+__pycache__/
+
+# Ignorar ejecutables e instaladores
+*.exe
+*.zip
+
+# Ignorar otros temporales
+*.log
+*.tmp
