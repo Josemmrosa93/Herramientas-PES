@@ -45,8 +45,11 @@ from xml.etree.ElementTree import (
     SubElement,
     tostring
 )
-from pathlib import Path
 from PySide6.QtSvgWidgets import QSvgWidget
+from pathlib import Path
+import urllib.request
+import json
+import webbrowser
 import subprocess
 import paramiko
 import re
@@ -60,6 +63,10 @@ import time
 import xlsxwriter
 from threading import Event
 import logging
+
+APP_VERSION = "1.0.0"
+GITHUB_OWNER = "Josemmrosa93"
+GITHUB_REPO = "Herramientas-PES"
 
 maintenance_mode = 0
 
@@ -3384,6 +3391,62 @@ class MainWindow(QMainWindow):
         self.export_TSC_action.triggered.connect(lambda: self.tsc.save_as_png(self.timer))
         
         export_menu.addActions([self.export_TSC_action])
+
+        ######### MENÚ AYUDA ##########
+
+        ayuda_menu = self.menu_bar.addMenu("Ayuda")
+
+        # Acción de comprobar actualizaciones
+        self.check_updates_action = QAction("Comprobar actualizaciones", self)
+        self.check_updates_action.triggered.connect(self.check_for_updates)
+        ayuda_menu.addAction(self.check_updates_action)
+
+    def check_for_updates(self):
+        """Muestra el aviso y comprueba si hay una nueva versión"""
+        msg = QMessageBox()
+        msg.setWindowTitle("Comprobar actualizaciones")
+        msg.setText("Compruebe que no está conectado al vehículo y que dispone de conexión a internet.")
+        msg.setStandardButtons(QMessageBox.Ok)
+        msg.setIcon(QMessageBox.Information)
+        response = msg.exec()
+
+        if response == QMessageBox.Ok:
+            try:
+                url = f"https://api.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}/releases/latest"
+                with urllib.request.urlopen(url) as resp:
+                    data = json.load(resp)
+
+                latest_tag = data.get("tag_name", "")
+                assets = data.get("assets", [])
+
+                def to_tuple(v):
+                    return tuple(int(x) for x in v.strip("v").split("."))
+
+                if latest_tag and to_tuple(latest_tag) > to_tuple(APP_VERSION):
+                    download_url = assets[0]["browser_download_url"] if assets else data["html_url"]
+
+                    update_msg = QMessageBox()
+                    update_msg.setWindowTitle("Nueva versión disponible")
+                    update_msg.setText(
+                        f"Se ha encontrado una nueva versión ({latest_tag}).\n\n¿Desea descargarla ahora?"
+                    )
+                    update_msg.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+                    update_msg.setIcon(QMessageBox.Question)
+                    choice = update_msg.exec()
+
+                    if choice == QMessageBox.Yes:
+                        webbrowser.open(download_url)
+                else:
+                    QMessageBox.information(
+                        self, "Sin actualizaciones", "Ya dispone de la última versión disponible."
+                    )
+
+            except Exception as e:
+                QMessageBox.warning(
+                    self,
+                    "Error",
+                    f"No se pudo comprobar actualizaciones.\n\nDetalles:\n{str(e)}",
+                )
 
     def coach_scan_progress(self, progress, coach_number):
         

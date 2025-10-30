@@ -42,5 +42,4 @@ coll = COLLECT(
     strip=False,
     upx=True,
     upx_exclude=[],
-    name='TSC_diag_main',
-)
+    name='TSC_diag_main'
