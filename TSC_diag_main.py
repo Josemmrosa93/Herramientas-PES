@@ -64,7 +64,7 @@ import xlsxwriter
 from threading import Event
 import logging
 
-APP_VERSION = "1.0.0"
+APP_VERSION = "1.0.1"
 GITHUB_OWNER = "Josemmrosa93"
 GITHUB_REPO = "Herramientas-PES"
 
