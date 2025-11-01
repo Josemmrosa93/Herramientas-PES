@@ -64,7 +64,7 @@ import xlsxwriter
 from threading import Event
 import logging
 
-APP_VERSION = "1.0.1"
+APP_VERSION = "1.0.2"
 GITHUB_OWNER = "Josemmrosa93"
 GITHUB_REPO = "Herramientas-PES"
 
@@ -209,6 +209,14 @@ class TCMS_vars:
         "Temperatura rodamiento interior derecho eje B1 (SC2r MVB2) no disponible",
         "Temperatura rodamiento exterior derecho eje B1 (SC2 MVB1) no disponible",
         "Temperatura rodamiento exterior derecho eje B1 (SC2r MVB2) no disponible",  
+        "Fallo tarjeta HSA RIOM 1",
+        "Fallo tarjeta HSA RIOM 1r",
+        "Fallo tarjeta HSA RIOM 2",
+        "Fallo tarjeta HSA RIOM 2r",
+        "Fallo tarjetas DIO RIOM 1",
+        "Fallo tarjetas DIO RIOM 1r",
+        "Fallo tarjetas DIO RIOM 2",
+        "Fallo tarjetas DIO RIOM 2r",
         ]
         #VARIABLES PARA LA DIAGNÓSIS DE APERTURA (TEMPERATURA DE RODAMIENTOS, TAR Y DIAGNÓSIS DE FRENO)
         self.TSC_DIAG_VARS = [
@@ -258,7 +266,15 @@ class TCMS_vars:
         'RIOMSC2_MVB1_DS_2FC.TempUnavailBear3',
         'RIOMSC2r_MVB2_DS_2FC.TempUnavailBear3',
         'RIOMSC2_MVB1_DS_2FC.TempUnavailBear4',
-        'RIOMSC2r_MVB2_DS_2FC.TempUnavailBear4'
+        'RIOMSC2r_MVB2_DS_2FC.TempUnavailBear4',
+        'RIOMSC1_MVB1_DS_2E8.RiomFailureHSA1', #FALLA TARJETA HSA RIOM 1
+        'RIOMSC1r_MVB2_DS_2E8.RiomFailureHSA1', #FALLA TARJETA HSA RIOM 1r
+        'RIOMSC2_MVB1_DS_2FC.RiomFailureHSA1', #FALLA TARJETA HSA RIOM 2
+        'RIOMSC2r_MVB2_DS_2FC.RiomFailureHSA1', #FALLA TARJETA HSA RIOM 2r
+        'RIOMSC1_MVB1_DS_2E9.RiomFailureDIO', #FALLA TARJETA DIO RIOM 1
+        'RIOMSC1r_MVB2_DS_2E9.RiomFailureDIO', #FALLA TARJETA DIO RIOM 1r
+        'RIOMSC2_MVB1_DS_2FD.RiomFailureDIO', #FALLA TARJETA DIO RIOM 2
+        'RIOMSC2r_MVB2_DS_2FD.RiomFailureDIO', #FALLA TARJETA DIO RIOM 2r
         ]
         #NOMBRES DE LAS TEMPERATURAS DE RODAMIENTO DE RODAL Y BOGIE
         self.BEARING_NAMES = [
@@ -668,7 +684,9 @@ class TCMS_vars:
         'BCUCH2_MVB1_DS_311.sDiagnosis23_b1', 
         'BCUCH2_MVB1_DS_311.sDiagnosis23_b2',
         'BCUCH1_MVB2_DS_30F.bDIMGA_S0',
-        'BCUCH2_MVB1_DS_30F.bDIMGA_S0'
+        'BCUCH2_MVB1_DS_30F.bDIMGA_S0',
+        'BCUCH1_MVB2_DS_30F.bDIBA_S2_NOK',
+        'BCUCH2_MVB1_DS_30F.bDIBA_S2_NOK'
         ]
         self.BCU_DIAGNOSIS_CC = [
         'BCUB90_MVB1_DS_614.sDiagnosis01_b1',
@@ -865,9 +883,12 @@ class TCMS_vars:
         'BCUB95_MVB2_DS_614.sDiagnosis23_b1',
         'BCUB90_MVB1_DS_614.sDiagnosis23_b2',
         'BCUB95_MVB2_DS_614.sDiagnosis23_b2',
+        'BCUB90_MVB1_DS_612.bDIBA_S2_NOK',
+        'BCUB95_MVB2_DS_612.bDIBA_S2_NOK',
     ]
         #DICCIONARIO PARA INTERPRETAR LA DIAGNÓSIS
         self.BCU_DIAGNOSIS_DICT = {
+        'bDIBA_S2_NOK': {'Error Code': 'bDIBA_S2_NOK', 'Description': 'Function DIBA_Train not available'},
         'bDIMGA_S0': {'Error Code': 'bDIMGA_S0', 'Description': 'Improperly MTB applied'},    
         'sDiagnosis01_b0': {'Error Code': 'DIA_BOARD_EB02B_07', 'Description': 'Malfunction Board EB02B Node 07 in BCU B9x '},
         'sDiagnosis01_b1': {'Error Code': 'DIA_BOARDCODING_EB02B_07', 'Description': 'The board coding is not correct: either the mode or the node information coded does not comply with the expected codification for the board'},
@@ -2882,7 +2903,7 @@ class TSCGenerator(QSvgWidget):
         SubElement(coach, "line", x1="435", y1="50", x2="445", y2="50", stroke="black", stroke_width="1")
 
         s703_contact1=SubElement(coach, "g", transform="translate(460, 10)")
-        s703_contact1.append(self.create_contact_svg(int(s701), label="S703"))
+        s703_contact1.append(self.create_contact_svg(int(s703), label="S703"))
 
         k732_contact1=SubElement(coach, "g", transform="translate(445, 50)")
         k732_contact1.append(self.create_contact_svg(int(k732), label="K732"))
@@ -3865,7 +3886,7 @@ class MainWindow(QMainWindow):
                     TAR_TEMP_results = vcu.SSH_read(self.TCMS_vars.TSC_DIAG_VARS)
 
                     # Seleccionar solo los índices relevantes
-                    relevant_indices = list(range(20, 24)) + list(range(25, 29)) + list(range(31, 47))
+                    relevant_indices = list(range(20, 24)) + list(range(25, 29)) + list(range(31, 55))
                     filtered_TAR_TEMP_results = [TAR_TEMP_results[i] for i in relevant_indices]
                     filtered_TSC_DIAG_VARS = [self.TCMS_vars.TSC_DIAG_VARS[i] for i in relevant_indices]
 
