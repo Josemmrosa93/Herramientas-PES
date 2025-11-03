@@ -2,7 +2,7 @@
 ; SEE THE DOCUMENTATION FOR DETAILS ON CREATING INNO SETUP SCRIPT FILES!
 
 #define MyAppName "Diagnóstico PeS"
-#define MyAppVersion "1.0.1"
+#define MyAppVersion "1.0.2"
 #define MyAppPublisher "Patentes Talgo S.L.U"
 #define MyAppURL "https://www.Talgo.com/"
 #define MyAppExeName "TSC_diag_main.exe"
@@ -13,7 +13,7 @@
 AppId={{B435DCFE-B77D-4C86-8DEC-A8694F3BF6BB}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
-;AppVerName={#MyAppName} {#MyAppVersion}
+;AppVerName={#MyAppName}
 AppPublisher={#MyAppPublisher}
 AppPublisherURL={#MyAppURL}
 AppSupportURL={#MyAppURL}
@@ -30,7 +30,7 @@ ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 DisableProgramGroupPage=yes
 OutputDir=C:\Users\José María\Documents\SW PES\PES Utility
-OutputBaseFilename=Diagnostico_PeS_Installer_v1_0_1
+OutputBaseFilename=Diagnostico_PeS_Installer_v1_0_2
 SolidCompression=yes
 WizardStyle=modern
 
