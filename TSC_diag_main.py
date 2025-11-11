@@ -62,7 +62,8 @@ from numpy import array_split, concatenate
 import time
 import xlsxwriter
 from threading import Event
-import logging
+import pandas as pd
+import math
 
 APP_VERSION = "1.0.2"
 GITHUB_OWNER = "Josemmrosa93"
@@ -70,8 +71,8 @@ GITHUB_REPO = "Herramientas-PES"
 
 maintenance_mode = 1
 
-PING_TIMEOUT = 100  # Tiempo de espera para el ping en milisegundos.
-SSH_TIMEOUT = 5.0  # Tiempo de espera para la conexión SSH, 5.0 para operación en tren.
+PING_TIMEOUT = 4  # Tiempo de espera para el ping en milisegundos.
+SSH_TIMEOUT = 0.5  # Tiempo de espera para la conexión SSH, 5.0 para operación en tren.
 TEST_TIMEOUT = 1000 # Tiempo de refresco de los datos de diagnóstico, 4000 para operación en tren.
 MONITOR_INTERVAL = 5 # Tiempo de refresco para la evaluación de las conexiones.
 RESET_PAUSE = 5000 # Tiempo de pausa entre órdenes del reseteo de fallos. 
@@ -1442,6 +1443,7 @@ class ScanThread(QThread):
             vcu = VCU(ip)
             if vcu.ping_test():
                 valid_ips.append(ip)
+                print(ip)
             progress= ((i+1)*100)//len(self.ip_list[self.max_initial_ips:])
             coach_number=len(valid_ips)
             self.scan_progress.emit(progress, coach_number)
@@ -3401,10 +3403,11 @@ class MainWindow(QMainWindow):
         self.check_TSC_action.triggered.connect(lambda: self.start_timer_with_function(self.draw_tsc))
         self.check_TSC_action.setEnabled(False)
 
-        self.check_train_connections_action=QAction("Ping test a composición completa", self)
-        # self.check_train_connections_action.triggered.connect(self.massive_ping(self.project, self.trainset_coaches))
+        self.massive_ping_action=QAction("Comprobar estado de comunicación de equipos", self)
+        self.massive_ping_action.triggered.connect(self.massive_ping)
+        self.massive_ping_action.setEnabled(False)
         
-        diag_menu.addActions([self.check_TSC_action, self.check_train_connections_action])
+        diag_menu.addActions([self.check_TSC_action, self.massive_ping_action])
         
         ######### MENÚ EXPORTAR ##########
         
@@ -3707,7 +3710,7 @@ class MainWindow(QMainWindow):
         self.layout.addWidget(self.table)
         
         self.check_TSC_action.setEnabled(True)
-        self.check_train_connections_action.setEnabled(True)
+        self.massive_ping_action.setEnabled(True)
 
     def reset_TAR_TEMP_failures(self):
         """Función para reiniciar fallos temporales de TAR en los VCUs del tren."""
@@ -3854,7 +3857,7 @@ class MainWindow(QMainWindow):
 
         # Habilita la acción de exportación
         self.export_TSC_action.setEnabled(True)
-
+        
     def diagnose_vcu(self, vcu):
                 
                 ip = vcu.ip
@@ -3892,9 +3895,8 @@ class MainWindow(QMainWindow):
                     # Seleccionar solo los índices relevantes
                     relevant_indices = list(range(20, 24)) + list(range(25, 29)) + list(range(31, 55))
                     filtered_TAR_TEMP_results = [TAR_TEMP_results[i] for i in relevant_indices]
-                    
                     filtered_TSC_DIAG_VARS = [self.TCMS_vars.TSC_DIAG_VARS[i] for i in relevant_indices]
-                    # print(filtered_TSC_DIAG_VARS)
+
                     parts = array_split(self.TCMS_vars.BCU_DIAGNOSIS, 10)  # Divide las variables en 5 partes
                     
                     BCU_results = []
@@ -4232,151 +4234,553 @@ class MainWindow(QMainWindow):
                     break
             self.open_coach_diagnostic_window(coach_index)
 
-    def massive_ping(self, project, trainset_coaches):
+    def massive_ping(self):
 
-        self.ping_scanner = Ping_scanner(project, trainset_coaches)
+        self.msg = QMessageBox(self)
+        self.msg.setWindowTitle("Cargando configuración de red")
+        self.msg.setText("Cargando configuración de la red de ethernet...")
+        self.msg.setStandardButtons(QMessageBox.NoButton)
+        self.msg.open()
 
-        return
+        QApplication.processEvents()
+        
+        self.red_eth = self.cargar_red(self.resource_path("F073_IP_Ports_Addressing_00_38.xlsm"))
 
-    def set_timer_function(self, new_function):
+        self.msg.accept()
 
-        if self.current_function != new_function:
-            if self.current_function is not None:
-                try:
-                    self.timer.timeout.disconnect(self.current_function)  # Desconecta la función anterior si está conectada
-                except TypeError:
-                    pass  # Ignora el error si la función no está conectada
+        print(self.red_eth.keys())
 
-            self.timer.timeout.connect(new_function)  # Conecta la nueva función
-            self.current_function = new_function  # Actualiza la función actual conectada
+        count = 0
+        
+        for types in self.red_eth.keys():
+            coach_count = 0
+            coach_count += len(self.red_eth[types])
+            coach_count += sum(len(devices) for devices in self.red_eth[types].values())
+            if coach_count > count:
+                count = coach_count
+                # print(self.red_eth[types])
+        
+        # print(count)
+
+        self.massive_ping_window = QWidget()
+        self.massive_ping_window.setWindowTitle("Comprobación de estado de comunicación de los equipos")
+
+        table_layout = QVBoxLayout()
+
+        table = QTableWidget()
+
+        if self.project == "DB":
+            num_coaches = len(self.trainset_coaches) - 1  # Último coche es cabcar
+        elif self.project == "DSB":
+            num_coaches = len(self.trainset_coaches)
+
+        table.setColumnCount(num_coaches * 4)  # 4 columnas por coche: PUERTO, VLAN, DEVICE, IP
+        table.setRowCount(count)
+
     
-    def start_timer_with_function(self, new_function):
 
-        self.set_timer_function(new_function)
-        new_function()  # Llama a la función inmediatamente
-        if not self.timer.isActive():  # Verifica si el temporizador no está activo
-            self.timer.start(TEST_TIMEOUT)  # Configura el intervalo en 2 segundos
 
-class Ping_scanner(QDialog):
+        for col in range(num_coaches):
 
-    def __init__(self, project: str, trainset_ips: list[str] = []):
-           
-            self.project = project
-            self.trainset_ips = trainset_ips
-
-            if self.project == "DB":
-                self.coaches_number = len(trainset_ips) - 1  # Último IP es del cabcar
-            elif self.project == "DSB":
-                self.coaches_number = len(trainset_ips)
+            print_row = 1  # Reiniciar fila de impresión para cada coche
+            tipo = self.TCMS_vars.COACH_TYPES_DSB[int(self.coach_types[col])] if self.project == "DSB" else self.TCMS_vars.COACH_TYPES_DB[int(self.coach_types[col])]
             
-            self.setWindowTitle(f"Red de proyecto {self.project} con {self.coaches_number} coches")
+            if tipo == "C4302P":
+                tipo = "C4302C"
             
-            self.resize(1200, 700)
+            c0 = 4 * col  # desplazamiento de columnas para este coche (bloque de 4 columnas)
 
-            layout = QVBoxLayout(self)
-            self.table = QTableWidget(self)
-            layout.addWidget(self.table)
+            # ---- Fila 0: título del coche (fusionado 4 columnas) ----
+            coach_title = QTableWidgetItem(f"Coche {col+1} — {tipo}")
+            coach_title.setTextAlignment(Qt.AlignCenter)
+            coach_title.setBackground(QBrush(QColor(100, 100, 100)))
+            coach_title_font = coach_title.font(); coach_title_font.setBold(True); coach_title.setFont(coach_title_font)
+            table.setItem(0, c0, coach_title)
+            table.setSpan(0, c0, 1, 4)  # fusiona columnas 0..3 del bloque
 
-            self._build_table()
+            print_row = 1
 
-    def _build_table(self):
+            # Cargar definición de red a partir del TIPO
+            esus_dict = self.red_eth.get(tipo, {})  # dict de ESUs para ese tipo
+            # Itera ESUs (orden natural del dict; si quieres orden predecible, usa: for esu_name in sorted(esus_dict))
+            for esu_name, ports_dict in esus_dict.items():
+                # ---- Fila de título de ESU (fusionada) ----
+                esu_item = QTableWidgetItem(str(esu_name))
+                esu_item.setTextAlignment(Qt.AlignCenter)
+                esu_font = esu_item.font(); esu_font.setBold(True); esu_item.setFont(esu_font)
+                table.setItem(print_row, c0, esu_item)
+                table.setSpan(print_row, c0, 1, 4)
+                print_row += 1
 
-        # Primero calculamos cuántas filas necesitamos
-        total_rows = 0
-        # también necesitamos el número máximo de columnas que va a tener un coche
-        max_columns = 0
+                # ---- Filas de puertos de la ESU ----
+                # ports_dict: {"E0_0": {"vlan":..., "device":..., "ip":...}, ...}
+                for port_name, info in ports_dict.items():  # si quieres orden, usa sorted(ports_dict.items())
+                    table.setItem(print_row, c0 + 0, QTableWidgetItem(str(port_name)))
+                    table.setItem(print_row, c0 + 1, QTableWidgetItem(str(info.get("VLAN", ""))))
+                    table.setItem(print_row, c0 + 2, QTableWidgetItem(str(info.get("Device", ""))))
+                    print_row += 1
 
-        for coche, esus in self.tren.items():
-            num_esus = len(esus)
-            # 1 fila coche + (por cada esu: 1 fila de título + 1 fila cabecera + N filas de puertos)
-            rows_this_coach = 1  # fila del título de coche
-            for esu_name, ports in esus.items():
-                n_ports = len(ports)
-                rows_this_coach += 1      # fila "ESU x"
-                rows_this_coach += 1      # fila cabeceras
-                rows_this_coach += n_ports  # filas de puertos
-            total_rows += rows_this_coach
 
-            # columnas: 5 por ESU
-            cols_this_coach = num_esus * 5
-            if cols_this_coach > max_columns:
-                max_columns = cols_this_coach
 
-        if max_columns == 0:
-            # por si acaso el diccionario está vacío
-            max_columns = 5
 
-        self.table.setRowCount(total_rows)
-        self.table.setColumnCount(max_columns)
+        # Ajustar el ancho de las columnas al contenido
+        table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
 
-        # ponemos headers vacíos (porque vamos a ponerlos dentro)
-        self.table.setHorizontalHeaderLabels([""] * max_columns)
-        self.table.verticalHeader().setVisible(False)
+        # Ajustar la altura de las filas al contenido
+        table.resizeRowsToContents()
 
-        current_row = 0
+        # Calcular el ancho total de la tabla
+        total_width = table.verticalHeader().width()  # Ancho del header vertical
+        total_width += table.frameWidth() * 2  # Bordes de la tabla
 
-        # Ahora rellenamos
-        for coche, esus in self.tren.items():
-            esu_names = list(esus.keys())
-            num_esus = len(esu_names)
-            span_columns = num_esus * 5 if num_esus > 0 else 5
+        # Ajustar el tamaño de la ventana al ancho total de la tabla
+        self.massive_ping_window.resize(total_width + 50, 800)  # Altura fija, pero podrías ajustarla también
 
-            # -------- fila de título de coche --------
-            item_coche = QTableWidgetItem(f"Coche {coche}")
-            item_coche.setTextAlignment(Qt.AlignCenter)
-            self.table.setItem(current_row, 0, item_coche)
-            # combinamos la celda para que ocupe todas las columnas de este coche
-            self.table.setSpan(current_row, 0, 1, span_columns)
-            current_row += 1
+        # table_layout.addWidget(menu_bar)
+        table_layout.addWidget(table)
+       
+        self.massive_ping_window.setLayout(table_layout)
+        self.massive_ping_window.show()
 
-            # -------- por cada ESU de este coche --------
-            for idx_esu, (esu_name, ports) in enumerate(esus.items()):
-                # columna inicial para este ESU
-                col_start = idx_esu * 5
+        # Crear barra de menú
+        # menu_bar = QMenuBar(self.trainset_failures_window)
+        # file_menu = QMenu("Archivo", self.trainset_failures_window)
+        # export_action = QAction("Exportar a Excel", self.trainset_failures_window)
+        # file_menu.addAction(export_action)
+        # menu_bar.addMenu(file_menu)
+        # export_action.triggered.connect(lambda: self.export_to_excel(table))  # Conectar evento
 
-                # 1) fila título ESU
-                item_esu = QTableWidgetItem(esu_name)
-                item_esu.setTextAlignment(Qt.AlignCenter)
-                self.table.setItem(current_row, col_start, item_esu)
-                self.table.setSpan(current_row, col_start, 1, 5)
-                current_row += 1
+        # Convertir resultados_dict en una lista de filas para la tabla
+        # Construir table_data en el mismo orden que self.trainset_coaches (orden por coche)
+        # table_data = []
+        # for coach in self.trainset_coaches:
+        #     ip = coach.ip
+        #     # Si no hay entradas para la IP, mostramos "Sin errores activos"
+        #     errors = self.results_dict.get(ip, [("Sin errores activos", "", "")])
+        #     table_data.append((ip, None, None))  # Indicador de fila combinada (encabezado por coche/IP)
+        #     for error in errors:
+        #         table_data.append(error)
 
-                # 2) fila cabeceras del ESU
-                headers = ["Port", "Port ID", "VLAN", "Device", "IP"]
-                for i, h in enumerate(headers):
-                    it = QTableWidgetItem(h)
-                    it.setTextAlignment(Qt.AlignCenter)
-                    self.table.setItem(current_row, col_start + i, it)
-                current_row += 1
+        # table.setRowCount(len(table_data))
+        # for row_idx, (ip, error_code, description) in enumerate(table_data):
+        #     if error_code is None and description is None:  # Si la fila es una fila combinada
+        #         coach_index = next((i for i, coach in enumerate(self.trainset_coaches) if coach.ip == ip), -1)
 
-                # 3) filas de puertos
-                # en tu diccionario los puertos son algo como 'e1-0': {...}
-                for port_name, pdata in ports.items():
-                    # Port
-                    self.table.setItem(current_row, col_start + 0, QTableWidgetItem(port_name))
-                    # Port ID -> si tuviéramos un ID distinto; de momento le pongo el mismo nombre
-                    self.table.setItem(current_row, col_start + 1, QTableWidgetItem(port_name))
-                    # VLAN
-                    vlan_val = pdata.get("VLAN")
-                    self.table.setItem(
-                        current_row, col_start + 2,
-                        QTableWidgetItem("" if vlan_val is None else str(vlan_val))
-                    )
-                    # Device
-                    dev_val = pdata.get("Device")
-                    self.table.setItem(
-                        current_row, col_start + 3,
-                        QTableWidgetItem("" if dev_val is None else str(dev_val))
-                    )
-                    # IP (vacío por ahora)
-                    self.table.setItem(current_row, col_start + 4, QTableWidgetItem(""))
-                    current_row += 1
+        #         # Caso especial para proyecto DB: últimas 2 IPs son el mismo coche
+        #         if self.project == "DB":
+        #             last_idx = len(self.trainset_coaches) - 1
+        #             penult_idx = last_idx - 1
 
-        # un poco de ajuste visual
-        self.table.resizeColumnsToContents()
-        self.table.resizeRowsToContents()
-        self.table.setAlternatingRowColors(True)
-        self.table.setEditTriggers(QTableWidget.NoEditTriggers)
+        #             if coach_index == penult_idx:
+        #                 label = f"COCHE {coach_index + 1} (VCU_CH) IP: {ip}"
+        #             elif coach_index == last_idx:
+        #                 label = f"COCHE {coach_index} (VCU_PH) IP: {ip}"  # mismo índice que CH
+        #             else:
+        #                 label = f"COCHE {coach_index + 1} (IP: {ip})"
+        #         else:
+        #             label = f"COCHE {coach_index + 1} (IP: {ip})"
+
+        #         item = QTableWidgetItem(label)
+        #         item.setTextAlignment(Qt.AlignCenter)
+        #         item.setBackground(QBrush(QColor(100, 100, 100)))  # Gris oscuro
+        #         item.setForeground(QBrush(QColor(255, 255, 255)))  # Texto blanco
+        #         table.setItem(row_idx, 0, item)
+        #         table.setSpan(row_idx, 0, 1, 3)  # Fusionar las tres columnas
+
+        #     else:
+        #         table.setItem(row_idx, 0, QTableWidgetItem(ip))
+        #         table.setItem(row_idx, 1, QTableWidgetItem(error_code))
+        #         table.setItem(row_idx, 2, QTableWidgetItem(description))
+
+    def extraer_codigo_coche(self, texto):
+        """De '891.1 - C4328 - ...' saca 'C4328'."""
+        if not isinstance(texto, str):
+            return None
+        m = re.search(r"C\d{4}[A-Z]?", texto)
+        return m.group(0) if m else None
+
+    def cargar_red(self, path_excel, sheet_name = "Train IP Addressing (ECN)"):
+        # leemos con pandas para manejar datos cómodamente
+        df = pd.read_excel(path_excel, sheet_name=sheet_name, header=None, dtype=object)
+        nrows, ncols = df.shape
+        coach_ranges = []
+        found = []
+        for r in range(nrows):
+            for c in range(ncols):
+                val = df.iat[r, c]
+                if isinstance(val, str) and self.extraer_codigo_coche(val):
+                    found.append((r, c, self.extraer_codigo_coche(val)))
+        # print(found)
+        if found:
+            # usamos las columnas encontradas como starts y el siguiente start define el end
+            cols = sorted({c for (_, c, _) in found})
+            for i, sc in enumerate(cols):
+                ec = cols[i+1] if i+1 < len(cols) else ncols
+                # el código lo tomamos de la primera ocurrencia en esa columna
+                code = next(code for (r,c,code) in found if c == sc)
+                row = next(r for (r,c,code) in found if c == sc)
+                coach_ranges.append((sc, ec, code, row))
+
+            # print(f"Detected {len(coach_ranges)}.")
+            # print("Coaches:", ", ".join([code for (_, _, code, _) in coach_ranges]))
+
+        # 3) procesar cada coche encontrado buscando las filas "ID" dentro de su rango de columnas
+        tren = {}
+        for start_col, end_col, coach_code, coach_row in sorted(coach_ranges, key=lambda x: x[0]):
+            coach_dict = {}
+
+            # Buscar filas donde en alguna columna del rango aparece la cabecera "ID"
+            header_rows = set()
+            for col in range(start_col + 1, end_col):
+                for r in range(nrows):
+                    cell = df.iat[r, col]
+                    if isinstance(cell, str) and cell.strip().upper() == "ID":
+                        header_rows.add(r)
+            # print(header_rows)
+            # Para cada header detectado extraemos puertos empezando en header_row + 2
+            for header_row in sorted(header_rows):
+                # nombre de switch (se busca en header_row + 2 + 1, equivalente a UP_PORT_START + 1 en código anterior)
+                name_row = header_row + 2 + 1
+                for col in range(start_col + 1, end_col):
+                    if not (isinstance(df.iat[header_row, col], str) and df.iat[header_row, col].strip().upper() == "ID"):
+                        continue
+
+                    name_cell = df.iat[name_row, col] if name_row < nrows else None
+                    if isinstance(name_cell, str) and name_cell.strip():
+                        sw_name = name_cell.strip()
+                    else:
+                        sw_name = f"SW_{header_row}_{col}"
+
+                    ports = {}
+                    # port names están en la columna col+1 (igual que en el código original)
+                    r = header_row + 2
+                    while r < nrows:
+                        port_name = df.iat[r, col + 1] if (col + 1) < ncols else None
+                        if not (isinstance(port_name, str) and port_name.strip()):
+                            break  # param: paro en la primera fila vacía del listado de puertos
+                        port_name = port_name.strip()
+
+                        vlan = df.iat[r, col + 3] if (col + 3) < ncols else None
+                        device = df.iat[r, col + 4] if (col + 4) < ncols else None
+                        if isinstance(device, float) and math.isnan(device):
+                            device = None
+
+                        ports[port_name] = {
+                            "VLAN": int(vlan) if pd.notna(vlan) else None,
+                            "Device": device,
+                        }
+                        r += 1
+
+                    if ports:
+                        coach_dict[sw_name] = ports
+
+            tren[coach_code] = coach_dict
+
+        return tren
+
+        # def open_coach_diagnostic_window(self, coach_index):
+
+        #     if self.connection_states[self.trainset_coaches[coach_index].ip] != "success" and maintenance_mode==0:
+        #         self.timer.start()
+        #         return
+            
+        #     tsc_diag_data, BCU_diag_data_1, BCU_diag_data_2, BCU_diag_data_3, BCU_diag_data_4, BCU_diag_data_5, BCU_diag_data_cc_1, BCU_diag_data_cc_2, BCU_diag_data_cc_3, BCU_diag_data_cc_4, BCU_diag_data_cc_5, BCU_diag_data_cc_6, BCU_diag_data_cc_7, BCU_diag_data_cc_8, BCU_diag_data_cc_9, BCU_diag_data_cc_10 = self.tsc.report_tsc_diag(self.trainset_coaches[coach_index], self.TCMS_vars.TSC_DIAG_VARS, self.TCMS_vars.BCU_DIAGNOSIS, self.TCMS_vars.BCU_DIAGNOSIS_CC)
+            
+        #     if maintenance_mode == 1: 
+        #         BCU_diag_data = concatenate([BCU_diag_data_1, BCU_diag_data_2, BCU_diag_data_3, BCU_diag_data_4, BCU_diag_data_5])
+        #     else:
+        #         BCU_diag_data = BCU_diag_data_1 + BCU_diag_data_2 + BCU_diag_data_3 + BCU_diag_data_4 + BCU_diag_data_5
+        #         BCU_diag_data_cc = BCU_diag_data_cc_1 + BCU_diag_data_cc_2 + BCU_diag_data_cc_3 + BCU_diag_data_cc_4 + BCU_diag_data_cc_5 + BCU_diag_data_cc_6 + BCU_diag_data_cc_7 + BCU_diag_data_cc_8 + BCU_diag_data_cc_9 + BCU_diag_data_cc_10
+                
+        #         if len(self.TCMS_vars.TSC_DIAG_VARS) + len(self.TCMS_vars.BCU_DIAGNOSIS) != len(BCU_diag_data) + len(tsc_diag_data):
+        #             print("SE HAN PERDIDO VARIABLES")
+
+        #     # print(tsc_diag_data)
+        #     # print(BCU_diag_data)
+
+        #     diag_window = QWidget()
+        #     diag_window.setWindowTitle(f"Diagnóstico Coche {coach_index + 1}")
+        #     layout = QVBoxLayout()
+
+        #     # Tab principal
+        #     tab_widget = QTabWidget()
+
+        #     # Crear las tabs
+        #     # loop_opening_tab = QWidget()
+        #     bearing_temp_tab = QWidget()
+        #     TAR_tab = QWidget()
+        #     BCU_diag_tab = QWidget()
+
+        #     # tab_widget.addTab(loop_opening_tab, "CAUSA DE APERTURA DE LAZO DE SEGURIDAD")
+        #     tab_widget.addTab(bearing_temp_tab, "TEMPERATURA DE RODAMIENTOS")
+        #     tab_widget.addTab(TAR_tab, "INESTABILIDAD DE RODADURA (TAR)")
+        #     tab_widget.addTab(BCU_diag_tab, "DIAGNÓSIS DE BCU")
+
+        #     # Calcular el ancho necesario en función de los tabs
+        #     total_tab_width = sum(tab_widget.tabBar().tabRect(i).width() for i in range(tab_widget.count()))
+        #     total_tab_width += 30
+
+        #     # Función para calcular la altura
+        #     def calculate_window_height(index):
+        #         current_widget = tab_widget.widget(index)
+        #         if current_widget:
+        #             # Calcular el tamaño sugerido para el widget actual
+        #             recommended_height = current_widget.sizeHint().height()
+        #             diag_window.setFixedSize(900, recommended_height + 50)  # Ajustar margen
+
+        #     # Conectar el evento de cambio de pestaña
+        #     tab_widget.currentChanged.connect(calculate_window_height)
+
+        #     # LAYOUT PARA LAS TEMPERATURAS DE RODAMIENTOS
+        #     temp_vbox = QVBoxLayout()
+        #     temp_unav_vbox = QVBoxLayout()
+
+        #     vertical_splitter = QFrame()
+        #     vertical_splitter.setFrameShape(QFrame.VLine)
+        #     vertical_splitter.setFrameShadow(QFrame.Sunken)
+
+        #     bearing_temps_layout = QHBoxLayout()
+
+        #     # Bandera para indicar si se debe cambiar el color del tab
+        #     highlight_tab_temp = False
+        #     highlight_tab_tar = False
+
+        #     if self.project == "DSB":
+        #         # Lógica para temperaturas
+        #         if coach_index == 3:
+        #             for i, bearing in enumerate(self.TCMS_vars.BEARING_NAMES):
+        #                 value = tsc_diag_data[i]
+        #                 unav_value = tsc_diag_data[i + 31]
+
+        #                 # Crear el label para temperatura
+        #                 label = QLabel(f"{bearing}: {value}")
+        #                 if int(unav_value) != 0:
+        #                     label.setStyleSheet("background-color: yellow")
+        #                     highlight_tab_temp = True
+        #                 temp_vbox.addWidget(label)
+
+        #                 line = QFrame()
+        #                 line.setFrameShape(QFrame.HLine)
+        #                 line.setFrameShadow(QFrame.Sunken)
+        #                 temp_vbox.addWidget(line)
+
+        #                 # Crear el label para indisponibilidad
+        #                 unav_label = QLabel(f"{self.TCMS_vars.TEMP_UNAV_NAMES[i]}: {unav_value}")
+        #                 if int(unav_value) != 0:
+        #                     unav_label.setStyleSheet("background-color: yellow")
+        #                 temp_unav_vbox.addWidget(unav_label)
+
+        #                 line = QFrame()
+        #                 line.setFrameShape(QFrame.HLine)
+        #                 line.setFrameShadow(QFrame.Sunken)
+        #                 temp_unav_vbox.addWidget(line)
+        #         else:
+        #             for i, bearing in enumerate(self.TCMS_vars.BEARING_NAMES[:8]):
+        #                 value = tsc_diag_data[i]
+        #                 unav_value = tsc_diag_data[i + 31]
+
+        #                 label = QLabel(f"{bearing}: {value}")
+        #                 if int(unav_value) != 0:
+        #                     label.setStyleSheet("background-color: yellow")
+        #                     highlight_tab_temp = True
+        #                 temp_vbox.addWidget(label)
+
+        #                 line = QFrame()
+        #                 line.setFrameShape(QFrame.HLine)
+        #                 line.setFrameShadow(QFrame.Sunken)
+        #                 temp_vbox.addWidget(line)
+
+        #                 unav_label = QLabel(f"{self.TCMS_vars.TEMP_UNAV_NAMES[i]}: {unav_value}")
+        #                 if int(unav_value) != 0:
+        #                     unav_label.setStyleSheet("background-color: yellow")
+        #                 temp_unav_vbox.addWidget(unav_label)
+
+        #                 line = QFrame()
+        #                 line.setFrameShape(QFrame.HLine)
+        #                 line.setFrameShadow(QFrame.Sunken)
+        #                 temp_unav_vbox.addWidget(line)
+
+        #         # Cambiar el color del texto del tab si es necesario
+        #         if highlight_tab_temp:
+        #             tab_widget.tabBar().setTabTextColor(0, Qt.red)
+
+        #         # Crear widgets contenedores y establecer layouts
+        #         temp_widget = QWidget()
+        #         temp_widget.setLayout(temp_vbox)
+        #         temp_unav_widget = QWidget()
+        #         temp_unav_widget.setLayout(temp_unav_vbox)
+
+        #         bearing_temps_layout.addWidget(temp_widget)  # Temperaturas
+        #         bearing_temps_layout.addWidget(vertical_splitter)  # Separador
+        #         bearing_temps_layout.addWidget(temp_unav_widget)  # Indisponibilidad de temperaturas
+
+        #         # Asignar layout al tab de temperaturas de rodamientos
+        #         bearing_temp_tab.setLayout(bearing_temps_layout)
+
+        #         # LAYOUT PARA TAR
+        #         tar_vbox = QVBoxLayout()
+        #         tar_unav_vbox = QVBoxLayout()
+
+        #         tar_splitter = QFrame()
+        #         tar_splitter.setFrameShape(QFrame.VLine)
+        #         tar_splitter.setFrameShadow(QFrame.Sunken)
+
+        #         tar_layout = QHBoxLayout()
+
+        #         # Definir número de TAR según el índice del coche
+        #         if coach_index == 3:
+        #             tar_count = 4
+        #         else:
+        #             tar_count = 2
+
+        #         # Procesar TAR y TAR_UNAV
+        #         for i in range(tar_count):
+        #             tar_index = 16 + i
+        #             tar_unav_index = 20 + i
+
+        #             # Nombres y valores de TAR
+        #             tar_name = self.TCMS_vars.TAR_NAMES[i]
+        #             tar_value = tsc_diag_data[tar_index]
+
+        #             # Crear el label para TAR
+        #             tar_label = QLabel(f"{tar_name}: {tar_value}")
+        #             if int(tsc_diag_data[tar_unav_index]) != 0:
+        #                 tar_label.setStyleSheet("background-color: yellow")
+        #                 highlight_tab_tar = True
+        #             tar_vbox.addWidget(tar_label)
+
+        #             # Crear una nueva línea horizontal y añadirla al layout TAR
+        #             line_tar = QFrame()
+        #             line_tar.setFrameShape(QFrame.HLine)
+        #             line_tar.setFrameShadow(QFrame.Sunken)
+        #             tar_vbox.addWidget(line_tar)
+
+        #             # Nombres y valores de TAR_UNAV
+        #             tar_unav_name = self.TCMS_vars.TAR_UNAV_NAMES[i]
+        #             tar_unav_value = tsc_diag_data[tar_unav_index]
+        #             tar_unav_label = QLabel(f"{tar_unav_name}: {tar_unav_value}")
+        #             if int(tar_unav_value) != 0:
+        #                 tar_unav_label.setStyleSheet("background-color: yellow")
+        #             tar_unav_vbox.addWidget(tar_unav_label)
+
+        #             # Crear una nueva línea horizontal y añadirla al layout TAR_UNAV
+        #             line_tar_unav = QFrame()
+        #             line_tar_unav.setFrameShape(QFrame.HLine)
+        #             line_tar_unav.setFrameShadow(QFrame.Sunken)
+        #             tar_unav_vbox.addWidget(line_tar_unav)
+
+        #         # Cambiar el color del texto del tab TAR si es necesario
+        #         if highlight_tab_tar:
+        #             tab_widget.tabBar().setTabTextColor(1, Qt.red)
+
+        #         # Crear widgets contenedores y establecer layouts
+        #         tar_widget = QWidget()
+        #         tar_widget.setLayout(tar_vbox)
+        #         tar_unav_widget = QWidget()
+        #         tar_unav_widget.setLayout(tar_unav_vbox)
+
+        #         tar_layout.addWidget(tar_widget)
+        #         tar_layout.addWidget(tar_splitter)
+        #         tar_layout.addWidget(tar_unav_widget)
+
+        #         # Asignar layout al tab TAR
+        #         TAR_tab.setLayout(tar_layout)
+
+        #     # #LAYOUT PARA LA DIAGNÓSIS DE BCU
+
+        #     active_errors = []
+
+        #     for index, value in enumerate(BCU_diag_data):
+        #         if value == '1':  # Error activo
+        #             var_name = self.TCMS_vars.BCU_DIAGNOSIS[index]
+        #             error_info = self.TCMS_vars.BCU_DIAGNOSIS_DICT.get(var_name.split('.')[-1], {})
+        #             error_code = error_info.get("Error Code", "Código no disponible")
+        #             description = error_info.get("Description", "Descripción no disponible")
+        #             active_errors.append((var_name, error_code, description))
+
+        #     for index, value in enumerate(BCU_diag_data_cc):
+        #         if value == '1':  # Error activo
+        #             var_name = self.TCMS_vars.BCU_DIAGNOSIS_CC[index]
+        #             error_info = self.TCMS_vars.BCU_DIAGNOSIS_DICT.get(var_name.split('.')[-1], {})
+        #             error_code = error_info.get("Error Code", "Código no disponible")
+        #             description = error_info.get("Description", "Descripción no disponible")
+        #             active_errors.append((var_name, error_code, description))
+
+        #     # Crear el layout para el tab de BCU Diagnosis
+        #     BCU_diag_layout = QVBoxLayout()
+
+        #     if active_errors:
+        #         # Crear la tabla
+        #         table = QTableWidget()
+        #         table.setRowCount(len(active_errors))
+        #         table.setColumnCount(3)
+        #         table.setHorizontalHeaderLabels(["Variable", "Código de Error", "Descripción"])
+
+        #         # Hacer que la tabla ocupe todo el ancho disponible
+        #         table.horizontalHeader().setStretchLastSection(True)
+        #         table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+
+        #         # Llenar la tabla con los diagnósticos activos
+        #         for row, (var_name, error_code, description) in enumerate(active_errors):
+        #             table.setItem(row, 0, QTableWidgetItem(var_name))
+        #             table.setItem(row, 1, QTableWidgetItem(error_code))
+        #             table.setItem(row, 2, QTableWidgetItem(description))
+
+        #         # Añadir la tabla al layout
+        #         BCU_diag_layout.addWidget(table)
+
+        #         # Cambiar el color del texto del tab a rojo si hay diagnósticos activos
+        #         tab_index = tab_widget.indexOf(BCU_diag_tab)
+        #         tab_widget.tabBar().setTabTextColor(tab_index, Qt.red)
+
+        #     else:
+        #         # No hay fallos, mostrar un mensaje
+        #         no_fails_label = QLabel("La diagnósis de BCU no reporta fallos")
+        #         no_fails_label.setAlignment(Qt.AlignCenter)
+        #         BCU_diag_layout.addWidget(no_fails_label)
+
+        #     # Asignar el layout al tab de BCU Diagnosis
+        #     BCU_diag_tab.setLayout(BCU_diag_layout)
+
+        #     # Añadir el tab_widget al layout principal
+        #     layout.addWidget(tab_widget)
+        #     diag_window.setLayout(layout)
+
+        #     current_widget = tab_widget.widget(0)
+        #     recommended_height = current_widget.sizeHint().height()
+        #     diag_window.setFixedSize(900, recommended_height + 50)  # Ajustar margen
+
+        #     # Mostrar ventana
+        #     diag_window.show()
+
+        #     # Evento para cerrar la ventana y reiniciar el temporizador
+        #     def on_close_event(event):
+        #         self.timer.start()
+        #         event.accept()
+
+        #     diag_window.closeEvent = on_close_event
+
+        #     # Guardar referencia a la ventana
+        #     self.diag_windows.append(diag_window)
+
+        def set_timer_function(self, new_function):
+
+            if self.current_function != new_function:
+                if self.current_function is not None:
+                    try:
+                        self.timer.timeout.disconnect(self.current_function)  # Desconecta la función anterior si está conectada
+                    except TypeError:
+                        pass  # Ignora el error si la función no está conectada
+
+                self.timer.timeout.connect(new_function)  # Conecta la nueva función
+                self.current_function = new_function  # Actualiza la función actual conectada
+        
+        def start_timer_with_function(self, new_function):
+
+            self.set_timer_function(new_function)
+            new_function()  # Llama a la función inmediatamente
+            if not self.timer.isActive():  # Verifica si el temporizador no está activo
+                self.timer.start(TEST_TIMEOUT)  # Configura el intervalo en 2 segundos
 
 if __name__ == "__main__":
     
