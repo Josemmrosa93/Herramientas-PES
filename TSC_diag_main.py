@@ -4277,9 +4277,6 @@ class MainWindow(QMainWindow):
         table.setColumnCount(num_coaches * 4)  # 4 columnas por coche: PUERTO, VLAN, DEVICE, IP
         table.setRowCount(count)
 
-    
-
-
         for col in range(num_coaches):
 
             print_row = 1  # Reiniciar fila de impresión para cada coche
@@ -4311,6 +4308,13 @@ class MainWindow(QMainWindow):
                 table.setItem(print_row, c0, esu_item)
                 table.setSpan(print_row, c0, 1, 4)
                 print_row += 1
+                esu_header = ["PORT", "VLAN", "DEVICE", "IP"]
+                for i, header in enumerate(esu_header):
+                    header_item = QTableWidgetItem(header)
+                    header_item.setTextAlignment(Qt.AlignCenter)
+                    header_font = header_item.font(); header_font.setBold(True); header_item.setFont(header_font)
+                    table.setItem(print_row, c0 + i, header_item)
+                print_row += 1
 
                 # ---- Filas de puertos de la ESU ----
                 # ports_dict: {"E0_0": {"vlan":..., "device":..., "ip":...}, ...}
@@ -4319,9 +4323,6 @@ class MainWindow(QMainWindow):
                     table.setItem(print_row, c0 + 1, QTableWidgetItem(str(info.get("VLAN", ""))))
                     table.setItem(print_row, c0 + 2, QTableWidgetItem(str(info.get("Device", ""))))
                     print_row += 1
-
-
-
 
         # Ajustar el ancho de las columnas al contenido
         table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
@@ -4391,6 +4392,27 @@ class MainWindow(QMainWindow):
         #         table.setItem(row_idx, 0, QTableWidgetItem(ip))
         #         table.setItem(row_idx, 1, QTableWidgetItem(error_code))
         #         table.setItem(row_idx, 2, QTableWidgetItem(description))
+
+    def calcular_ip(posicion: int, vlan: int, id_switch: int, id_puerto: int,
+                    mask_d20: int = 28, mask_d21: int = 3) -> str:
+        """
+        Calcula la IP con la lógica:
+        10.0.< ((posicion & 28)/4) + vlan*8 >.< ( (posicion & 3)*64 + id_switch*10 + id_puerto ) >
+        
+        """
+        # Tercer octeto: ((posicion & 28) / 4) + vlan*8
+        octeto3 = ((posicion & mask_d20) // 4) + (vlan * 8)
+
+        # Cuarto octeto: ((posicion & 3) * 64) + id_switch*10 + id_puerto
+        octeto4 = ((posicion & mask_d21) * 64) + (id_switch * 10) + id_puerto
+
+        # Validación básica de rango
+        if not (0 <= octeto3 <= 255):
+            raise ValueError(f"El tercer octeto quedó fuera de rango: {octeto3}")
+        if not (0 <= octeto4 <= 255):
+            raise ValueError(f"El cuarto octeto quedó fuera de rango: {octeto4}")
+
+        return f"10.0.{octeto3}.{octeto4}"
 
     def extraer_codigo_coche(self, texto):
         """De '891.1 - C4328 - ...' saca 'C4328'."""
