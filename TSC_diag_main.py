@@ -4325,8 +4325,11 @@ class MainWindow(QMainWindow):
                     table.setItem(print_row, c0 + 1, QTableWidgetItem(str(port_id)))
                     table.setItem(print_row, c0 + 2, QTableWidgetItem(str(info.get("VLAN", ""))))
                     table.setItem(print_row, c0 + 3, QTableWidgetItem(str(info.get("Device", ""))))
-                    table.setItem(print_row, c0 + 4, QTableWidgetItem(str(info.get("IP", ""))))
-                    # print(col, info.get("VLAN", 0), 0, int(port_id))
+                    if str(info.get("Device", "")) == "VCU_CH":
+                        table.setItem(print_row, c0 + 4, QTableWidgetItem(str(self.trainset_coaches[col].ip)))
+                    else: 
+                        table.setItem(print_row, c0 + 4, QTableWidgetItem(self.calcular_ip(col + 1, info.get("VLAN", 0), esu_id, int(port_id)) if info.get("IP", "") is None else info.get("IP", ""))) #col+1 porque la posición empieza en 1
+                    # print(str(info.get("Device", "")), col, info.get("VLAN", 0), esu_id, int(port_id))
                     print_row += 1
                     port_id += 1
                 
@@ -4382,18 +4385,47 @@ class MainWindow(QMainWindow):
         m = re.search(r"C\d{4}[A-Z]?", texto)
         return m.group(0) if m else None
 
-    def cargar_red(self, path_excel, sheet_name = "Train IP Addressing (ECN)", reseved_ip_sheetname = "Reserved Fixed IPs"):
+    def cargar_red(self, path_excel, sheet_name = "Train IP Addressing (ECN)", reseved_ip_sheetname = "Reserved Fixed IPs", reserved_esus_ip_sheetname="Coaches Types and Number"):
         # leemos con pandas para manejar datos cómodamente
         df = pd.read_excel(path_excel, sheet_name=sheet_name, header=None, dtype=object)
+        reserved = pd.read_excel(path_excel, sheet_name=reseved_ip_sheetname, header=None, dtype=object)
+        reserved_esus = pd.read_excel(path_excel, sheet_name=reserved_esus_ip_sheetname, header=None, dtype=object)
         nrows, ncols = df.shape
+        nrows_reserved, ncols_reserved = reserved.shape
+        nrows_reserved_esus, ncols_reserved_esus = reserved_esus.shape
         coach_ranges = []
         found = []
+        reserved_ips = []
+
         for r in range(nrows):
             for c in range(ncols):
                 val = df.iat[r, c]
                 if isinstance(val, str) and self.extraer_codigo_coche(val):
                     found.append((r, c, self.extraer_codigo_coche(val)))
-        # print(found)
+        for rr in range(nrows_reserved):
+            for rc in range(ncols_reserved):
+                if reserved.iat[rr, rc] == "IP address":
+                    for ip_row in range(rr + 1, nrows_reserved):
+                        ip_cell = reserved.iat[ip_row, rc]
+                        if isinstance(ip_cell, str) and ip_cell.strip():
+                            reserved_ips.append(ip_cell.strip())
+                        else:
+                            break  # paro en la primera fila vacía del listado de IPs reservadas
+        # for rr in range(nrows_reserved_esus):
+        #     for rc in range(ncols_reserved_esus):
+        #         if reserved_esus.iat[rr, rc] == "ESU ID":
+        #             for ip_row in range(rr + 2, nrows_reserved_esus):
+        #                     for ip_col in range(rc, ncols_reserved_esus):
+        #                         ip_cell = reserved.iat[ip_row, ip_col]
+        #                         if isinstance(ip_cell, str) and ip_cell.strip():
+        #                             reserved_ips.append(ip_cell.strip())
+        #                         else:
+        #                             break  # paro en la primera fila vacía del listado de IPs reservadas        
+                
+        # print(f"Loaded {len(reserved_ips)} reserved IPs.")
+        # print(reserved_ips)
+
+                
         if found:
             # usamos las columnas encontradas como starts y el siguiente start define el end
             cols = sorted({c for (_, c, _) in found})
@@ -4423,7 +4455,7 @@ class MainWindow(QMainWindow):
             # Para cada header detectado extraemos puertos empezando en header_row + 2
             for col in range(start_col + 1, end_col):
                 for header_row in sorted(header_rows):
-                    name_row = header_row + 2 + 1# nombre de switch (se busca en header_row + 2 + 1, equivalente a UP_PORT_START + 1 en código anterior)
+                    name_row = header_row + 2 + 1# nombre de switch (se busca en header_row + 2 + 1)
                     if not (isinstance(df.iat[header_row, col], str) and df.iat[header_row, col].strip().upper() == "ID"):
                         continue
 
@@ -4444,14 +4476,15 @@ class MainWindow(QMainWindow):
 
                         vlan = df.iat[r, col + 3] if (col + 3) < ncols else None
                         device = df.iat[r, col + 4] if (col + 4) < ncols else None
-                        ip = df.iat[r, col + 5] if (col + 5) < ncols else None  
+                        ip = df.iat[r, col + 5] if (col + 5) < ncols else None
+                        
                         if isinstance(device, float) and math.isnan(device):
                             device = None
-
+  
                         ports[port_name] = {
                             "VLAN": int(vlan) if pd.notna(vlan) else None,
                             "Device": device,
-                            "IP": ip
+                            "IP": ip.strip() if isinstance(ip, str) and ip.strip() in reserved_ips else None
                         }
                         r += 1
 
@@ -4459,6 +4492,8 @@ class MainWindow(QMainWindow):
                         coach_dict[sw_name] = ports
 
             tren[coach_code] = coach_dict
+
+        
         
         return tren
 
