@@ -72,7 +72,7 @@ GITHUB_REPO = "Herramientas-PES"
 
 maintenance_mode = 1
 
-PING_TIMEOUT = 4  # Tiempo de espera para el ping en milisegundos.
+PING_TIMEOUT = 100  # Tiempo de espera para el ping en milisegundos.
 SSH_TIMEOUT = 0.5  # Tiempo de espera para la conexión SSH, 5.0 para operación en tren.
 TEST_TIMEOUT = 1000 # Tiempo de refresco de los datos de diagnóstico, 4000 para operación en tren.
 MONITOR_INTERVAL = 5 # Tiempo de refresco para la evaluación de las conexiones.
@@ -3243,6 +3243,7 @@ class TSCGenerator(QSvgWidget):
 class MainWindow(QMainWindow):
     
     scan_progress_signal = Signal(int)
+    ping_result_signal = Signal(int, int, bool)  # row, col, ok
 
     def __init__(self):
         super().__init__()
@@ -3320,6 +3321,7 @@ class MainWindow(QMainWindow):
         self.current_function = None
         
         self.scan_progress_signal.connect(self.coach_scan_progress)
+        self.ping_result_signal.connect(self.update_ping_cell)
 
         self.svg_coaches_length_DSB = [100,100,100,350,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100]
         # self.svg_coaches_length_DB = [100,100,100,350,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100]
@@ -4267,15 +4269,15 @@ class MainWindow(QMainWindow):
 
         table_layout = QVBoxLayout()
 
-        table = QTableWidget()
+        self.massive_ping_table = QTableWidget()
 
         if self.project == "DB":
             num_coaches = len(self.trainset_coaches) - 1  # Último coche es cabcar
         elif self.project == "DSB":
             num_coaches = len(self.trainset_coaches)
 
-        table.setColumnCount(num_coaches * COLS_PER_COACH)  # 5 columnas por coche: PUERTO, VLAN, DEVICE, IP
-        table.setRowCount(count)
+        self.massive_ping_table.setColumnCount(num_coaches * COLS_PER_COACH)  # 5 columnas por coche: PUERTO, VLAN, DEVICE, IP
+        self.massive_ping_table.setRowCount(count)
 
         for col in range(num_coaches):
             esu_id = 0 # Reiniciar ID de ESU para cada coche
@@ -4292,8 +4294,8 @@ class MainWindow(QMainWindow):
             coach_title.setTextAlignment(Qt.AlignCenter)
             coach_title.setBackground(QBrush(QColor(100, 100, 100)))
             coach_title_font = coach_title.font(); coach_title_font.setBold(True); coach_title.setFont(coach_title_font)
-            table.setItem(0, c0, coach_title)
-            table.setSpan(0, c0, 1, COLS_PER_COACH)  # fusiona columnas 0..3 del bloque
+            self.massive_ping_table.setItem(0, c0, coach_title)
+            self.massive_ping_table.setSpan(0, c0, 1, COLS_PER_COACH)  # fusiona columnas 0..3 del bloque
 
             print_row = 1
 
@@ -4305,74 +4307,120 @@ class MainWindow(QMainWindow):
                 esu_item = QTableWidgetItem(str(esu_name))
                 esu_item.setTextAlignment(Qt.AlignCenter)
                 esu_font = esu_item.font(); esu_font.setBold(True); esu_item.setFont(esu_font)
-                table.setItem(print_row, c0, esu_item)
-                table.setSpan(print_row, c0, 1, COLS_PER_COACH)
+                self.massive_ping_table.setItem(print_row, c0, esu_item)
+                self.massive_ping_table.setSpan(print_row, c0, 1, COLS_PER_COACH)
                 print_row += 1
                 esu_header = ["PORT", "PORT ID", "VLAN", "DEVICE", "IP"]
                 for i, header in enumerate(esu_header):
                     header_item = QTableWidgetItem(header)
                     header_item.setTextAlignment(Qt.AlignCenter)
                     header_font = header_item.font(); header_font.setBold(True); header_item.setFont(header_font)
-                    table.setItem(print_row, c0 + i, header_item)
+                    self.massive_ping_table.setItem(print_row, c0 + i, header_item)
                 print_row += 1
 
                 # ---- Filas de puertos de la ESU ----
                 # ports_dict: {"E0_0": {"vlan":..., "device":..., "ip":...}, ...}
                 port_id = 0
                 for port_name, info in ports_dict.items():  # si quieres orden, usa sorted(ports_dict.items())
-                    table.setItem(print_row, c0 + 0, QTableWidgetItem(str(port_name)))
-                    table.setItem(print_row, c0 + 1, QTableWidgetItem(str(port_id)))
-                    table.setItem(print_row, c0 + 2, QTableWidgetItem(str(info.get("VLAN", ""))))
-                    table.setItem(print_row, c0 + 3, QTableWidgetItem(str(info.get("Device", ""))))
+                    self.massive_ping_table.setItem(print_row, c0 + 0, QTableWidgetItem(str(port_name)))
+                    self.massive_ping_table.setItem(print_row, c0 + 1, QTableWidgetItem(str(port_id)))
+                    self.massive_ping_table.setItem(print_row, c0 + 2, QTableWidgetItem(str(info.get("VLAN", ""))))
+                    self.massive_ping_table.setItem(print_row, c0 + 3, QTableWidgetItem(str(info.get("Device", ""))))
                     if str(info.get("Device", "")) == "VCU_CH":
-                        table.setItem(print_row, c0 + 4, QTableWidgetItem(str(self.trainset_coaches[col].ip)))
+                        self.massive_ping_table.setItem(print_row, c0 + 4, QTableWidgetItem(str(self.trainset_coaches[col].ip)))
                     else: 
-                        table.setItem(print_row, c0 + 4, QTableWidgetItem(self.calcular_ip(col + 1, info.get("VLAN", 0), esu_id, int(port_id)) if info.get("IP", "") is None else info.get("IP", ""))) #col+1 porque la posición empieza en 1
+                        self.massive_ping_table.setItem(print_row, c0 + 4, QTableWidgetItem(self.calcular_ip(col + 1, info.get("VLAN", 0), esu_id, int(port_id)) if info.get("IP", "") is None else info.get("IP", ""))) #col+1 porque la posición empieza en 1
                     # print(str(info.get("Device", "")), col, info.get("VLAN", 0), esu_id, int(port_id))
                     print_row += 1
                     port_id += 1
                 
                 esu_id += 1 # Incrementar ID de ESU
 
+        self.massive_ping_table.setItem(32, 4, QTableWidgetItem(str("192.168.1.144")))
+
         # Ajustar el ancho de las columnas al contenido
-        table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
+        self.massive_ping_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
 
         # Ajustar la altura de las filas al contenido
-        table.resizeRowsToContents()
+        self.massive_ping_table.resizeRowsToContents()
 
         # Calcular el ancho total de la tabla
-        total_width = table.verticalHeader().width()  # Ancho del header vertical
-        total_width += table.frameWidth() * 2  # Bordes de la tabla
+        total_width = self.massive_ping_table.verticalHeader().width()  # Ancho del header vertical
+        total_width += self.massive_ping_table.frameWidth() * 2  # Bordes de la tabla
+
+        print(total_width)
 
         # Ajustar el tamaño de la ventana al ancho total de la tabla
         self.massive_ping_window.resize(total_width + 50, 800)  # Altura fija, pero podrías ajustarla también
 
         # table_layout.addWidget(menu_bar)
-        table_layout.addWidget(table)
+        table_layout.addWidget(self.massive_ping_table)
        
         self.massive_ping_window.setLayout(table_layout)
         self.massive_ping_window.show()
-
-        # with ThreadPoolExecutor(max_workers=self.num_coaches) as executor:
-        #     futures = {executor.submit(self.process_coach, self.vcu_list[i], self.coaches_type[i], self.tsc_vars, self.project_coach_types, self.tsc_cc_vars): i for i in range(self.num_coaches)}
-        #     for future in as_completed(futures):
-        #         index = futures[future]  # Obtener el índice del coche
-        #         try:
-        #             coach = future.result()  # Obtener el elemento SVG del coche
 
         ping_ip_tuple = []
 
         for i in range (num_coaches):
             ip_list = []
             for j in range (count):
-                test_ip = table.item(j, i * 4 + 4).text() if table.item(j, i * 4 + 4) is not None else None
+                test_ip = self.massive_ping_table.item(j, i * 5 + 4).text() if self.massive_ping_table.item(j, i * 5 + 4) is not None else None
                 ip_list.append([j, i, test_ip])
             ping_ip_tuple.append(ip_list)
 
+        self.ping_executor = ThreadPoolExecutor(max_workers=10)
+
+        for coach_list in ping_ip_tuple:
+            for row, col, ip in coach_list:
+                # print(row, col, ip)
+                self.ping_executor.submit(self.ping_ip_worker, row, col * 5 + 4, ip)
         
-        print(ping_ip_tuple)
+        # print(ping_ip_tuple)
 
+    def update_ping_cell(self, row: int, col: int, ok: bool):
+        table = self.massive_ping_table
+        if table is None:
+            return
 
+        item = table.item(row, col)
+        if item is None:
+            return
+
+        color = QColor(175, 242, 175) if ok else QColor(255, 131, 131)
+        item.setBackground(QBrush(color))
+
+    def ping_ip_worker(self, row: int, col: int, ip: str):
+        ok = False
+
+        if self.is_valid_ip(ip) is not False:
+            try:
+                # Windows: -n 1 (un eco), -w timeout
+                result = subprocess.run(
+                    ["ping", "-n", "1", "-w", str(PING_TIMEOUT), ip],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    shell=True
+                )
+                ok = (result.returncode == 0)
+            except Exception:
+                ok = False
+
+            # comunicar el resultado al hilo de la GUI
+            self.ping_result_signal.emit(row, col, ok)
+        else:
+            pass
+
+    def is_valid_ip(self, ip: str) -> bool:
+        # print(type(ip))
+        pattern = re.compile(r'^\d{1,3}(?:\.\d{1,3}){3}$')
+        if not pattern.match(ip):
+            # print(ip, "NO OK")
+            return False
+        try:
+            return all(0 <= int(octet) <= 255 for octet in ip.split('.'))
+        except ValueError:
+            # print(ip, "NO OK")
+            return False
 
     def calcular_ip(self, posicion: int, vlan: int, id_switch: int, id_puerto: int,
                     mask_d20: int = 28, mask_d21: int = 3) -> str:
