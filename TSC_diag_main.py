@@ -65,6 +65,7 @@ from threading import Event
 import pandas as pd
 import math
 
+
 APP_VERSION = "1.0.2"
 GITHUB_OWNER = "Josemmrosa93"
 GITHUB_REPO = "Herramientas-PES"
@@ -1296,7 +1297,7 @@ class VCU:
                 stdout=subprocess.DEVNULL,
                 shell=True
             )
-            ping_time = time.time() - start_time
+            # ping_time = time.time() - start_time
             # logger.debug(f"Ping time for {self.ip}: {ping_time:.4f} seconds")
             return result.returncode == 0
         except Exception as e:
@@ -4244,7 +4245,7 @@ class MainWindow(QMainWindow):
 
         QApplication.processEvents()
         
-        self.red_eth = self.cargar_red(self.resource_path("F073_IP_Ports_Addressing_00_38.xlsm"))
+        self.red_eth = self.cargar_red(self.resource_path("F073_IP_Ports_Addressing_00_40.xlsm"))
 
         self.msg.accept()
 
@@ -4261,8 +4262,6 @@ class MainWindow(QMainWindow):
                 count = coach_count
                 # print(self.red_eth[types])
         
-        
-
         self.massive_ping_window = QWidget()
         self.massive_ping_window.setWindowTitle("Comprobación de estado de comunicación de los equipos")
 
@@ -4354,6 +4353,27 @@ class MainWindow(QMainWindow):
         self.massive_ping_window.setLayout(table_layout)
         self.massive_ping_window.show()
 
+        # with ThreadPoolExecutor(max_workers=self.num_coaches) as executor:
+        #     futures = {executor.submit(self.process_coach, self.vcu_list[i], self.coaches_type[i], self.tsc_vars, self.project_coach_types, self.tsc_cc_vars): i for i in range(self.num_coaches)}
+        #     for future in as_completed(futures):
+        #         index = futures[future]  # Obtener el índice del coche
+        #         try:
+        #             coach = future.result()  # Obtener el elemento SVG del coche
+
+        ping_ip_tuple = []
+
+        for i in range (num_coaches):
+            ip_list = []
+            for j in range (count):
+                test_ip = table.item(j, i * 4 + 4).text() if table.item(j, i * 4 + 4) is not None else None
+                ip_list.append([j, i, test_ip])
+            ping_ip_tuple.append(ip_list)
+
+        
+        print(ping_ip_tuple)
+
+
+
     def calcular_ip(self, posicion: int, vlan: int, id_switch: int, id_puerto: int,
                     mask_d20: int = 28, mask_d21: int = 3) -> str:
         """
@@ -4411,16 +4431,16 @@ class MainWindow(QMainWindow):
                             reserved_ips.append(ip_cell.strip())
                         else:
                             break  # paro en la primera fila vacía del listado de IPs reservadas
-        # for rr in range(nrows_reserved_esus):
-        #     for rc in range(ncols_reserved_esus):
-        #         if reserved_esus.iat[rr, rc] == "ESU ID":
-        #             for ip_row in range(rr + 2, nrows_reserved_esus):
-        #                     for ip_col in range(rc, ncols_reserved_esus):
-        #                         ip_cell = reserved.iat[ip_row, ip_col]
-        #                         if isinstance(ip_cell, str) and ip_cell.strip():
-        #                             reserved_ips.append(ip_cell.strip())
-        #                         else:
-        #                             break  # paro en la primera fila vacía del listado de IPs reservadas        
+        for rr in range(nrows_reserved_esus):
+            for rc in range(ncols_reserved_esus):
+                if reserved_esus.iat[rr, rc] == "ESU ID":
+                    for ip_row in range(rr + 2, nrows_reserved_esus):
+                            for ip_col in range(rc, ncols_reserved_esus):
+                                ip_cell = reserved_esus.iat[ip_row, ip_col]
+                                if isinstance(ip_cell, str) and ip_cell.strip():
+                                    reserved_ips.append(ip_cell.strip())
+                                else:
+                                    break  # paro en la primera fila vacía del listado de IPs reservadas        
                 
         # print(f"Loaded {len(reserved_ips)} reserved IPs.")
         # print(reserved_ips)
@@ -4493,7 +4513,7 @@ class MainWindow(QMainWindow):
 
             tren[coach_code] = coach_dict
 
-        
+        # print(tren.keys())
         
         return tren
 
