@@ -31,7 +31,8 @@ from PySide6.QtGui import (
     QRegion,
     QTransform,
     QBrush,
-    QTextCursor
+    QTextCursor,
+    QGuiApplication
 )
 from PySide6.QtCore import (
     Qt,
@@ -72,8 +73,8 @@ GITHUB_REPO = "Herramientas-PES"
 
 maintenance_mode = 1
 
-PING_TIMEOUT = 100  # Tiempo de espera para el ping en milisegundos.
-SSH_TIMEOUT = 0.5  # Tiempo de espera para la conexión SSH, 5.0 para operación en tren.
+PING_TIMEOUT = 200  # Tiempo de espera para el ping en milisegundos.
+SSH_TIMEOUT = 5.0  # Tiempo de espera para la conexión SSH, 5.0 para operación en tren.
 TEST_TIMEOUT = 1000 # Tiempo de refresco de los datos de diagnóstico, 4000 para operación en tren.
 MONITOR_INTERVAL = 5 # Tiempo de refresco para la evaluación de las conexiones.
 RESET_PAUSE = 5000 # Tiempo de pausa entre órdenes del reseteo de fallos. 
@@ -4246,6 +4247,8 @@ class MainWindow(QMainWindow):
         self.msg.open()
 
         QApplication.processEvents()
+
+        self.screen_width = QApplication.primaryScreen().size().width()
         
         self.red_eth = self.cargar_red(self.resource_path("F073_IP_Ports_Addressing_00_40.xlsm"))
 
@@ -4270,6 +4273,8 @@ class MainWindow(QMainWindow):
         table_layout = QVBoxLayout()
 
         self.massive_ping_table = QTableWidget()
+        self.massive_ping_table.setContextMenuPolicy(Qt.CustomContextMenu) # Habilitar menú contextual
+        self.massive_ping_table.customContextMenuRequested.connect(self.massive_ping_context_menu) # Conectar petición del menú contextual a la función
 
         if self.project == "DB":
             num_coaches = len(self.trainset_coaches) - 1  # Último coche es cabcar
@@ -4336,7 +4341,7 @@ class MainWindow(QMainWindow):
                 
                 esu_id += 1 # Incrementar ID de ESU
 
-        self.massive_ping_table.setItem(32, 4, QTableWidgetItem(str("192.168.1.144")))
+        # self.massive_ping_table.setItem(32, 4, QTableWidgetItem(str("172.20.8.109")))
 
         # Ajustar el ancho de las columnas al contenido
         self.massive_ping_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
@@ -4345,10 +4350,15 @@ class MainWindow(QMainWindow):
         self.massive_ping_table.resizeRowsToContents()
 
         # Calcular el ancho total de la tabla
-        total_width = self.massive_ping_table.verticalHeader().width()  # Ancho del header vertical
+        total_width = 0
+
+        for col in range(self.massive_ping_table.columnCount()):
+            total_width += self.massive_ping_table.columnWidth(col)  # Sumar ancho de cada columna
+        
         total_width += self.massive_ping_table.frameWidth() * 2  # Bordes de la tabla
 
-        print(total_width)
+        # print(total_width)
+        total_width = min (total_width, self.screen_width - 100)  # No exceder el ancho de la pantalla
 
         # Ajustar el tamaño de la ventana al ancho total de la tabla
         self.massive_ping_window.resize(total_width + 50, 800)  # Altura fija, pero podrías ajustarla también
@@ -4368,7 +4378,7 @@ class MainWindow(QMainWindow):
                 ip_list.append([j, i, test_ip])
             ping_ip_tuple.append(ip_list)
 
-        self.ping_executor = ThreadPoolExecutor(max_workers=10)
+        self.ping_executor = ThreadPoolExecutor(max_workers=20)
 
         for coach_list in ping_ip_tuple:
             for row, col, ip in coach_list:
@@ -4376,6 +4386,35 @@ class MainWindow(QMainWindow):
                 self.ping_executor.submit(self.ping_ip_worker, row, col * 5 + 4, ip)
         
         # print(ping_ip_tuple)
+
+    def massive_ping_context_menu(self, position):
+        if self.massive_ping_table is None:
+            return
+        
+        index = self.massive_ping_table.indexAt(position)
+        if not index.isValid():
+            return
+        row = index.row()
+        col = index.column()
+
+        item = self.massive_ping_table.item(row, col)
+        if item is None:
+            return
+        
+        ip = (item.text() or "").strip()
+        if not self.is_valid_ip(ip):
+            return
+        
+        menu = QMenu()
+        action_ping = menu.addAction(f"Rehacer ping a {ip}")
+
+        global_pos = self.massive_ping_table.viewport().mapToGlobal(position)
+        action = menu.exec(global_pos)
+
+        if action == action_ping:
+            item.setBackground(QBrush())  # Reset color
+
+        self.ping_ip_worker(row, col, ip)
 
     def update_ping_cell(self, row: int, col: int, ok: bool):
         table = self.massive_ping_table
