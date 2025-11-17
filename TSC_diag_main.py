@@ -89,7 +89,7 @@ class TCMS_vars:
         
         #TIPOS DE COCHE EN FUNCIÓN DEL PROYECTO
         self.COACH_TYPES_DB={1: "L9215", 2: "C4340", 3: "C4301", 4: "C4306", 5: "C4314", 6: "C4315", 7: "C4322", 8: "C4302S", 9: "C4302P", 10: "C4302C", 11: "C4328"}
-        self.COACH_TYPES_DSB={3: "C4701", 5: "C4714", 8: "C4702S", 9: "C4702P", 11: "C4728"}
+        self.COACH_TYPES_DSB={2: "C4740", 3: "C4701", 5: "C4714", 8: "C4702S", 9: "C4702P", 11: "C4728"}
         #VARIABLE DE TCMS QUE INDICA EL TIPO DE COCHE
         self.COACH_TYPE = ['oVCUCH_TRDP_DS_A000.COM_Vehicle_Type']
         #VARIABLES DEL LAZO DE SEGURIDAD, INCLUYENDO LAS DEL PMR
@@ -4250,11 +4250,15 @@ class MainWindow(QMainWindow):
 
         self.screen_width = QApplication.primaryScreen().size().width()
         
-        self.red_eth = self.cargar_red(self.resource_path("F073_IP_Ports_Addressing_00_40.xlsm"))
+        if self.project == "DB":
+            self.red_eth = self.cargar_red(self.resource_path("F073_IP_Ports_Addressing_00_40.xlsm"))
+        elif self.project == "DSB":
+            self.red_eth = self.cargar_red(self.resource_path("F081_IP_Ports_Addressing_v13.3_Cabcar.xlsm"))
 
         self.msg.accept()
 
         # print(self.red_eth.keys())
+        # print(self.red_eth)
 
         count = 0
         COLS_PER_COACH = 5  # PUERTO, PORT ID, VLAN, DEVICE, IP
@@ -4340,6 +4344,9 @@ class MainWindow(QMainWindow):
                     port_id += 1
                 
                 esu_id += 1 # Incrementar ID de ESU
+                if self.project == "DSB" and esu_id == 2:
+                    esu_id = 4  # Saltar ID 3 en DSB
+
 
         # self.massive_ping_table.setItem(32, 4, QTableWidgetItem(str("172.20.8.109")))
 
@@ -4492,14 +4499,16 @@ class MainWindow(QMainWindow):
         m = re.search(r"C\d{4}[A-Z]?", texto)
         return m.group(0) if m else None
 
-    def cargar_red(self, path_excel, sheet_name = "Train IP Addressing (ECN)", reseved_ip_sheetname = "Reserved Fixed IPs", reserved_esus_ip_sheetname="Coaches Types and Number"):
+    def cargar_red(self, path_excel, sheet_name_DB= "Train IP Addressing (ECN)", reseved_ip_sheetname = "Reserved Fixed IPs", reserved_esus_ip_sheetname="Coaches Types and Number", sheet_name_DSB= "Train IP Addressing 15 CabCar"):
         # leemos con pandas para manejar datos cómodamente
+        if self.project == "DB":
+            sheet_name = sheet_name_DB
+        elif self.project == "DSB":
+            sheet_name = sheet_name_DSB
         df = pd.read_excel(path_excel, sheet_name=sheet_name, header=None, dtype=object)
-        reserved = pd.read_excel(path_excel, sheet_name=reseved_ip_sheetname, header=None, dtype=object)
-        reserved_esus = pd.read_excel(path_excel, sheet_name=reserved_esus_ip_sheetname, header=None, dtype=object)
+
         nrows, ncols = df.shape
-        nrows_reserved, ncols_reserved = reserved.shape
-        nrows_reserved_esus, ncols_reserved_esus = reserved_esus.shape
+
         coach_ranges = []
         found = []
         reserved_ips = []
@@ -4509,25 +4518,35 @@ class MainWindow(QMainWindow):
                 val = df.iat[r, c]
                 if isinstance(val, str) and self.extraer_codigo_coche(val):
                     found.append((r, c, self.extraer_codigo_coche(val)))
-        for rr in range(nrows_reserved):
-            for rc in range(ncols_reserved):
-                if reserved.iat[rr, rc] == "IP address":
-                    for ip_row in range(rr + 1, nrows_reserved):
-                        ip_cell = reserved.iat[ip_row, rc]
-                        if isinstance(ip_cell, str) and ip_cell.strip():
-                            reserved_ips.append(ip_cell.strip())
-                        else:
-                            break  # paro en la primera fila vacía del listado de IPs reservadas
-        for rr in range(nrows_reserved_esus):
-            for rc in range(ncols_reserved_esus):
-                if reserved_esus.iat[rr, rc] == "ESU ID":
-                    for ip_row in range(rr + 2, nrows_reserved_esus):
-                            for ip_col in range(rc, ncols_reserved_esus):
-                                ip_cell = reserved_esus.iat[ip_row, ip_col]
-                                if isinstance(ip_cell, str) and ip_cell.strip():
-                                    reserved_ips.append(ip_cell.strip())
-                                else:
-                                    break  # paro en la primera fila vacía del listado de IPs reservadas        
+        
+        if self.project == "DB":
+            reserved = pd.read_excel(path_excel, sheet_name=reseved_ip_sheetname, header=None, dtype=object)
+            reserved_esus = pd.read_excel(path_excel, sheet_name=reserved_esus_ip_sheetname, header=None, dtype=object)
+            
+            nrows_reserved, ncols_reserved = reserved.shape
+            nrows_reserved_esus, ncols_reserved_esus = reserved_esus.shape
+
+            
+            for rr in range(nrows_reserved):
+                for rc in range(ncols_reserved):
+                    if reserved.iat[rr, rc] == "IP address":
+                        for ip_row in range(rr + 1, nrows_reserved):
+                            ip_cell = reserved.iat[ip_row, rc]
+                            if isinstance(ip_cell, str) and ip_cell.strip():
+                                reserved_ips.append(ip_cell.strip())
+                            else:
+                                break  # paro en la primera fila vacía del listado de IPs reservadas
+            for rr in range(nrows_reserved_esus):
+                for rc in range(ncols_reserved_esus):
+                    if reserved_esus.iat[rr, rc] == "ESU ID":
+                        for ip_row in range(rr + 2, nrows_reserved_esus):
+                                for ip_col in range(rc, ncols_reserved_esus):
+                                    ip_cell = reserved_esus.iat[ip_row, ip_col]
+                                    if isinstance(ip_cell, str) and ip_cell.strip():
+                                        reserved_ips.append(ip_cell.strip())
+                                    else:
+                                        break  # paro en la primera fila vacía del listado de IPs reservadas        
+
                 
         # print(f"Loaded {len(reserved_ips)} reserved IPs.")
         # print(reserved_ips)
@@ -4562,7 +4581,10 @@ class MainWindow(QMainWindow):
             # Para cada header detectado extraemos puertos empezando en header_row + 2
             for col in range(start_col + 1, end_col):
                 for header_row in sorted(header_rows):
-                    name_row = header_row + 2 + 1# nombre de switch (se busca en header_row + 2 + 1)
+                    if self.project == "DB":
+                        name_row = header_row + 2 + 1 # nombre de switch (se busca en header_row + 2 + 1)
+                    elif self.project == "DSB":
+                        name_row = header_row + 2  # nombre de switch (se busca en header_row + 2)
                     if not (isinstance(df.iat[header_row, col], str) and df.iat[header_row, col].strip().upper() == "ID"):
                         continue
 
@@ -4587,12 +4609,14 @@ class MainWindow(QMainWindow):
                         
                         if isinstance(device, float) and math.isnan(device):
                             device = None
-  
+
+
                         ports[port_name] = {
                             "VLAN": int(vlan) if pd.notna(vlan) else None,
                             "Device": device,
-                            "IP": ip.strip() if isinstance(ip, str) and ip.strip() in reserved_ips else None
+                            "IP": ip.strip() if isinstance(ip, str) and ip.strip() in reserved_ips and self.project == "DB" else None
                         }
+
                         r += 1
 
                     if ports:
