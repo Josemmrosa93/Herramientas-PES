@@ -13,14 +13,21 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QScrollArea,
     QFrame,
-    QTabWidget,
+    QFormLayout,
     QPushButton,
     QDialog,
     QTextEdit,
     QMenuBar,
     QMenu,
     QStyleFactory,
-    QInputDialog
+    QInputDialog,
+    QSplitter,
+    QListWidget, 
+    QStackedWidget,
+    QDialogButtonBox,
+    QLineEdit,
+    QCheckBox,
+    QSpinBox
 )
 from PySide6.QtGui import (
     QAction,
@@ -74,7 +81,7 @@ GITHUB_REPO = "Herramientas-PES"
 maintenance_mode = 1
 
 PING_TIMEOUT = 200  # Tiempo de espera para el ping en milisegundos.
-SSH_TIMEOUT = 5.0  # Tiempo de espera para la conexión SSH, 5.0 para operación en tren.
+SSH_TIMEOUT = 1.0  # Tiempo de espera para la conexión SSH, 5.0 para operación en tren.
 TEST_TIMEOUT = 1000 # Tiempo de refresco de los datos de diagnóstico, 4000 para operación en tren.
 MONITOR_INTERVAL = 5 # Tiempo de refresco para la evaluación de las conexiones.
 RESET_PAUSE = 5000 # Tiempo de pausa entre órdenes del reseteo de fallos. 
@@ -83,6 +90,25 @@ MODO_PRUEBA = False
 
 PREDEFINED_DSB = ['11', '3', '3', '5', '8', '9', '8', '9', '8', '9', '8', '9', '8', '9', '11']
 PREDEFINED_DB_13 = ['11', '9', '8', '10', '8', '9', '7', '6', '5', '4', '3', '3', '2', '2']
+
+CONFIG_FILE = "config.json"
+
+DEFAULT_CONFIG = {
+    "general":{
+        "ssh_username": "root",
+        "ssh_password": "root",
+        "ping_timeout": 200,
+        "ssh_timeout": 5,
+        "test_timeout": 1000,
+        "monitor_interval": 5,
+        "reset_pause": 5000,
+    },  
+    "massive_ping":{
+        "ping_count": "1",
+        "max_threads": "50",
+        "auto_export": True,        
+    }
+}
 
 class TCMS_vars:
     def __init__(self):
@@ -3272,7 +3298,7 @@ class MainWindow(QMainWindow):
                                     '10.0.18.192', '10.0.19.0', '10.0.19.64', '10.0.19.128', '10.0.19.192',
                                     '10.0.20.0', '10.0.20.64', '10.0.20.128', '10.0.20.192', '10.0.21.0', '10.0.21.64']
         }
-        
+
         self.TCMS_vars = TCMS_vars()
         self.timer=QTimer()
 
@@ -3361,11 +3387,15 @@ class MainWindow(QMainWindow):
         
         load_data_action = QAction("Cargar excel variables", self)
         load_data_action.setEnabled(False)
+
+        preferences_action = QAction("Preferencias", self)
+        preferences_action.setEnabled(True)
+        preferences_action.triggered.connect(self.open_preferences)
         
         close_app_action = QAction("Cerrar", self)
         close_app_action.setEnabled(False)
         
-        file_menu.addActions([open_action, load_data_action, close_app_action])
+        file_menu.addActions([open_action, load_data_action, preferences_action, close_app_action])
         
         ######### MENÚ CONECTAR ##########
         
@@ -3431,6 +3461,162 @@ class MainWindow(QMainWindow):
         self.check_updates_action = QAction("Comprobar actualizaciones", self)
         self.check_updates_action.triggered.connect(self.check_for_updates)
         ayuda_menu.addAction(self.check_updates_action)
+
+    def load_config(self):
+        if not os.path.exists(CONFIG_FILE):
+            return DEFAULT_CONFIG.copy()
+        
+        try:
+            with open(CONFIG_FILE, 'r', encoding="utf-8") as f:
+                data = json.load(f)
+                
+        except Exception as e:
+            print("ERROR: ", e)
+            return DEFAULT_CONFIG.copy()
+        
+        
+        cfg = DEFAULT_CONFIG.copy()
+
+        for seccion, valores in data.items():
+            if seccion in cfg and isinstance(valores, dict):
+
+                cfg[seccion].update(valores)
+            return cfg
+            
+    def save_config(self):
+        with open(CONFIG_FILE, 'w', encoding="utf-8") as f:
+            json.dump(self.config, f, indent=4, ensure_ascii=False)
+
+    def open_preferences(self):
+
+        def create_general_page():
+            w = QWidget()
+            layout = QFormLayout(w)
+            self.ping_timeout = QSpinBox()
+            self.ping_timeout.setRange(50,1001)
+            self.ping_timeout.setSuffix(" ms")
+            self.ssh_timeout = QSpinBox()
+            self.ssh_timeout.setRange(1, 6)
+            self.ssh_timeout.setSuffix(" s")
+            self.test_refresh = QSpinBox()
+            self.test_refresh.setRange(1000, 10001)
+            self.test_refresh.setSuffix(" ms")
+            self.monitor_interval = QSpinBox()
+            self.monitor_interval.setRange(2, 10)
+            self.monitor_interval.setSuffix(" s")
+            self.reset_pause = QSpinBox()
+            self.reset_pause.setRange(1000,10001)
+            self.reset_pause.setSuffix(" ms")
+            # self.chk_minimizado = QCheckBox("Iniciar Minimizado")
+
+            layout.addRow("Timeout para pings:", self.ping_timeout)
+            layout.addRow("Timeout para conexión SSH:", self.ssh_timeout)
+            layout.addRow("Tiempo de refresco de datos en representación", self.test_refresh)
+            layout.addRow("Tiempo de intento de recuperación de conexiones caídas", self.monitor_interval)
+            layout.addRow("Tiempo de pausa entre órdenes de reseteo de errores", self.reset_pause)
+            # layout.addRow("", self.chk_minimizado)
+
+            return w
+       
+        def create_network_page():
+            
+            w = QWidget()
+            layout = QFormLayout(w)
+
+            self.spin_ping_count = QSpinBox()
+            self.spin_ping_count.setRange(1,201)
+            self.spin_ping_count.setSuffix(" paquetes")
+
+            self.auto_export = QCheckBox("Auto exportar informe de resultados al escanear la red")
+
+            self.max_threads = QSpinBox()
+            self.max_threads.setRange(1,21)
+            self.max_threads.setSuffix(" hilos en paralelo")
+
+            path_layout = QHBoxLayout()
+            self.export_path = QLineEdit()
+            self.browse_export = QPushButton("Examinar")
+
+            def path_select():
+                filename, _ = QFileDialog.getSaveFileName(
+                    self, "Seleccionar ruta de exportación", "network_report.xls", "Archivos excel (*.xlsx);;Todos (*.*)"
+                )
+                if filename: 
+                    self.export_path.setText(filename)
+            
+            self.browse_export.clicked.connect(path_select)
+
+            layout.addRow("Número de paquetes enviados por ping: ", self.spin_ping_count)
+            layout.addRow("Número máximo de hilos en paralelo haciendo ping: ", self.max_threads)
+            # layout.addRow("", self.chk_auto_check)
+
+            path_layout.addWidget(self.export_path)
+            path_layout.addWidget(self.browse_export)
+
+            
+            layout.addRow(self.auto_export)
+            layout.addRow("Ruta exportación: ", path_layout)
+
+            return w
+
+        def load_into_widgets(config):
+            g = config.get("general", {})
+            # print(g)
+            n = config.get("massive_ping", {})
+            # print(n)
+
+            PING_TIMEOUT = g.get("ping_timeout", "")
+            SSH_TIMEOUT = g.get("ssh_timetou", "")
+            TEST_TIMEOUT = g.get("test_timeout", "")
+            MONITOR_INTERVAL = g.get("monitor_interval", "")
+            RESET_PAUSE = g.get("reset_pause", "")
+
+            self.spin_ping_count.setValue(int(n.get("ping_count", "1")))
+            self.max_threads.setValue(int(n.get("max_threads", "1")))
+            self.auto_export.setChecked(bool(n.get("auto_export")))
+
+
+        self.preferences_windows = QWidget()
+        self.preferences_windows.setWindowTitle("Configuración")
+        self.preferences_windows.resize(800,800)
+
+        splitter = QSplitter(Qt.Horizontal, self)
+
+        self.section_list = QListWidget()
+        self.section_list.addItems([
+            "General",
+            "Comprobación estado de red",
+            "Importar/Exportar archivo de configuración"
+        ])
+
+        self.pages = QStackedWidget()
+
+        self.page_general = create_general_page()
+        self.page_network = create_network_page()
+        # self.page_import_export = create_import_export_page()
+
+        self.pages.addWidget(self.page_general)
+        self.pages.addWidget(self.page_network)
+        # self.pages.addWidget(self.page_import_export)
+        
+        splitter.addWidget(self.section_list)
+        splitter.addWidget(self.pages)
+        splitter.setStretchFactor(1, 1)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel | QDialogButtonBox.Apply, Qt.Horizontal, self)
+
+        self.section_list.currentRowChanged.connect(self.pages.setCurrentIndex)
+
+        main_layout = QVBoxLayout()
+        main_layout.addWidget(splitter)
+        main_layout.addWidget(buttons)
+        self.preferences_windows.setLayout(main_layout)
+
+        self.preferences_windows.show()
+
+        config = self.load_config()
+        print(config)
+        load_into_widgets(config)
 
     def check_for_updates(self):
         """Muestra el aviso y comprueba si hay una nueva versión"""
