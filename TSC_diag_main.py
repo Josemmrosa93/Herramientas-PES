@@ -3353,6 +3353,10 @@ class MainWindow(QMainWindow):
         self.svg_coaches_length_DSB = [100,100,100,350,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100]
         # self.svg_coaches_length_DB = [100,100,100,350,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100]
 
+        self.config = self.load_config()
+
+        # print(self.config)
+
     def resource_path(self, relative_path):
         base_path = getattr(sys, '_MEIPASS', os.path.dirname(__file__))
         return os.path.join(base_path, relative_path)
@@ -3463,12 +3467,14 @@ class MainWindow(QMainWindow):
         ayuda_menu.addAction(self.check_updates_action)
 
     def load_config(self):
+
         if not os.path.exists(CONFIG_FILE):
             return DEFAULT_CONFIG.copy()
         
         try:
             with open(CONFIG_FILE, 'r', encoding="utf-8") as f:
                 data = json.load(f)
+                # print(data)
                 
         except Exception as e:
             print("ERROR: ", e)
@@ -3478,10 +3484,11 @@ class MainWindow(QMainWindow):
         cfg = DEFAULT_CONFIG.copy()
 
         for seccion, valores in data.items():
+            # print(seccion, valores)
             if seccion in cfg and isinstance(valores, dict):
 
                 cfg[seccion].update(valores)
-            return cfg
+        return cfg
             
     def save_config(self):
         with open(CONFIG_FILE, 'w', encoding="utf-8") as f:
@@ -3566,7 +3573,7 @@ class MainWindow(QMainWindow):
             # print(n)
 
             PING_TIMEOUT = g.get("ping_timeout", "")
-            SSH_TIMEOUT = g.get("ssh_timetou", "")
+            SSH_TIMEOUT = g.get("ssh_timeout", "")
             TEST_TIMEOUT = g.get("test_timeout", "")
             MONITOR_INTERVAL = g.get("monitor_interval", "")
             RESET_PAUSE = g.get("reset_pause", "")
@@ -3575,10 +3582,40 @@ class MainWindow(QMainWindow):
             self.max_threads.setValue(int(n.get("max_threads", "1")))
             self.auto_export.setChecked(bool(n.get("auto_export")))
 
+        def widgets_into_config(config):
+            # Partimos de la config actual (por ejemplo la que cargaste al abrir la app)
+            cfg = config.copy()
+            
+            # Aseguramos que existen las secciones
+            g = cfg.setdefault("general", {})
+            n = cfg.setdefault("massive_ping", {})
+
+            # ----- general -----
+            # Aquí deberías leer los widgets que correspondan a estos campos.
+            # Ejemplo (cambia los nombres de los widgets por los tuyos reales):
+            g["ping_timeout"]     = PING_TIMEOUT
+            g["ssh_timeout"]      = SSH_TIMEOUT
+            g["test_timeout"]     = TEST_TIMEOUT
+            g["monitor_interval"] = MONITOR_INTERVAL
+            g["reset_pause"]      = RESET_PAUSE
+
+            # ----- massive_ping -----
+            n["ping_count"] = self.spin_ping_count.value()
+            print(self.spin_ping_count.value())
+            n["max_threads"] = self.max_threads.value()
+            n["auto_export"] = self.auto_export.isChecked()
+
+            # Guardamos en el objeto
+            self.config = cfg
+            
+
+            self.save_config()
 
         self.preferences_windows = QWidget()
         self.preferences_windows.setWindowTitle("Configuración")
         self.preferences_windows.resize(800,800)
+
+        self.config = self.load_config()
 
         splitter = QSplitter(Qt.Horizontal, self)
 
@@ -3605,6 +3642,10 @@ class MainWindow(QMainWindow):
 
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel | QDialogButtonBox.Apply, Qt.Horizontal, self)
 
+        apply_btn = buttons.button(QDialogButtonBox.Apply)
+        apply_btn.clicked.connect(lambda: widgets_into_config(self.config))
+
+
         self.section_list.currentRowChanged.connect(self.pages.setCurrentIndex)
 
         main_layout = QVBoxLayout()
@@ -3614,9 +3655,9 @@ class MainWindow(QMainWindow):
 
         self.preferences_windows.show()
 
-        config = self.load_config()
-        print(config)
-        load_into_widgets(config)
+        
+        # print(config)
+        load_into_widgets(self.config)
 
     def check_for_updates(self):
         """Muestra el aviso y comprueba si hay una nueva versión"""
