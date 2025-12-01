@@ -2,15 +2,15 @@
     "general": {
         "ssh_username": "root",
         "ssh_password": "root",
-        "ping_timeout": 300,
-        "ssh_timeout": 5,
-        "test_timeout": 2000,
+        "ping_timeout": 100,
+        "ssh_timeout": 1,
+        "test_timeout": 1500,
         "monitor_interval": 5,
         "reset_pause": 5000
     },
     "massive_ping": {
         "ping_count": 1,
-        "max_threads": 10,
+        "max_threads": 21,
         "auto_export": true
     }
 }

@@ -72,6 +72,7 @@ import xlsxwriter
 from threading import Event
 import pandas as pd
 import math
+import copy
 
 
 APP_VERSION = "1.0.2"
@@ -1334,7 +1335,7 @@ class VCU:
             return False
 
     def link_SSH(self):
-        print(self.config)
+        
         try:
             if not self.client:
                 self.client = paramiko.SSHClient()
@@ -1458,13 +1459,14 @@ class ScanThread(QThread):
     scan_progress = Signal(int, int)
     scan_completed = Signal(list)
 
-    def __init__(self, ip_list, max_initial_ips, project, cabcar_VCUCH_ips, cabcar_VCUPH_ips):
+    def __init__(self, ip_list, max_initial_ips, project, cabcar_VCUCH_ips, cabcar_VCUPH_ips, config):
         super().__init__()
         self.ip_list = ip_list
         self.max_initial_ips = max_initial_ips
         self.project = project
         self.cabcar_vcuch_ips = cabcar_VCUCH_ips
         self.cabcar_vcuph_ips = cabcar_VCUPH_ips
+        self.config = config
 
     def run(self):
 
@@ -3358,7 +3360,6 @@ class MainWindow(QMainWindow):
 
         self.config = self.load_config()
 
-
     def resource_path(self, relative_path):
         base_path = getattr(sys, '_MEIPASS', os.path.dirname(__file__))
         return os.path.join(base_path, relative_path)
@@ -3583,9 +3584,9 @@ class MainWindow(QMainWindow):
             self.max_threads.setValue(int(n.get("max_threads", "1")))
             self.auto_export.setChecked(bool(n.get("auto_export")))
 
-        def widgets_into_config(config):
+        def widgets_into_config(config, save = True):
             # Partimos de la config actual (por ejemplo la que cargaste al abrir la app)
-            cfg = config.copy()
+            cfg = copy.deepcopy(config)
   
             
             # Aseguramos que existen las secciones
@@ -3608,12 +3609,12 @@ class MainWindow(QMainWindow):
             n["max_threads"] = self.max_threads.value()
             n["auto_export"] = self.auto_export.isChecked()
 
-            # Guardamos en el objeto
-            self.config = cfg
-            
-           
-
-            self.save_config()
+            if save:
+                # Guardamos en el objeto
+                self.config = cfg
+                self.save_config()
+            else: 
+                return cfg
 
         self.preferences_windows = QWidget()
         self.preferences_windows.setWindowTitle("Configuración")
@@ -3651,6 +3652,39 @@ class MainWindow(QMainWindow):
         apply_btn = buttons.button(QDialogButtonBox.Apply)
         apply_btn.clicked.connect(lambda: widgets_into_config(self.config))
 
+        def on_ok():
+            actual_cfg = widgets_into_config(self.config, save = False)
+
+            if self.config != actual_cfg:
+                msg = QMessageBox(self)
+                msg.setWindowTitle("Guardar cambios")
+                msg.setText("¿Desea guardar los cambios realizados?")
+                msg.setIcon(QMessageBox.Question)
+
+                guardar = msg.addButton("Guardar", QMessageBox.AcceptRole)
+                descartar = msg.addButton("Descartar", QMessageBox.DestructiveRole)
+                cancelar = msg.addButton("Cancelar", QMessageBox.RejectRole)
+
+                msg.exec()
+                clicked = msg.clickedButton()
+                if clicked == guardar:
+                    self.config = actual_cfg
+                    self.save_config()
+                    self.preferences_windows.close()
+                elif clicked == descartar:
+                    self.preferences_windows.close()
+                else:
+                    self.preferences_windows.close()
+                    return
+            else: 
+                self.preferences_windows.close()
+                    
+
+        ok_btn = buttons.button(QDialogButtonBox.Ok)
+        ok_btn.clicked.connect(on_ok)
+
+        cancel_btn = buttons.button(QDialogButtonBox.Cancel)
+        cancel_btn.clicked.connect(self.preferences_windows.close)
 
         self.section_list.currentRowChanged.connect(self.pages.setCurrentIndex)
 
@@ -3661,8 +3695,6 @@ class MainWindow(QMainWindow):
 
         self.preferences_windows.show()
 
-        
-        # print(config)
         load_into_widgets(self.config)
 
     def check_for_updates(self):
@@ -3760,7 +3792,7 @@ class MainWindow(QMainWindow):
         self.valid_ips = []
         
 
-        self.scan_thread = ScanThread(self.ip_data[self.project], self.max_initial_ips, self.project, self.ip_data["DB_VCUCH_CABCAR"], self.ip_data["DB_VCUPH_CABCAR"])
+        self.scan_thread = ScanThread(self.ip_data[self.project], self.max_initial_ips, self.project, self.ip_data["DB_VCUCH_CABCAR"], self.ip_data["DB_VCUPH_CABCAR"], self.config)
         self.scan_thread.scan_progress.connect(self.coach_scan_progress)
         self.scan_thread.scan_completed.connect(self.on_scan_completed)
         self.scan_thread.start()
@@ -3774,7 +3806,7 @@ class MainWindow(QMainWindow):
         
         self.valid_ips = valid_ips
         self.coaches_type = ["Unknown"] * len(self.valid_ips)
-        self.trainset_coaches=[VCU(ip) for ip in self.valid_ips]
+        self.trainset_coaches=[VCU(ip, self.config) for ip in self.valid_ips]
         
         self.progress_bar.setVisible(False)
         self.detected_label.setVisible(False)
@@ -4618,7 +4650,7 @@ class MainWindow(QMainWindow):
                 ip_list.append([j, i, test_ip])
             ping_ip_tuple.append(ip_list)
 
-        self.ping_executor = ThreadPoolExecutor(max_workers=20)
+        self.ping_executor = ThreadPoolExecutor(max_workers=self.config["massive_ping"]["max_threads"])
 
         for coach_list in ping_ip_tuple:
             for row, col, ip in coach_list:
@@ -4675,7 +4707,7 @@ class MainWindow(QMainWindow):
             try:
                 # Windows: -n 1 (un eco), -w timeout
                 result = subprocess.run(
-                    ["ping", "-n", "1", "-w", str(self.config["general"]["ping_timeout"]), ip],
+                    ["ping", "-n", str(self.config["massive_ping"]["ping_count"]), "-w", str(self.config["general"]["ping_timeout"]), ip],
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
                     shell=True
