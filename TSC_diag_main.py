@@ -80,11 +80,11 @@ GITHUB_REPO = "Herramientas-PES"
 
 maintenance_mode = 1
 
-PING_TIMEOUT = 200  # Tiempo de espera para el ping en milisegundos.
-SSH_TIMEOUT = 1.0  # Tiempo de espera para la conexión SSH, 5.0 para operación en tren.
-TEST_TIMEOUT = 1000 # Tiempo de refresco de los datos de diagnóstico, 4000 para operación en tren.
-MONITOR_INTERVAL = 5 # Tiempo de refresco para la evaluación de las conexiones.
-RESET_PAUSE = 5000 # Tiempo de pausa entre órdenes del reseteo de fallos. 
+# PING_TIMEOUT = 200  # Tiempo de espera para el ping en milisegundos.
+# SSH_TIMEOUT = 1.0  # Tiempo de espera para la conexión SSH, 5.0 para operación en tren.
+# TEST_TIMEOUT = 1000 # Tiempo de refresco de los datos de diagnóstico, 4000 para operación en tren.
+# MONITOR_INTERVAL = 5 # Tiempo de refresco para la evaluación de las conexiones.
+# RESET_PAUSE = 5000 # Tiempo de pausa entre órdenes del reseteo de fallos. 
 
 MODO_PRUEBA = False
 
@@ -109,6 +109,7 @@ DEFAULT_CONFIG = {
         "auto_export": True,        
     }
 }
+
 
 class TCMS_vars:
     def __init__(self):
@@ -1258,7 +1259,7 @@ class TCMS_vars:
 class ConnectionMonitorThread(QThread):
     connection_status_updated = Signal(str, str)
     
-    def __init__(self, vcu_list, check_interval=MONITOR_INTERVAL):
+    def __init__(self, vcu_list, check_interval):
         super().__init__()
         self.vcu_list = vcu_list
         self.check_interval = check_interval
@@ -1306,7 +1307,8 @@ class ConnectionMonitorThread(QThread):
         return "success"
         
 class VCU:
-    def __init__(self, ip):
+    def __init__(self, ip, config):
+        self.config = config
         self.ip = ip
         self.USERNAME = "root"
         self.PASSWORD = "root"
@@ -1320,7 +1322,7 @@ class VCU:
         start_time = time.time()
         try:
             result = subprocess.run(
-                ['ping', '-w', str(PING_TIMEOUT), '-n', '1', self.ip],
+                ['ping', '-w', str(self.config["general"]["ping_timeout"]), '-n', '1', self.ip],
                 stdout=subprocess.DEVNULL,
                 shell=True
             )
@@ -1332,12 +1334,13 @@ class VCU:
             return False
 
     def link_SSH(self):
-
+        print(self.config)
         try:
             if not self.client:
                 self.client = paramiko.SSHClient()
                 self.client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-            self.client.connect(self.ip, username=self.USERNAME, password=self.PASSWORD, timeout=SSH_TIMEOUT)
+            timeout_SSH = int(self.config["general"]["ssh_timeout"])
+            self.client.connect(self.ip, username=self.USERNAME, password=self.PASSWORD, timeout = timeout_SSH)
             self.connection_status = "success"
             return self.connection_status
         except Exception as e:
@@ -1468,7 +1471,7 @@ class ScanThread(QThread):
         valid_ips = self.ip_list[:self.max_initial_ips]
         
         for i, ip in enumerate(self.ip_list[self.max_initial_ips:]):
-            vcu = VCU(ip)
+            vcu = VCU(ip, self.config)
             if vcu.ping_test():
                 valid_ips.append(ip)
                 print(ip)
@@ -3355,7 +3358,6 @@ class MainWindow(QMainWindow):
 
         self.config = self.load_config()
 
-        # print(self.config)
 
     def resource_path(self, relative_path):
         base_path = getattr(sys, '_MEIPASS', os.path.dirname(__file__))
@@ -3486,7 +3488,6 @@ class MainWindow(QMainWindow):
         for seccion, valores in data.items():
             # print(seccion, valores)
             if seccion in cfg and isinstance(valores, dict):
-
                 cfg[seccion].update(valores)
         return cfg
             
@@ -3568,15 +3569,15 @@ class MainWindow(QMainWindow):
 
         def load_into_widgets(config):
             g = config.get("general", {})
-            # print(g)
-            n = config.get("massive_ping", {})
-            # print(n)
 
-            PING_TIMEOUT = g.get("ping_timeout", "")
-            SSH_TIMEOUT = g.get("ssh_timeout", "")
-            TEST_TIMEOUT = g.get("test_timeout", "")
-            MONITOR_INTERVAL = g.get("monitor_interval", "")
-            RESET_PAUSE = g.get("reset_pause", "")
+            n = config.get("massive_ping", {})
+
+
+            self.ping_timeout.setValue(int(g.get("ping_timeout")))
+            self.ssh_timeout.setValue(int(g.get("ssh_timeout")))
+            self.test_refresh.setValue(int(g.get("test_timeout")))
+            self.monitor_interval.setValue(int(g.get("monitor_interval")))
+            self.reset_pause.setValue(int(g.get("reset_pause")))
 
             self.spin_ping_count.setValue(int(n.get("ping_count", "1")))
             self.max_threads.setValue(int(n.get("max_threads", "1")))
@@ -3585,6 +3586,7 @@ class MainWindow(QMainWindow):
         def widgets_into_config(config):
             # Partimos de la config actual (por ejemplo la que cargaste al abrir la app)
             cfg = config.copy()
+  
             
             # Aseguramos que existen las secciones
             g = cfg.setdefault("general", {})
@@ -3593,21 +3595,23 @@ class MainWindow(QMainWindow):
             # ----- general -----
             # Aquí deberías leer los widgets que correspondan a estos campos.
             # Ejemplo (cambia los nombres de los widgets por los tuyos reales):
-            g["ping_timeout"]     = PING_TIMEOUT
-            g["ssh_timeout"]      = SSH_TIMEOUT
-            g["test_timeout"]     = TEST_TIMEOUT
-            g["monitor_interval"] = MONITOR_INTERVAL
-            g["reset_pause"]      = RESET_PAUSE
+            
+            g["ping_timeout"]     = self.ping_timeout.value()
+            g["ssh_timeout"]      = self.ssh_timeout.value()
+            g["test_timeout"]     = self.test_refresh.value()
+            g["monitor_interval"] = self.monitor_interval.value()
+            g["reset_pause"]      = self.reset_pause.value()
 
             # ----- massive_ping -----
             n["ping_count"] = self.spin_ping_count.value()
-            print(self.spin_ping_count.value())
+            # print(self.spin_ping_count.value())
             n["max_threads"] = self.max_threads.value()
             n["auto_export"] = self.auto_export.isChecked()
 
             # Guardamos en el objeto
             self.config = cfg
             
+           
 
             self.save_config()
 
@@ -3616,6 +3620,8 @@ class MainWindow(QMainWindow):
         self.preferences_windows.resize(800,800)
 
         self.config = self.load_config()
+
+        # print(self.config)
 
         splitter = QSplitter(Qt.Horizontal, self)
 
@@ -3778,7 +3784,7 @@ class MainWindow(QMainWindow):
         
         if not self.connection_monitor:
 
-            self.connection_monitor = ConnectionMonitorThread(self.trainset_coaches)
+            self.connection_monitor = ConnectionMonitorThread(self.trainset_coaches, self.config["general"]["monitor_interval"])
             self.connection_monitor.connection_status_updated.connect(self.on_connection_status_updated)
             
         self.connection_monitor.start()
@@ -4669,7 +4675,7 @@ class MainWindow(QMainWindow):
             try:
                 # Windows: -n 1 (un eco), -w timeout
                 result = subprocess.run(
-                    ["ping", "-n", "1", "-w", str(PING_TIMEOUT), ip],
+                    ["ping", "-n", "1", "-w", str(self.config["general"]["ping_timeout"]), ip],
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
                     shell=True
@@ -4872,7 +4878,7 @@ class MainWindow(QMainWindow):
         self.set_timer_function(new_function)
         new_function()  # Llama a la función inmediatamente
         if not self.timer.isActive():  # Verifica si el temporizador no está activo
-            self.timer.start(TEST_TIMEOUT)  # Configura el intervalo en 2 segundos
+            self.timer.start(self.config["general"]["test_timeout"])  # Configura el intervalo en 2 segundos
 
 if __name__ == "__main__":
     

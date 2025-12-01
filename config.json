@@ -2,9 +2,9 @@
     "general": {
         "ssh_username": "root",
         "ssh_password": "root",
-        "ping_timeout": 200,
-        "ssh_timeout": 1.0,
-        "test_timeout": 1000,
+        "ping_timeout": 300,
+        "ssh_timeout": 5,
+        "test_timeout": 2000,
         "monitor_interval": 5,
         "reset_pause": 5000
     },
