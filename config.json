@@ -4,13 +4,14 @@
         "ssh_password": "root",
         "ping_timeout": 100,
         "ssh_timeout": 1,
-        "test_timeout": 1500,
-        "monitor_interval": 5,
+        "test_timeout": 5000,
+        "monitor_interval": 10,
         "reset_pause": 5000
     },
     "massive_ping": {
         "ping_count": 1,
         "max_threads": 21,
-        "auto_export": true
+        "auto_export": true,
+        "export_path": ""
     }
 }

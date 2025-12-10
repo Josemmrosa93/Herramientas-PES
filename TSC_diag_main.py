@@ -3275,7 +3275,7 @@ class TSCGenerator(QSvgWidget):
 class MainWindow(QMainWindow):
     
     scan_progress_signal = Signal(int)
-    ping_result_signal = Signal(int, int, bool)  # row, col, ok
+    ping_result_signal = Signal(int, int, bool, int, int, int, int, int, int)  # row, col, ok, rtt, lost, sent, received, min, max
 
     def __init__(self):
         super().__init__()
@@ -3505,7 +3505,7 @@ class MainWindow(QMainWindow):
             self.ping_timeout.setRange(50,1001)
             self.ping_timeout.setSuffix(" ms")
             self.ssh_timeout = QSpinBox()
-            self.ssh_timeout.setRange(1, 6)
+            self.ssh_timeout.setRange(1, 11)
             self.ssh_timeout.setSuffix(" s")
             self.test_refresh = QSpinBox()
             self.test_refresh.setRange(1000, 10001)
@@ -3583,7 +3583,8 @@ class MainWindow(QMainWindow):
             self.spin_ping_count.setValue(int(n.get("ping_count", "1")))
             self.max_threads.setValue(int(n.get("max_threads", "1")))
             self.auto_export.setChecked(bool(n.get("auto_export")))
-
+            self.export_path.setText(n.get("export_path", ""))
+            
         def widgets_into_config(config, save = True):
             # Partimos de la config actual (por ejemplo la que cargaste al abrir la app)
             cfg = copy.deepcopy(config)
@@ -3608,6 +3609,7 @@ class MainWindow(QMainWindow):
             # print(self.spin_ping_count.value())
             n["max_threads"] = self.max_threads.value()
             n["auto_export"] = self.auto_export.isChecked()
+            n["export_path"] = self.export_path.text()
 
             if save:
                 # Guardamos en el objeto
@@ -3663,7 +3665,7 @@ class MainWindow(QMainWindow):
 
                 guardar = msg.addButton("Guardar", QMessageBox.AcceptRole)
                 descartar = msg.addButton("Descartar", QMessageBox.DestructiveRole)
-                cancelar = msg.addButton("Cancelar", QMessageBox.RejectRole)
+                # cancelar = msg.addButton("Cancelar", QMessageBox.RejectRole)
 
                 msg.exec()
                 clicked = msg.clickedButton()
@@ -3679,7 +3681,6 @@ class MainWindow(QMainWindow):
             else: 
                 self.preferences_windows.close()
                     
-
         ok_btn = buttons.button(QDialogButtonBox.Ok)
         ok_btn.clicked.connect(on_ok)
 
@@ -4155,11 +4156,13 @@ class MainWindow(QMainWindow):
                             active_errors.append((ip, error_code, description))
 
                             
-
                 else: #Para el resto de coches normales
-                    
+
                     TAR_TEMP_results=[]
-                    TAR_TEMP_results = vcu.SSH_read(self.TCMS_vars.TSC_DIAG_VARS)
+                    TAR_TEMP_parts = array_split(self.TCMS_vars.TSC_DIAG_VARS,2)
+                    for TAR_TEMP_part in TAR_TEMP_parts:
+                        TAR_TEMP_result = vcu.SSH_read(TAR_TEMP_part)
+                        TAR_TEMP_results.extend(TAR_TEMP_result)
 
                     # Seleccionar solo los índices relevantes
                     relevant_indices = list(range(20, 24)) + list(range(25, 29)) + list(range(31, 55))
@@ -4171,6 +4174,7 @@ class MainWindow(QMainWindow):
                     BCU_results = []
                     for part in parts:
                         result = vcu.SSH_read(part)  # Ejecuta el diagnóstico
+                        print(result)
                         BCU_results.extend(result)
                         # print(BCU_results)
 
@@ -4613,7 +4617,7 @@ class MainWindow(QMainWindow):
                     esu_id = 4  # Saltar ID 3 en DSB
 
 
-        # self.massive_ping_table.setItem(32, 4, QTableWidgetItem(str("172.20.8.109")))
+        self.massive_ping_table.setItem(32, 4, QTableWidgetItem(str("192.168.1.139")))
 
         # Ajustar el ancho de las columnas al contenido
         self.massive_ping_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
@@ -4652,10 +4656,17 @@ class MainWindow(QMainWindow):
 
         self.ping_executor = ThreadPoolExecutor(max_workers=self.config["massive_ping"]["max_threads"])
 
+        self.logs = []
+        self.ping_counter = 0
+        
         for coach_list in ping_ip_tuple:
             for row, col, ip in coach_list:
+                if ip is not None and self.is_valid_ip(ip):
+                    self.ping_counter += 1
                 # print(row, col, ip)
                 self.ping_executor.submit(self.ping_ip_worker, row, col * 5 + 4, ip)
+
+        # print(self.ping_counter, "pings en total iniciados.")
         
         # print(ping_ip_tuple)
 
@@ -4688,7 +4699,8 @@ class MainWindow(QMainWindow):
 
         self.ping_ip_worker(row, col, ip)
 
-    def update_ping_cell(self, row: int, col: int, ok: bool):
+    def update_ping_cell(self, row: int, col: int, ok: bool, enviados: int, recibidos: int, perdidos: int, minimo: int, maximo: int, media: int):
+
         table = self.massive_ping_table
         if table is None:
             return
@@ -4696,29 +4708,198 @@ class MainWindow(QMainWindow):
         item = table.item(row, col)
         if item is None:
             return
-
+        # print(ok)
         color = QColor(175, 242, 175) if ok else QColor(255, 131, 131)
         item.setBackground(QBrush(color))
 
+        # print(f"Ping a {item.text()}: {'OK' if ok else 'FALLIDO'} - Enviados: {enviados}, Recibidos: {recibidos}, Perdidos: {perdidos}, Mínimo: {minimo}ms, Máximo: {maximo}ms, Media: {media}ms")
+
+        self.logs.append({
+            "coche": (col - 4) // 5 + 1,
+            "dispositivo": table.item(row, col - 1).text() if table.item(row, col - 1) is not None else "",
+            "ip": item.text(),
+            "ok": ok,
+            "enviados": enviados,
+            "recibidos": recibidos,
+            "perdidos": perdidos,
+            "minimo": minimo,
+            "maximo": maximo,
+            "media": media
+        })
+
+        # comunicar el resultado al hilo de la GUI
+        
+        self.ping_counter -= 1
+        # print(self.ping_counter, "pings restantes.")
+
+        if self.ping_counter == 0 and self.config["massive_ping"]["auto_export"] == True:
+
+            self.export_ping_logs()
+
+    def export_ping_logs(self):
+        # print("Exportando logs de ping a ping_logs.xlsx...")
+
+        path = self.config["massive_ping"]["export_path"]
+
+        if path == "" or not os.path.isdir(os.path.dirname(path)):
+            # path = r"C:\Users\75815\Desktop\ping_logs.xlsx"
+                        
+            dialog = QDialog(self)
+            dialog.setWindowTitle("Ruta explortación de informe de conexiones de red")
+            
+            layout = QVBoxLayout()
+
+            label = QLabel("Selecciona la ruta y el nombre del archivo para exportar el informe de conexiones de red:")
+            layout.addWidget(label)
+
+            hlayout = QHBoxLayout()
+            line_edit = QLineEdit(dialog)
+            line_edit.setText(path)
+            hlayout.addWidget(line_edit)
+
+            def path_select():
+                filename, _ = QFileDialog.getSaveFileName(
+                    self, "Seleccionar ruta de exportación", "network_report.xlsx", "Archivos excel (*.xlsx);;Todos (*.*)"
+                )
+                if filename: 
+                    line_edit.setText(filename)
+                    self.config["massive_ping"]["export_path"] = line_edit.text()
+
+            browse_button = QPushButton("Examinar...", dialog)
+            browse_button.clicked.connect(path_select)
+            hlayout.addWidget(browse_button)
+
+            layout.addLayout(hlayout)
+
+            button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel, Qt.Horizontal, dialog)
+
+            def on_ok():
+                self.config["massive_ping"]["export_path"] = line_edit.text()
+                self.save_config()
+                dialog.accept()
+
+            ok_btn = button_box.button(QDialogButtonBox.Ok)
+            ok_btn.clicked.connect(on_ok)
+
+            cancel_btn = button_box.button(QDialogButtonBox.Cancel)
+            cancel_btn.clicked.connect(dialog.reject)
+
+            layout.addWidget(button_box)
+
+            dialog.setLayout(layout)
+            dialog.exec()
+
+            path = self.config["massive_ping"]["export_path"]
+            
+        wb = xlsxwriter.Workbook(path)        
+        ws = wb.add_worksheet("Ping Logs")
+        headers = ["Coche", "Dispositivo", "IP", "Estado", "Enviados", "Recibidos", "Perdidos", "Mínimo (ms)", "Máximo (ms)", "Media (ms)"]
+
+        # Formatos
+        header_format = wb.add_format({
+            'bold': True, 'bg_color': '#2F5496', 'font_color': '#FFFFFF',
+            'border': 1, 'align': 'center', 'valign': 'vcenter'
+        })
+
+        cell_format = wb.add_format({'border': 1, 'text_wrap': True, 'valign': 'center', 'align': 'center'})
+
+        ws.write_row(0, 0, headers, header_format)
+        row_num = 1
+        for log in self.logs:
+            row = [
+                log["coche"],
+                log["dispositivo"],
+                log["ip"],
+                "OK" if log["ok"] else "FALLIDO",
+                log["enviados"],
+                log["recibidos"],
+                log["perdidos"],
+                log["minimo"],
+                log["maximo"],
+                log["media"]
+            ]
+            ws.write_row(row_num, 0, row, cell_format = cell_format)
+            row_num += 1
+
+        ws.autofilter(0,0,len(self.logs),9)
+        ws.freeze_panes(1, 0)
+
+        fake_header=["coche","dispositivo","ip","ok","enviados","recibidos","perdidos","minimo","maximo","media"]
+
+        for col_idx in range(len(headers)):
+            max_width = len(headers[col_idx])
+            for row in self.logs:
+                if len(str(row[fake_header[col_idx]])) > max_width:
+                    max_width = len(str(row[fake_header[col_idx]]))
+            ws.set_column(col_idx, col_idx, max_width + 5)  
+
+        wb.close()
+      
     def ping_ip_worker(self, row: int, col: int, ip: str):
         ok = False
+        enviados = recibidos = perdidos = minimo = maximo = media = 0
+        has_unreachable = False
+        has_timeout = False
 
-        if self.is_valid_ip(ip) is not False:
+        # print(f"Haciendo ping a {ip}...")
+        
+        if self.is_valid_ip(ip):
             try:
                 # Windows: -n 1 (un eco), -w timeout
-                result = subprocess.run(
-                    ["ping", "-n", str(self.config["massive_ping"]["ping_count"]), "-w", str(self.config["general"]["ping_timeout"]), ip],
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
+                result = subprocess.Popen(
+                    [   
+                        "ping", 
+                        "-n", str(self.config["massive_ping"]["ping_count"]), 
+                        "-w", str(self.config["general"]["ping_timeout"]), 
+                        ip
+                    ],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
                     shell=True
                 )
-                ok = (result.returncode == 0)
+                stdout, stderr = result.communicate()
+                
+                lineas = stdout
+                # print(lineas)
+
+                for linea in lineas.splitlines():
+                    linea = linea.lower()
+                    if "inaccesible" in linea or "unreachable" in linea:
+                        has_unreachable = True
+                        minimo = maximo = media = self.config["general"]["ping_timeout"]
+                    if "tiempo de espera agotado" in linea or "request timed out" in linea:
+                        has_timeout = True
+                        minimo = maximo = media = self.config["general"]["ping_timeout"]
+                    if "paquetes" in linea and "enviados" in linea:
+                        numeros = re.findall(r'(\d+)', linea)
+                        if len(numeros) >= 3:
+                            enviados = int(numeros[0])
+                            recibidos = int(numeros[1])
+                            perdidos = int(numeros[2])
+                            # print(f"Enviados: {enviados}, Recibidos: {recibidos}, Perdidos: {perdidos}")
+                    if "media" in linea and "ms" in linea:
+                        numeros = re.findall(r'(\d+)\s*ms', linea)
+                        if len(numeros) >= 3:
+                            minimo = int(numeros[0])
+                            maximo = int(numeros[1])
+                            media = int(numeros[2])
+                            # print(f"Mínimo: {minimo}ms, Máximo: {maximo}ms, Media: {media}ms")
+
+                if recibidos > 0 and perdidos == 0 and not has_unreachable and not has_timeout:
+                    ok = True
+                else:
+                    ok = False
             except Exception:
                 ok = False
+                enviados = perdidos = self.config["massive_ping"]["ping_count"]
+                recibidos = 0
+                # minimo = maximo = media = self.config["general"]["ping_timeout"]
+                minimo = maximo = media = 0
 
-            # comunicar el resultado al hilo de la GUI
-            self.ping_result_signal.emit(row, col, ok)
+            self.ping_result_signal.emit(row, col, ok, enviados, recibidos, perdidos, minimo, maximo, media)
         else:
+            # print("IP NO válida:", ip)
             pass
 
     def is_valid_ip(self, ip: str) -> bool:
