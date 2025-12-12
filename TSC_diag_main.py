@@ -1320,19 +1320,47 @@ class VCU:
         self.client = None
 
     def ping_test(self):
-        start_time = time.time()
-        try:
-            result = subprocess.run(
-                ['ping', '-w', str(self.config["general"]["ping_timeout"]), '-n', '1', self.ip],
-                stdout=subprocess.DEVNULL,
-                shell=True
-            )
-            # ping_time = time.time() - start_time
-            # logger.debug(f"Ping time for {self.ip}: {ping_time:.4f} seconds")
-            return result.returncode == 0
-        except Exception as e:
-            # logger.error(f"Ping failed for {self.ip}: {e}")
-            return False
+
+        has_unreachable = False
+        has_timeout = False
+        
+        result = subprocess.Popen(
+                    [   
+                        "ping", 
+                        "-n", "1", 
+                        "-w", str(self.config["general"]["ping_timeout"]), 
+                        self.ip
+                    ],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    shell=True
+                )
+        stdout, stderr = result.communicate()
+        
+        lineas = stdout
+        # print(lineas)
+
+        for linea in lineas.splitlines():
+            linea = linea.lower()
+            if "inaccesible" in linea or "unreachable" in linea:
+                has_unreachable = True
+            if "tiempo de espera agotado" in linea or "request timed out" in linea:
+                has_timeout = True
+            if "paquetes" in linea and "enviados" in linea:
+                numeros = re.findall(r'(\d+)', linea)
+                if len(numeros) >= 3:
+                    enviados = int(numeros[0])
+                    recibidos = int(numeros[1])
+                    perdidos = int(numeros[2])
+                    # print(f"Enviados: {enviados}, Recibidos: {recibidos}, Perdidos: {perdidos}")
+
+        if recibidos > 0 and perdidos == 0 and not has_unreachable and not has_timeout:
+            ok = True
+        else:
+            ok = False
+                    
+        return ok
 
     def link_SSH(self):
         
@@ -1355,8 +1383,10 @@ class VCU:
             self.client.close()
 
     def reconnect_SSH(self):
+        # print("INTENTANDO RECONECTAR")
         try:
             if self.client is not None:
+                print("EXISTE CLIENTE, CERRANDO")
                 self.close_SSH()
                 self.client = None
 
@@ -1480,11 +1510,14 @@ class ScanThread(QThread):
             progress= ((i+1)*100)//len(self.ip_list[self.max_initial_ips:])
             coach_number=len(valid_ips)
             self.scan_progress.emit(progress, coach_number)
+
+        print(valid_ips)
         
         if self.project == "DB":
             valid_ips.insert(len(valid_ips) - 1, self.cabcar_vcuch_ips[len(valid_ips) - 1])
             valid_ips[-1] = self.cabcar_vcuph_ips[len(valid_ips)-2]
-
+        
+        print(valid_ips)
         self.scan_completed.emit(valid_ips)
 
 class TSCGenerator(QSvgWidget):
@@ -1512,61 +1545,6 @@ class TSCGenerator(QSvgWidget):
             self.pmr_index = self.coaches_type.index('5')
         except:
             self.pmr_index = None
-
-    def report_tsc_diag(self, vcu, tsc_diag_vars, BCU_diag_vars, BCU_diag_vars_cc):
-
-        if maintenance_mode == 1: 
-            tsc_diagnosis=list(map(str,random.choices([0, 1], k=len(tsc_diag_vars)))) # Crea una lista de valores aleatorios en formato str
-            BCU_diagnosis=list(map(str,random.choices([0, 1], k=len(BCU_diag_vars)))) # Crea una lista de valores aleatorios en formato str
-            BCU_diagnosis_cc=list(map(str,random.choices([0, 1], k=len(BCU_diag_vars_cc)))) # Crea una lista de valores aleatorios en formato str
-     
-            parts = array_split(BCU_diagnosis, 5)
-            parts_cc = array_split(BCU_diagnosis_cc, 10)
-            BCU_diagnosis_1 = parts[0]
-            BCU_diagnosis_2 = parts[1]
-            BCU_diagnosis_3 = parts[2]
-            BCU_diagnosis_4 = parts[3]
-            BCU_diagnosis_5 = parts[4]      
-
-            BCU_diagnosis_cc_1 = parts[0]
-            BCU_diagnosis_cc_2 = parts[1]
-            BCU_diagnosis_cc_3 = parts[2]
-            BCU_diagnosis_cc_4 = parts[3]
-            BCU_diagnosis_cc_5 = parts[4]      
-            BCU_diagnosis_cc_6 = parts[5]
-            BCU_diagnosis_cc_7 = parts[6]
-            BCU_diagnosis_cc_8 = parts[7]
-            BCU_diagnosis_cc_9 = parts[8]
-            BCU_diagnosis_cc_10 = parts[9]      
-
-            return tsc_diagnosis, BCU_diagnosis_1, BCU_diagnosis_2, BCU_diagnosis_3, BCU_diagnosis_4, BCU_diagnosis_5, BCU_diagnosis_cc_1, BCU_diagnosis_cc_2, BCU_diagnosis_cc_3, BCU_diagnosis_cc_4, BCU_diagnosis_cc_5, BCU_diagnosis_cc_6, BCU_diagnosis_cc_7, BCU_diagnosis_cc_8, BCU_diagnosis_cc_9, BCU_diagnosis_cc_10 
-
-        tsc_diagnosis = vcu.SSH_read(tsc_diag_vars)
-
-        parts = array_split(BCU_diag_vars, 5)
-        parts_cc = array_split(BCU_diag_vars_cc,10)
-
-        BCU_diagnosis_1 = vcu.SSH_read(parts[0])
-        BCU_diagnosis_2 = vcu.SSH_read(parts[1])
-        BCU_diagnosis_3 = vcu.SSH_read(parts[2])
-        BCU_diagnosis_4 = vcu.SSH_read(parts[3])
-        BCU_diagnosis_5 = vcu.SSH_read(parts[4])
-
-        BCU_diagnosis_cc_1 = vcu.SSH_read(parts_cc[0])
-        BCU_diagnosis_cc_2 = vcu.SSH_read(parts_cc[1])
-        BCU_diagnosis_cc_3 = vcu.SSH_read(parts_cc[2])
-        BCU_diagnosis_cc_4 = vcu.SSH_read(parts_cc[3])
-        BCU_diagnosis_cc_5 = vcu.SSH_read(parts_cc[4])
-        BCU_diagnosis_cc_6 = vcu.SSH_read(parts_cc[5])
-        BCU_diagnosis_cc_7 = vcu.SSH_read(parts_cc[6])
-        BCU_diagnosis_cc_8 = vcu.SSH_read(parts_cc[7])
-        BCU_diagnosis_cc_9 = vcu.SSH_read(parts_cc[8])
-        BCU_diagnosis_cc_10 = vcu.SSH_read(parts_cc[9])
-
-        
-        return tsc_diagnosis, BCU_diagnosis_1, BCU_diagnosis_2, BCU_diagnosis_3, BCU_diagnosis_4, BCU_diagnosis_5, BCU_diagnosis_cc_1, BCU_diagnosis_cc_2, BCU_diagnosis_cc_3, BCU_diagnosis_cc_4, BCU_diagnosis_cc_5, BCU_diagnosis_cc_6, BCU_diagnosis_cc_7, BCU_diagnosis_cc_8, BCU_diagnosis_cc_9, BCU_diagnosis_cc_10 
-    
-        # return tsc_diagnosis, BCU_diagnosis_1, BCU_diagnosis_2, BCU_diagnosis_3, BCU_diagnosis_4, BCU_diagnosis_5 
     
     def generate_svg(self, project):
 
@@ -3505,7 +3483,7 @@ class MainWindow(QMainWindow):
             self.ping_timeout.setRange(50,1001)
             self.ping_timeout.setSuffix(" ms")
             self.ssh_timeout = QSpinBox()
-            self.ssh_timeout.setRange(1, 11)
+            self.ssh_timeout.setRange(4, 15)
             self.ssh_timeout.setSuffix(" s")
             self.test_refresh = QSpinBox()
             self.test_refresh.setRange(1000, 10001)
@@ -4133,7 +4111,7 @@ class MainWindow(QMainWindow):
                 ip = vcu.ip
 
                 if ip == self.trainset_coaches[-1].ip and self.project == "DB": #La diagnosis para el cabcar es distinta, de ahí este IF.
-                    parts = array_split(self.TCMS_vars.BCU_DIAGNOSIS_CC, 10)  # Divide las variables en 5 partes    
+                    parts = array_split(self.TCMS_vars.BCU_DIAGNOSIS_CC, 10)  # Divide las variables en 10 partes    
                     BCU_results_cc = []
                     for part in parts:
                         result = vcu.SSH_read(part)  # Ejecuta el diagnóstico
