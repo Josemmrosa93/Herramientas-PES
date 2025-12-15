@@ -29,7 +29,7 @@ ArchitecturesAllowed=x64compatible
 ; the 64-bit view of the registry.
 ArchitecturesInstallIn64BitMode=x64compatible
 DisableProgramGroupPage=yes
-OutputDir=C:\Users\José María\Documents\SW PES\PES Utility
+OutputDir=C:\Users\75815\Documents\REPO_PES\Herramientas-PES
 OutputBaseFilename=Diagnostico_PeS_Installer_v1_0_2
 SolidCompression=yes
 WizardStyle=modern
@@ -42,7 +42,7 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 
 [Files]
 ; Copia todo el contenido de la carpeta generada por PyInstaller (--onedir)
-Source: "C:\Users\José María\Documents\SW PES\PES Utility\dist\TSC_diag_main\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "C:\Users\75815\Documents\REPO_PES\Herramientas-PES\dist\TSC_diag_main\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"

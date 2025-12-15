@@ -4,7 +4,7 @@ a = Analysis(
     ['TSC_diag_main.py'],
     pathex=[],
     binaries=[],
-    datas=[('Talgo_logo.png', '.')],  # tu imagen
+    datas=[('Talgo_logo.png', '.'), ('F073_IP_Ports_Addressing_00_40.xlsm', '.'), ('F081_IP_Ports_Addressing_v13.3_Cabcar.xlsm', '.')],  # tu imagen
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},

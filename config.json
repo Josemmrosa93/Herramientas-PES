@@ -3,7 +3,7 @@
         "ssh_username": "root",
         "ssh_password": "root",
         "ping_timeout": 100,
-        "ssh_timeout": 15,
+        "ssh_timeout": 5,
         "test_timeout": 2500,
         "monitor_interval": 10,
         "reset_pause": 5000

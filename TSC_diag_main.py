@@ -65,11 +65,10 @@ import sys
 import os
 import random
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from threading import Event
+from threading import Event, RLock
 from numpy import array_split, concatenate
 import time
 import xlsxwriter
-from threading import Event
 import pandas as pd
 import math
 import copy
@@ -1311,6 +1310,10 @@ class VCU:
     def __init__(self, ip, config):
         self.config = config
         self.ip = ip
+        # Protege el acceso concurrente al mismo SSHClient/Transport (Paramiko no es thread-safe)
+        self.ssh_lock = RLock()
+        self.last_ssh_ok_ts = 0.0
+        self.last_ssh_fail_ts = 0.0
         self.USERNAME = "root"
         self.PASSWORD = "root"
         self.READ_COMMAND = "isacmd -r "
@@ -1364,62 +1367,66 @@ class VCU:
 
     def link_SSH(self):
         
-        try:
-            if not self.client:
-                self.client = paramiko.SSHClient()
-                self.client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-            timeout_SSH = int(self.config["general"]["ssh_timeout"])
-            self.client.connect(self.ip, username=self.USERNAME, password=self.PASSWORD, timeout = timeout_SSH)
-            self.connection_status = "success"
-            return self.connection_status
-        except Exception as e:
-            self.client = None
-            self.connection_status = "ping_only" if self.ping_test() else "failure"
-            # print(f"[{self.ip}] SSH failed: {e}")  # agrega log mínimo
+        with self.ssh_lock:
+            try:
+                if not self.client:
+                    self.client = paramiko.SSHClient()
+                    self.client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+                timeout_SSH = int(self.config["general"]["ssh_timeout"])
+                self.client.connect(self.ip, username=self.USERNAME, password=self.PASSWORD, timeout = timeout_SSH)
+                # Mantén viva la sesión para evitar cortes por "idle" en red/equipos intermedios
+                transport = self.client.get_transport()
+                if transport is not None:
+                    # keepalive = int(self.config.get("general", {}).get("ssh_keepalive", 15))
+                    keepalive = 5
+                    if keepalive > 0:
+                        transport.set_keepalive(keepalive)
+                self.connection_status = "success"
+                return self.connection_status
+            except Exception as e:
+                self.client = None
+                self.connection_status = "ping_only" if self.ping_test() else "failure"
+                # print(f"[{self.ip}] SSH failed: {e}")  # agrega log mínimo
             return self.connection_status
 
     def close_SSH(self):
-        if self.client is not None:
-            self.client.close()
+        with self.ssh_lock:
+            if self.client is not None:
+                self.client.close()
 
     def reconnect_SSH(self):
         # print("INTENTANDO RECONECTAR")
-        try:
-            if self.client is not None:
-                # print("EXISTE CLIENTE, CERRANDO")
-                self.close_SSH()
-                self.client = None
+        with self.ssh_lock:
+            try:
+                if self.client is not None:
+                    # print("EXISTE CLIENTE, CERRANDO")
+                    self.close_SSH()
+                    self.client = None
 
-            status = self.link_SSH()
-            self.connection_status = status  # sincroniza estado
-            # print(f"IP: {self.ip} reconectada, status: {status}")
-            return status
-        except Exception as e:
-            self.connection_status = "failure"
-            # print(f"[{self.ip}] Reconnect failed: {e}")
-            return "failure"
+                status = self.link_SSH()
+                self.connection_status = status  # sincroniza estado
+                # print(f"IP: {self.ip} reconectada, status: {status}")
+                return status
+            except Exception as e:
+                self.connection_status = "failure"
+                # print(f"[{self.ip}] Reconnect failed: {e}")
+                return "failure"
 
     def SSH_alive(self):
-        try:
-            if self.client is None:
+        """Chequeo ligero: no ejecuta comandos, solo valida Transport.
+        Importante: este método NO debe competir con lecturas/escrituras, por eso usa lock.
+        """
+        with self.ssh_lock:
+            try:
+                if self.client is None:
+                    return False
+                transport = self.client.get_transport()
+                return transport is not None and transport.is_active()
+            except Exception:
                 return False
-
-            # Esto puede devolver True incluso si el socket ya no sirve
-            transport = self.client.get_transport()
-            if transport is None or not transport.is_active():
-                return False
-
-            # Ahora tratamos de ejecutar un comando trivial
-            stdin, stdout, stderr = self.client.exec_command("echo ok", timeout=0.5)
-            output = stdout.read().decode().strip()
-
-            return "ok" in output
-
-        except Exception as e:
-            # print(f"SSH_alive ERROR on {self.ip}: {e}")
-            return False
 
     def SSH_read(self, VARS_LIST):
+
         VARS_NUM = len(VARS_LIST)
         if self.client is None:
             if VARS_NUM == 1:
@@ -1427,20 +1434,22 @@ class VCU:
             else:
                 return ["Not Client"] * VARS_NUM
         try:
-            stdin, stdout, stderr = self.client.exec_command(self.READ_COMMAND + " ".join(VARS_LIST))
-            output = stdout.read().decode()
-            pattern = r'(\w+):\s*(\d+)\s*\((0x[0-9A-Fa-f]+)\)'
-            matches = re.findall(pattern, output)
-            if matches:
-                values = [dec_val for var, dec_val, hex_val in matches]
-            else:
-                # print(output)
-                values = ["N/A"] * VARS_NUM
-            
-            if VARS_NUM == 1:
-                return values[0]
-            else:    
-                return values[:VARS_NUM]
+            with self.ssh_lock:
+                cmd_timeout = float(self.config.get("general", {}).get("ssh_cmd_timeout", 2))
+                stdin, stdout, stderr = self.client.exec_command(self.READ_COMMAND + " ".join(VARS_LIST), timeout=cmd_timeout)
+                output = stdout.read().decode()
+                pattern = r'(\w+):\s*(\d+)\s*\((0x[0-9A-Fa-f]+)\)'
+                matches = re.findall(pattern, output)
+                if matches:
+                    values = [dec_val for var, dec_val, hex_val in matches]
+                else:
+                    # print(output)
+                    values = ["N/A"] * VARS_NUM
+                
+                if VARS_NUM == 1:
+                    return values[0]
+                else:    
+                    return values[:VARS_NUM]
         except Exception:
             if VARS_NUM == 1:
                 return "Not SSH"
@@ -1457,7 +1466,8 @@ class VCU:
         try:
             command = self.WRITE_N_LOCK_COMMAND + " " + " ".join(f"{var}={val}" for var, val in zip(VARS_LIST, VALUES_LIST))
             # print(self.WRITE_N_LOCK_COMMAND + " " + " ".join(f"{var}={val}" for var, val in zip(VARS_LIST, VALUES_LIST)))
-            stdin, stdout, stderr = self.client.exec_command(command)
+            cmd_timeout = float(self.config.get("general", {}).get("ssh_cmd_timeout", 2))
+            stdin, stdout, stderr = self.client.exec_command(command, timeout=cmd_timeout)
             errors = stderr.read().decode()
             if errors:
                 return self.ip, [f"Error: {errors.strip()}"] * VARS_NUM
