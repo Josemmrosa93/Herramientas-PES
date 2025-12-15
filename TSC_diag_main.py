@@ -79,7 +79,7 @@ APP_VERSION = "1.0.2"
 GITHUB_OWNER = "Josemmrosa93"
 GITHUB_REPO = "Herramientas-PES"
 
-maintenance_mode = 1
+maintenance_mode = 0
 
 # PING_TIMEOUT = 200  # Tiempo de espera para el ping en milisegundos.
 # SSH_TIMEOUT = 1.0  # Tiempo de espera para la conexión SSH, 5.0 para operación en tren.
@@ -1386,7 +1386,7 @@ class VCU:
         # print("INTENTANDO RECONECTAR")
         try:
             if self.client is not None:
-                print("EXISTE CLIENTE, CERRANDO")
+                # print("EXISTE CLIENTE, CERRANDO")
                 self.close_SSH()
                 self.client = None
 
@@ -1396,7 +1396,7 @@ class VCU:
             return status
         except Exception as e:
             self.connection_status = "failure"
-            print(f"[{self.ip}] Reconnect failed: {e}")
+            # print(f"[{self.ip}] Reconnect failed: {e}")
             return "failure"
 
     def SSH_alive(self):
@@ -1434,7 +1434,7 @@ class VCU:
             if matches:
                 values = [dec_val for var, dec_val, hex_val in matches]
             else:
-                print(output)
+                # print(output)
                 values = ["N/A"] * VARS_NUM
             
             if VARS_NUM == 1:
@@ -1449,14 +1449,14 @@ class VCU:
 
     def SSH_write_lock(self, VARS_LIST, VALUES_LIST, VERIFY_FLAG):
         VARS_NUM = len(VARS_LIST)
-        print(VARS_LIST)
+        # print(VARS_LIST)
         if self.client is None:
             return self.ip, ["Comms.Error"] * VARS_NUM
         if len(VARS_LIST) != len(VALUES_LIST):
             return self.ip, "Error: Variable and Value length mismatch"
         try:
             command = self.WRITE_N_LOCK_COMMAND + " " + " ".join(f"{var}={val}" for var, val in zip(VARS_LIST, VALUES_LIST))
-            print(self.WRITE_N_LOCK_COMMAND + " " + " ".join(f"{var}={val}" for var, val in zip(VARS_LIST, VALUES_LIST)))
+            # print(self.WRITE_N_LOCK_COMMAND + " " + " ".join(f"{var}={val}" for var, val in zip(VARS_LIST, VALUES_LIST)))
             stdin, stdout, stderr = self.client.exec_command(command)
             errors = stderr.read().decode()
             if errors:
@@ -1511,13 +1511,13 @@ class ScanThread(QThread):
             coach_number=len(valid_ips)
             self.scan_progress.emit(progress, coach_number)
 
-        print(valid_ips)
+
         
         if self.project == "DB":
             valid_ips.insert(len(valid_ips) - 1, self.cabcar_vcuch_ips[len(valid_ips) - 1])
             valid_ips[-1] = self.cabcar_vcuph_ips[len(valid_ips)-2]
         
-        print(valid_ips)
+
         self.scan_completed.emit(valid_ips)
 
 class TSCGenerator(QSvgWidget):
