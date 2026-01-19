@@ -78,7 +78,7 @@ APP_VERSION = "1.0.3"
 GITHUB_OWNER = "Josemmrosa93"
 GITHUB_REPO = "Herramientas-PES"
 
-maintenance_mode = 0
+maintenance_mode = 1
 
 # PING_TIMEOUT = 200  # Tiempo de espera para el ping en milisegundos.
 # SSH_TIMEOUT = 1.0  # Tiempo de espera para la conexión SSH, 5.0 para operación en tren.
@@ -1561,100 +1561,101 @@ class TSCGenerator(QSvgWidget):
             self.pmr_index = None
     
     def generate_svg(self, project):
-
         self.project = project
 
-        svg_width = self.num_coaches * 100
+        base_width = self.num_coaches * 100
 
-        if self.project == "DSB":
-            try:
-                if self.coaches_type[self.coaches_type.index('5')] is not None:
-                    svg_width += 250
-            except:
-                pass
+        # Offsets “extra” cuando el PMR está presente/online
+        pmr_extra = 250 if self.project == "DSB" else 100 if self.project == "DB" else 0
+        cab_extra = 645  # DB (si aplica)
+
+        # Índices estables (NO dependen del estado actual “Not SSH”)
+        self.pmr_index = self.coaches_type.index('5') if '5' in self.coaches_type else None
+        pmr_pos = self.pmr_index
+        # Para cabina en DB, mejor localizarla una vez. Si puede haber más de una, ajusta según tu caso.
+        cab_pos = None
         if self.project == "DB":
             try:
-                if self.coaches_type[self.coaches_type.index('5')] is not None:
-                    svg_width += 100
-                if self.coaches_type[self.coaches_type.index('2')] is not None:
-                    svg_width += 645
+                cab_pos = self.coaches_type.index('2')
             except:
-                pass
+                cab_pos = None
 
-        svg_root = Element("svg", xmlns="http://www.w3.org/2000/svg", width=str(svg_width), height="300")
+        svg_root = Element("svg", xmlns="http://www.w3.org/2000/svg",
+                        width=str(base_width), height="300")
 
         print("TSC Refresh")
 
-        corrected_svg_width = svg_width #Si hay algun coche caido, tenemos que recalcular el ancho del svg
-        pmr_flag = True # Asumimos que hay coche PMR inicialmente
-
-        antes = time.time()
+        # 1) Ejecutar en paralelo y guardar resultados por índice (orden estable)
+        coach_elems = [None] * self.num_coaches
+        coach_ok = [False] * self.num_coaches  # flag devuelto por process_coach (True=OK / False=offline)
 
         with ThreadPoolExecutor(max_workers=self.num_coaches) as executor:
-            # print("Procesando coches en paralelo...")
-            futures = {executor.submit(self.process_coach, self.vcu_list[i], self.coaches_type[i], self.tsc_vars, self.project_coach_types, self.tsc_cc_vars): i for i in range(self.num_coaches)}
+            futures = {
+                executor.submit(
+                    self.process_coach,
+                    self.vcu_list[i],
+                    self.coaches_type[i],
+                    self.tsc_vars,
+                    self.project_coach_types,
+                    self.tsc_cc_vars
+                ): i
+                for i in range(self.num_coaches)
+            }
+
             for future in as_completed(futures):
-                index = futures[future]  # Obtener el índice del coche
+                i = futures[future]
                 try:
-                    coach, flag = future.result()  # Obtener el elemento SVG del coche
-
-                    # Ajustar el ancho del SVG si falta el coche PMR o cabina
-                    if index == self.coaches_type.index('5'):
-                        pmr_flag = flag
-                        if not pmr_flag:
-                            corrected_svg_width -= 250 if self.project == "DSB" else 100
-                            svg_root.set("width", str(corrected_svg_width))
-                    if index == self.coaches_type.index('2'):
-                        if not flag:
-                            corrected_svg_width -= 645
-                            svg_root.set("width", str(corrected_svg_width))
-
-                    if coach is not None: 
-                        x_pos = index * 100
-
-                        if self.project == "DSB":
-                        # Aplicar transform para posicionar el coche en el svg teniendo en cuenta el coche PMR
-                            try:
-                                if index > self.coaches_type.index('5') and pmr_flag:
-                                    x_pos+=250
-                            except:
-                                pass
-
-                        if self.project == "DB":
-                        # Aplicar transform para posicionar el coche en el svg teniendo en cuenta el coche PMR
-                            try:
-                                if index > self.coaches_type.index('5') and pmr_flag:
-                                    x_pos+=100
-                            except:
-                                pass
-
-                        coach.set("transform", f"translate({x_pos}, 0)")
-                        svg_root.append(coach)
-                        
+                    coach, flag = future.result()
+                    coach_elems[i] = coach
+                    coach_ok[i] = bool(flag)
                 except Exception as e:
-                    print(f"Error al procesar el coche {index + 1}: {e}")
-        
-        svg_string = tostring(svg_root, encoding = "unicode")
-        # print(svg_string)
-        
+                    # Si falla un coche, lo dejamos como None y seguimos sin “ruido”
+                    coach_elems[i] = None
+                    coach_ok[i] = False
+                    print(f"Error al procesar el coche {i + 1}: {e}")
+
+        # 2) Decidir PMR/cabina y calcular ancho final de forma determinista
+        corrected_svg_width = base_width
+
+        pmr_online = False
+        if pmr_pos is not None and 0 <= pmr_pos < self.num_coaches:
+            pmr_online = coach_ok[pmr_pos]
+            if pmr_online:
+                corrected_svg_width += pmr_extra  # solo si PMR está online
+
+        if self.project == "DB" and cab_pos is not None and 0 <= cab_pos < self.num_coaches:
+            cab_online = coach_ok[cab_pos]
+            if cab_online:
+                corrected_svg_width += cab_extra  # solo si cabina está online
+
+        svg_root.set("width", str(corrected_svg_width))
+
+        # 3) Montar SVG en orden (ya no depende del orden de finalización)
+        for i in range(self.num_coaches):
+            coach = coach_elems[i]
+            if coach is None:
+                continue
+
+            x_pos = i * 100
+
+            # Aplicar desplazamiento si PMR está online y el coche está a la derecha del PMR
+            if pmr_online and pmr_pos is not None and i > pmr_pos:
+                x_pos += pmr_extra
+
+            # (Si tu layout también requiere desplazar por cabina DB, puedes añadirlo aquí
+            #  según tu lógica real. Ahora mismo tu código solo “resta ancho”, no desplaza.)
+
+            coach.set("transform", f"translate({x_pos}, 0)")
+            svg_root.append(coach)
+
+        svg_string = tostring(svg_root, encoding="unicode")
+
         self.svg_widget = QSvgWidget()
         self.svg_widget.load(bytearray(svg_string, encoding="utf-8"))
-
-        # self.svg_widget.setMinimumSize(self.num_coaches * 100, 125)
         self.svg_widget.setMinimumSize(corrected_svg_width, 125)
 
-        despues = time.time()
-        delay = despues - antes
-        print(delay)
-
-        # try:
-        #     if self.coaches_type[self.coaches_type.index('5')] is not None:
-        #         self.svg_widget.setMinimumSize(corrected_svg_width, 125)
-        # except:
-        #     pass
-
         return self.svg_widget
-        
+
     def save_as_png(self, timer):
         timer.stop()
         filename, _ = QFileDialog.getSaveFileName(self.svg_widget, "Guardar como PNG", "", "Archivos PNG (*.png)")
@@ -2518,9 +2519,24 @@ class TSCGenerator(QSvgWidget):
         else:
             SubElement(coach, "text", x="315", y="188",**{"text-anchor": "right","font-style": "italic","font-size": "9", "fill": "red"}).text = "Activo"
         
-        SubElement(coach, "rect", x="-300", y="195", width="442", height="120", fill=bypass_backcolor, opacity="0.15")
-        SubElement(coach, "rect", x="142", y="230", width="75", height="100", fill=bypass_backcolor, opacity="0.15")
-        SubElement(coach, "rect", x="217", y="195", width="2000", height="120", fill=bypass_backcolor, opacity="0.15")
+        SubElement(coach, "rect", attrib={
+            "x": "-300", "y": "195", "width": "442", "height": "120",
+            "fill": bypass_backcolor, "opacity": "0.15",
+            "data-role": "pmr-bypass-band"
+        })
+
+        SubElement(coach, "rect", attrib={
+            "x": "142", "y": "230", "width": "75", "height": "100",
+            "fill": bypass_backcolor, "opacity": "0.15",
+            "data-role": "pmr-bypass-band"
+        })
+
+        SubElement(coach, "rect", attrib={
+            "x": "217", "y": "195", "width": "2000", "height": "120",
+            "fill": bypass_backcolor, "opacity": "0.15",
+            "data-role": "pmr-bypass-band"
+        })
+
         
         p810=SubElement(coach, "g", transform="translate(-265, 250)")
         p810.append(self.create_led(bypass_state,0, 15, "P810"))
@@ -3773,7 +3789,10 @@ class MainWindow(QMainWindow):
         self.progress_bar.setValue(progress)
 
     def set_project(self, project_value, project_name):
-        
+
+        self.connection_states = {} #Reseteamos por si existía alguna conexión previa
+        self.coach_types = []
+
         self.setMinimumSize(0, 0)
         self.setMaximumSize(16777215, 16777215)
 
@@ -3797,7 +3816,9 @@ class MainWindow(QMainWindow):
                 # Borra el widget del layout
                 widget.deleteLater()
 
-        self.resize(self.default_width, self.default_height)
+        self.adjustSize()
+
+        self.setFixedSize(self.default_width, self.default_height)
                         
         self.project = project_value
     
@@ -3814,7 +3835,6 @@ class MainWindow(QMainWindow):
         self.trainset_coaches = []
         self.valid_ips = []
         
-
         self.scan_thread = ScanThread(self.ip_data[self.project], self.max_initial_ips, self.project, self.ip_data["DB_VCUCH_CABCAR"], self.ip_data["DB_VCUPH_CABCAR"], self.config)
         self.scan_thread.scan_progress.connect(self.coach_scan_progress)
         self.scan_thread.scan_completed.connect(self.on_scan_completed)
@@ -3878,6 +3898,7 @@ class MainWindow(QMainWindow):
 
                     try:
                         self.trainset_coaches[ip].close_SSH()
+                        print(f"Conexión SSH con coche {col +1} cerrada debido a tipo de coche inválido ({str(coach_type)}).")
                     except Exception:
                         pass
 
@@ -3912,6 +3933,7 @@ class MainWindow(QMainWindow):
             
             elif maintenance_mode == 0 and status == "failure":
                 coach_type = "Not SSH"
+                self.coach_types[col] = coach_type
 
             elif maintenance_mode == 1 and self.project == "DSB":
                 coach_type = PREDEFINED_DSB[col]
