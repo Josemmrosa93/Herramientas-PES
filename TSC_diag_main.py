@@ -74,7 +74,7 @@ import math
 import copy
 
 
-APP_VERSION = "1.0.2"
+APP_VERSION = "1.0.3"
 GITHUB_OWNER = "Josemmrosa93"
 GITHUB_REPO = "Herramientas-PES"
 
@@ -1300,8 +1300,10 @@ class ConnectionMonitorThread(QThread):
     def check_VCU_status(self, vcu):
 
         if not vcu.SSH_alive():
+            
             # print(f"VCU del coche: {self.vcu_list.index(vcu) + 1} sin vida")
             status = vcu.reconnect_SSH()
+
             return status
     
         return "success"
@@ -1435,7 +1437,7 @@ class VCU:
                 return ["Not Client"] * VARS_NUM
         try:
             with self.ssh_lock:
-                cmd_timeout = float(self.config.get("general", {}).get("ssh_cmd_timeout", 2))
+                cmd_timeout = float(self.config.get("general", {}).get("ssh_cmd_timeout", 1))
                 stdin, stdout, stderr = self.client.exec_command(self.READ_COMMAND + " ".join(VARS_LIST), timeout=cmd_timeout)
                 output = stdout.read().decode()
                 pattern = r'(\w+):\s*(\d+)\s*\((0x[0-9A-Fa-f]+)\)'
@@ -1532,6 +1534,8 @@ class ScanThread(QThread):
 
 class TSCGenerator(QSvgWidget):
     
+    coach_connection_status = Signal(str, str) #Señal para actualizar la tabla si alguna IP se cae.
+
     def __init__(self, project, vcu_list, coach_types, tsc_vars, project_coach_types, tsc_cc_vars):
         
         super().__init__()
@@ -1581,48 +1585,73 @@ class TSCGenerator(QSvgWidget):
 
         print("TSC Refresh")
 
+        corrected_svg_width = svg_width #Si hay algun coche caido, tenemos que recalcular el ancho del svg
+        pmr_flag = True # Asumimos que hay coche PMR inicialmente
+
+        antes = time.time()
+
         with ThreadPoolExecutor(max_workers=self.num_coaches) as executor:
+            # print("Procesando coches en paralelo...")
             futures = {executor.submit(self.process_coach, self.vcu_list[i], self.coaches_type[i], self.tsc_vars, self.project_coach_types, self.tsc_cc_vars): i for i in range(self.num_coaches)}
             for future in as_completed(futures):
                 index = futures[future]  # Obtener el índice del coche
                 try:
-                    coach = future.result()  # Obtener el elemento SVG del coche
+                    coach, flag = future.result()  # Obtener el elemento SVG del coche
+
+                    # Ajustar el ancho del SVG si falta el coche PMR o cabina
+                    if index == self.coaches_type.index('5'):
+                        pmr_flag = flag
+                        if not pmr_flag:
+                            corrected_svg_width -= 250 if self.project == "DSB" else 100
+                            svg_root.set("width", str(corrected_svg_width))
+                    if index == self.coaches_type.index('2'):
+                        if not flag:
+                            corrected_svg_width -= 645
+                            svg_root.set("width", str(corrected_svg_width))
+
                     if coach is not None: 
                         x_pos = index * 100
 
                         if self.project == "DSB":
-                        # Aplicar transform para posicionar el coche en el svg
+                        # Aplicar transform para posicionar el coche en el svg teniendo en cuenta el coche PMR
                             try:
-                                if index > self.coaches_type.index('5'):
+                                if index > self.coaches_type.index('5') and pmr_flag:
                                     x_pos+=250
                             except:
                                 pass
 
                         if self.project == "DB":
-                        # Aplicar transform para posicionar el coche en el svg
+                        # Aplicar transform para posicionar el coche en el svg teniendo en cuenta el coche PMR
                             try:
-                                if index > self.coaches_type.index('5'):
+                                if index > self.coaches_type.index('5') and pmr_flag:
                                     x_pos+=100
                             except:
                                 pass
 
                         coach.set("transform", f"translate({x_pos}, 0)")
                         svg_root.append(coach)
+                        
                 except Exception as e:
                     print(f"Error al procesar el coche {index + 1}: {e}")
-
+        
         svg_string = tostring(svg_root, encoding = "unicode")
+        # print(svg_string)
         
         self.svg_widget = QSvgWidget()
         self.svg_widget.load(bytearray(svg_string, encoding="utf-8"))
 
-        self.svg_widget.setMinimumSize(self.num_coaches * 100, 125)
+        # self.svg_widget.setMinimumSize(self.num_coaches * 100, 125)
+        self.svg_widget.setMinimumSize(corrected_svg_width, 125)
 
-        try:
-            if self.coaches_type[self.coaches_type.index('5')] is not None:
-                self.svg_widget.setMinimumSize(svg_width, 125)
-        except:
-            pass
+        despues = time.time()
+        delay = despues - antes
+        print(delay)
+
+        # try:
+        #     if self.coaches_type[self.coaches_type.index('5')] is not None:
+        #         self.svg_widget.setMinimumSize(corrected_svg_width, 125)
+        # except:
+        #     pass
 
         return self.svg_widget
         
@@ -3128,6 +3157,7 @@ class TSCGenerator(QSvgWidget):
     def process_coach(self, vcu, coach_type, tsc_vars, project_coach_types, tsc_cc_vars):
 
         index = self.vcu_list.index(vcu)
+        flag = True
         
         tsc_data = vcu.SSH_read(tsc_vars)
         # print(len(tsc_data))
@@ -3146,14 +3176,18 @@ class TSCGenerator(QSvgWidget):
                 tsc_data_cc=list(map(str,random.choices([0, 1], k=len(tsc_data_cc)))) # Crea una lista de valores aleatorios en formato str
                 # print(tsc_data_cc)
 
-        if any(not signal.isdigit() for signal in tsc_data) or coach_type == "Not_SSH" or coach_type == "N/A":
+        if any(not signal.isdigit() for signal in tsc_data) or coach_type == "Not SSH" or coach_type == "N/A":
             
             SubElement(coach, "rect", x="0", y="0", width="100", height="305", fill="black", opacity="0.5")
             SubElement(coach, "line", x1="100", y1="0", x2="100", y2="315", stroke="black", **{"stroke-width": "1", "stroke-dasharray": "5, 5"},opacity="0.35")
             SubElement(coach, "text", x="50", y="292",**{"text-anchor": "middle","font-style": "italic","font-size": "10"}).text = f"Coche {index+1}"
             SubElement(coach, "text", x="50", y="162.5", fill="white", **{"text-anchor": "middle","dominant-baseline": "central","font-style": "italic","font-size": "30","transform": "rotate(-90, 50, 152.5)"}).text = "OFFLINE"
 
-            return coach
+            flag = False
+
+            self.coach_connection_status.emit(vcu.ip, "failure")
+             
+            return coach, flag
         
         if self.project == "DSB":
             k800 = tsc_data[0] # 'iVCUCH_IO_DS_A602_S45_X1.DIu_RiomS1isOK'
@@ -3258,7 +3292,7 @@ class TSCGenerator(QSvgWidget):
             coach = self.pmr_db_dsb2(project_coach_types[int(coach_type)], index, k801, k800, k802, k810, k811, k812, k804, k814, s60, s60_r, s62, s62_r, s256, s256_r, fr_riom_sc1, fr_riom_sc1r, fr_riom_sc2, fr_riom_sc2r, s60_b1, s60_r_b1, s62_b1, s62_r_b1, s256_b1, s256_r_b1)
         elif coach_type == '2' and self.project == "DB":
             coach = self.cabcar(project_coach_types[int(coach_type)], index, k801, k800, k802, k804, s60, s60_r, s62, s62_r, s255, s255_r, s256, s256_r, s8, s8_r, s6, s6_r, s10, k1, k80, k81, k82, k83, sifa1_cond, sifa2_cond, s700, s701, s702, s703, s704, k700, k701, k710, k711, k708, k709, k731, k732, k740, k741, s25, s25_r, k753)
-        return coach
+        return coach, flag
    
 class MainWindow(QMainWindow):
     
@@ -3823,15 +3857,9 @@ class MainWindow(QMainWindow):
             
             ip_item=self.table.item(0,col)
 
-            if status == "success":
-                ip_item.setBackground(QColor(175, 242, 175))
-            elif status == "ping_only":
-                ip_item.setBackground(QColor(214, 163, 0))
-            elif status == "failure":
-                ip_item.setBackground(QColor(255, 131, 131))
 
             if maintenance_mode == 0 and status =="success":
-
+                
                 coach_type = self.trainset_coaches[col].SSH_read(self.TCMS_vars.COACH_TYPE)
 
                 # print(f"COL: {col}, IP: {ip}, TIPO: {coach_type}")
@@ -3846,34 +3874,39 @@ class MainWindow(QMainWindow):
                 if str(coach_type).isdigit() and int(coach_type) not in valid_types and col != len(self.trainset_coaches)-1: # Si el coche devuelve un número, pero no es de los válidos para el tipo de proyecto y no hablamos de cabcar entonces...
                 
                     status = "failure"
-                    coach_type = "Not_SSH"
+                    coach_type = "Not SSH"
 
-                    self.connection_monitor.stop()
-                    self.connection_monitor.wait()
+                    try:
+                        self.trainset_coaches[ip].close_SSH()
+                    except Exception:
+                        pass
 
-                    msg =f"El tipo de coche (tipo {coach_type}), reportado por la VCU del coche: {col +1} no es válido.\n"
-                    msg += "Probablemente exista un problema en la configuración de la mochila de la VCU o en la configuración del GW.\n"
-                    msg += "Si desea forzar el tipo de coche, por favor seleccionalo de la lista:\n"
+                    # self.connection_monitor.stop()
+                    # self.connection_monitor.wait()
 
-                    options = list(valid_types.values())
-                    option_keys = list(valid_types.keys())
+                    # msg =f"El tipo de coche (tipo {coach_type}), reportado por la VCU del coche: {col +1} no es válido.\n"
+                    # msg += "Probablemente exista un problema en la configuración de la mochila de la VCU o en la configuración del GW.\n"
+                    # msg += "Si desea forzar el tipo de coche, por favor seleccionalo de la lista:\n"
 
-                    selected, ok = QInputDialog.getItem(
-                        self,
-                        "Tipo de coche desconocido",
-                        msg,
-                        options,
-                        editable = False
+                    # options = list(valid_types.values())
+                    # option_keys = list(valid_types.keys())
 
-                    )
+                    # selected, ok = QInputDialog.getItem(
+                    #     self,
+                    #     "Tipo de coche desconocido",
+                    #     msg,
+                    #     options,
+                    #     editable = False
 
-                    if ok:
-                        selected_index = options.index(selected)
-                        coach_type = option_keys[selected_index]
-                        self.trainset_coaches[col].SSH_write_lock('oVCUCH_TRDP_DS_A000.COM_Vehicle_Type', int(coach_type))
+                    # )
+
+                    # if ok:
+                    #     selected_index = options.index(selected)
+                    #     coach_type = option_keys[selected_index]
+                    #     self.trainset_coaches[col].SSH_write_lock('oVCUCH_TRDP_DS_A000.COM_Vehicle_Type', int(coach_type))
 
                     # self.connection_monitor.run()
-                    self.connection_monitor.start()
+                    # self.connection_monitor.start()
 
                 self.coach_types[col] = coach_type
             
@@ -3900,6 +3933,13 @@ class MainWindow(QMainWindow):
             
             else: 
                 coach_type_item = QTableWidgetItem("Not SSH")
+
+            if status == "success":
+                ip_item.setBackground(QColor(175, 242, 175))
+            elif status == "ping_only":
+                ip_item.setBackground(QColor(214, 163, 0))
+            elif status == "failure":
+                ip_item.setBackground(QColor(255, 131, 131))
 
             coach_type_item.setTextAlignment(Qt.AlignCenter)
             
@@ -4100,6 +4140,8 @@ class MainWindow(QMainWindow):
         # Regenera siempre el SVG para reflejar cambios en los datos
         self.tsc_widget = self.tsc.generate_svg(self.project)
 
+        self.tsc.coach_connection_status.connect(self.on_connection_status_updated)
+
         # Conecta eventos para el clic y el menú contextual
         # self.tsc_widget.mousePressEvent = self.on_mouse_click
 
@@ -4162,7 +4204,7 @@ class MainWindow(QMainWindow):
                     BCU_results = []
                     for part in parts:
                         result = vcu.SSH_read(part)  # Ejecuta el diagnóstico
-                        print(result)
+                        # print(result)
                         BCU_results.extend(result)
                         # print(BCU_results)
 
@@ -4375,7 +4417,8 @@ class MainWindow(QMainWindow):
         dialog_layout.addWidget(self.progress_label)
         self.progress_dialog.setLayout(dialog_layout)
         self.progress_dialog.show()
-
+        
+        antes = time.time()
         # Ejecutar diagnóstico en paralelo con ThreadPoolExecutor
         with ThreadPoolExecutor(max_workers=len(self.trainset_coaches)) as executor:
             checked_coaches = 0
@@ -4389,6 +4432,11 @@ class MainWindow(QMainWindow):
 
         # time.sleep(2)
 
+        despues = time.time()
+
+        delay = despues - antes 
+
+        print("Tarda en leer fallos: ", {delay})
         self.progress_dialog.accept()
 
         self.trainset_failures_window = QWidget()
@@ -5091,3 +5139,4 @@ if __name__ == "__main__":
     window = MainWindow()
     window.show()
     sys.exit(app.exec())
+    
