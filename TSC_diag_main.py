@@ -1267,6 +1267,8 @@ class ConnectionMonitorThread(QThread):
         self.stop_event = Event()
     
     def run(self):
+
+        inicio = time.time()
         with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
             
             while not self.stop_event.is_set():
@@ -1289,7 +1291,10 @@ class ConnectionMonitorThread(QThread):
                 
                 # Esperar el intervalo de verificación o hasta que se detenga el hilo
                 if not self.stop_event.wait(self.check_interval):
+                    fin = time.time()
+                    print(f"Tiempo de verificación de estado de VCUs: {fin - inicio} segundos")
                     continue
+
                 else:
                     break
   
@@ -1415,30 +1420,33 @@ class VCU:
                 return "failure"
 
     def SSH_alive(self):
-        """Chequeo ligero: no ejecuta comandos, solo valida Transport.
-        Importante: este método NO debe competir con lecturas/escrituras, por eso usa lock.
-        """
-        with self.ssh_lock:
-            try:
-                if self.client is None:
-                    return False
-                transport = self.client.get_transport()
-                return transport is not None and transport.is_active()
-            except Exception:
+        if not self.ssh_lock.acquire(False):
+            return False
+        
+        try:
+            if self.client is None:
                 return False
+            transport = self.client.get_transport()
+            return transport is not None and transport.is_active()
+        finally:
+            self.ssh_lock.release()
 
     def SSH_read(self, VARS_LIST):
 
         VARS_NUM = len(VARS_LIST)
-        if self.client is None:
-            if VARS_NUM == 1:
-                return "Not Client"
-            else:
-                return ["Not Client"] * VARS_NUM
+        
+        with self.ssh_lock:
+            client = self.client
+            if client is None:
+                return ["Not Client"] * VARS_NUM if VARS_NUM != 1 else "Not Client"
+            transport = client.get_transport()
+            if transport is None or not transport.is_active():
+                return ["Not SSH"] * VARS_NUM if VARS_NUM != 1 else "Not SSH"
+
         try:
+            cmd_timeout = float(self.config.get("general", {}).get("ssh_cmd_timeout", 2))
             with self.ssh_lock:
-                cmd_timeout = float(self.config.get("general", {}).get("ssh_cmd_timeout", 1))
-                stdin, stdout, stderr = self.client.exec_command(self.READ_COMMAND + " ".join(VARS_LIST), timeout=cmd_timeout)
+                stdin, stdout, stderr = client.exec_command(self.READ_COMMAND + " ".join(VARS_LIST), timeout=cmd_timeout)
                 output = stdout.read().decode()
                 pattern = r'(\w+):\s*(\d+)\s*\((0x[0-9A-Fa-f]+)\)'
                 matches = re.findall(pattern, output)
@@ -1457,6 +1465,37 @@ class VCU:
                 return "Not SSH"
             else:
                 return ["Not SSH"] * VARS_NUM
+
+    # def SSH_read(self, VARS_LIST):
+
+    #     VARS_NUM = len(VARS_LIST)
+    #     if self.client is None:
+    #         if VARS_NUM == 1:
+    #             return "Not Client"
+    #         else:
+    #             return ["Not Client"] * VARS_NUM
+    #     try:
+    #         with self.ssh_lock:
+    #             cmd_timeout = float(self.config.get("general", {}).get("ssh_cmd_timeout", 2))
+    #             stdin, stdout, stderr = self.client.exec_command(self.READ_COMMAND + " ".join(VARS_LIST), timeout=cmd_timeout)
+    #             output = stdout.read().decode()
+    #             pattern = r'(\w+):\s*(\d+)\s*\((0x[0-9A-Fa-f]+)\)'
+    #             matches = re.findall(pattern, output)
+    #             if matches:
+    #                 values = [dec_val for var, dec_val, hex_val in matches]
+    #             else:
+    #                 # print(output)
+    #                 values = ["N/A"] * VARS_NUM
+                
+    #             if VARS_NUM == 1:
+    #                 return values[0]
+    #             else:    
+    #                 return values[:VARS_NUM]
+    #     except Exception:
+    #         if VARS_NUM == 1:
+    #             return "Not SSH"
+    #         else:
+    #             return ["Not SSH"] * VARS_NUM
 
     def SSH_write_lock(self, VARS_LIST, VALUES_LIST, VERIFY_FLAG):
         VARS_NUM = len(VARS_LIST)
@@ -1589,6 +1628,8 @@ class TSCGenerator(QSvgWidget):
         coach_elems = [None] * self.num_coaches
         coach_ok = [False] * self.num_coaches  # flag devuelto por process_coach (True=OK / False=offline)
 
+        inicio = time.time()
+
         with ThreadPoolExecutor(max_workers=self.num_coaches) as executor:
             futures = {
                 executor.submit(
@@ -1613,6 +1654,12 @@ class TSCGenerator(QSvgWidget):
                     coach_elems[i] = None
                     coach_ok[i] = False
                     print(f"Error al procesar el coche {i + 1}: {e}")
+
+        final = time.time()
+
+        duracion = final - inicio 
+
+        print(duracion)
 
         # 2) Decidir PMR/cabina y calcular ancho final de forma determinista
         corrected_svg_width = base_width
@@ -1639,8 +1686,9 @@ class TSCGenerator(QSvgWidget):
             x_pos = i * 100
 
             # Aplicar desplazamiento si PMR está online y el coche está a la derecha del PMR
-            if pmr_online and pmr_pos is not None and i > pmr_pos:
-                x_pos += pmr_extra
+            if pmr_online and pmr_pos is not None:
+                if i > pmr_pos:
+                    x_pos += pmr_extra
 
             # (Si tu layout también requiere desplazar por cabina DB, puedes añadirlo aquí
             #  según tu lógica real. Ahora mismo tu código solo “resta ancho”, no desplaza.)
@@ -1908,7 +1956,7 @@ class TSCGenerator(QSvgWidget):
         SubElement(coach, "circle", cx="100",cy="30",r="2",fill="black")
         SubElement(coach, "circle", cx="100",cy="90",r="2",fill="black")
         
-        if coach_pos<pmr_index and pmr_index is not None:
+        if pmr_index is not None and coach_pos<pmr_index:
             SubElement(coach, "text", x="60", y="37.5", transform="rotate(270 90 30)", **{"text-anchor": "right","font-style": "italic","font-size": "7"}).text = "XM06:24"
             SubElement(coach, "text", x="60", y="-52.5", transform="rotate(270 90 30)", **{"text-anchor": "right","font-style": "italic","font-size": "7"}).text = "XH06:24"
             SubElement(coach, "text", x="67.5", y="85",**{"text-anchor": "right","font-style": "italic","font-size": "7"}).text = "XM06:25"
@@ -1924,7 +1972,7 @@ class TSCGenerator(QSvgWidget):
             SubElement(coach, "text", x="70", y="125", **{"text-anchor": "right","font-style": "italic","font-size": "7"}).text = "XM06:7"
             SubElement(coach, "text", x="70", y="160", **{"text-anchor": "right","font-style": "italic","font-size": "7"}).text = "XM06:8"
             
-        elif coach_pos>pmr_index and pmr_index is not None:
+        elif pmr_index is not None and coach_pos>pmr_index:
             SubElement(coach, "text", x="60", y="37.5", transform="rotate(270 90 30)", **{"text-anchor": "right","font-style": "italic","font-size": "7"}).text = "XH06:24"
             SubElement(coach, "text", x="60", y="-52.5", transform="rotate(270 90 30)", **{"text-anchor": "right","font-style": "italic","font-size": "7"}).text = "XM06:24"
             SubElement(coach, "text", x="67.5", y="85",**{"text-anchor": "right","font-style": "italic","font-size": "7"}).text = "XH06:25"
@@ -3186,11 +3234,17 @@ class TSCGenerator(QSvgWidget):
             # print(f"TSC CC: {tsc_data_cc}")
         coach = Element("g")
 
-        if maintenance_mode == 1:            
-            tsc_data=list(map(str,random.choices([0, 1], k=len(tsc_data)))) # Crea una lista de valores aleatorios en formato str
-            if index == len(self.vcu_list)-2 and self.project == "DB":
-                tsc_data_cc=list(map(str,random.choices([0, 1], k=len(tsc_data_cc)))) # Crea una lista de valores aleatorios en formato str
-                # print(tsc_data_cc)
+        if maintenance_mode == 1:         
+
+            if int(random.choices([0, 1], k=1)[0]) == 1:
+                tsc_data = ["Not SSH"] * len(tsc_data) #Genera una lista con "Not SSH" para simular fallo de comunicación
+                if index == len(self.vcu_list)-2 and self.project == "DB":
+                    tsc_data_cc= ["Not SSH"] * len(tsc_data_cc) # Crea una lista de valores aleatorios en formato str
+            else:
+                tsc_data=list(map(str,random.choices([0, 1], k=len(tsc_data)))) # Crea una lista de valores aleatorios en formato str
+                if index == len(self.vcu_list)-2 and self.project == "DB":
+                    tsc_data_cc=list(map(str,random.choices([0, 1], k=len(tsc_data_cc)))) # Crea una lista de valores aleatorios en formato str
+                    # print(tsc_data_cc)
 
         if any(not signal.isdigit() for signal in tsc_data) or coach_type == "Not SSH" or coach_type == "N/A":
             
@@ -3202,8 +3256,29 @@ class TSCGenerator(QSvgWidget):
             flag = False
 
             self.coach_connection_status.emit(vcu.ip, "failure")
-             
+
+            if index == len(self.vcu_list)-2 and self.project == "DB": #Comprobamos en el CC si además de la VCU_CH, la VCU_PH está muerta, si es así, marcamos fallo de comunicación en su ip.
+            
+                if any(not signal.isdigit() for signal in tsc_data_cc) or coach_type == "Not SSH" or coach_type == "N/A": #Si algún dato del CC no es dígito o el tipo de coche es incorrecto, marcamos fallo de comunicación.
+                    
+                    self.coach_connection_status.emit(self.vcu_list[-1].ip, "failure") #Emitimos la señal de fallo de comunicación para la VCU_PH.
+            
             return coach, flag
+        
+        if index == len(self.vcu_list)-2 and self.project == "DB": #Cubrimos el caso en el que solo VCU_PH esté caída.
+            
+            if any(not signal.isdigit() for signal in tsc_data_cc) or coach_type == "Not SSH" or coach_type == "N/A":
+
+                SubElement(coach, "rect", x="0", y="0", width="100", height="305", fill="black", opacity="0.5")
+                SubElement(coach, "line", x1="100", y1="0", x2="100", y2="315", stroke="black", **{"stroke-width": "1", "stroke-dasharray": "5, 5"},opacity="0.35")
+                SubElement(coach, "text", x="50", y="292",**{"text-anchor": "middle","font-style": "italic","font-size": "10"}).text = f"Coche {index+1}"
+                SubElement(coach, "text", x="50", y="162.5", fill="white", **{"text-anchor": "middle","dominant-baseline": "central","font-style": "italic","font-size": "30","transform": "rotate(-90, 50, 152.5)"}).text = "OFFLINE"
+
+                flag = False
+
+                self.coach_connection_status.emit(self.vcu_list[-1].ip, "failure")
+                
+                return coach, flag
         
         if self.project == "DSB":
             k800 = tsc_data[0] # 'iVCUCH_IO_DS_A602_S45_X1.DIu_RiomS1isOK'
@@ -3897,7 +3972,7 @@ class MainWindow(QMainWindow):
                     coach_type = "Not SSH"
 
                     try:
-                        self.trainset_coaches[ip].close_SSH()
+                        self.trainset_coaches[col].close_SSH()
                         print(f"Conexión SSH con coche {col +1} cerrada debido a tipo de coche inválido ({str(coach_type)}).")
                     except Exception:
                         pass
