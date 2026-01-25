@@ -79,12 +79,7 @@ GITHUB_OWNER = "Josemmrosa93"
 GITHUB_REPO = "Herramientas-PES"
 
 maintenance_mode = 1
-
-# PING_TIMEOUT = 200  # Tiempo de espera para el ping en milisegundos.
-# SSH_TIMEOUT = 1.0  # Tiempo de espera para la conexión SSH, 5.0 para operación en tren.
-# TEST_TIMEOUT = 1000 # Tiempo de refresco de los datos de diagnóstico, 4000 para operación en tren.
-# MONITOR_INTERVAL = 5 # Tiempo de refresco para la evaluación de las conexiones.
-# RESET_PAUSE = 5000 # Tiempo de pausa entre órdenes del reseteo de fallos. 
+RECURRENT_MODE = False # Flag para desconectar el monitor cuando hay una función recurrente activa.
 
 MODO_PRUEBA = False
 
@@ -1257,44 +1252,77 @@ class TCMS_vars:
         }
 
 class ConnectionMonitorThread(QThread):
-    connection_status_updated = Signal(str, str)
+    connection_status_updated = Signal(str, str, str)  # IP, status, coach_type
     
-    def __init__(self, vcu_list, check_interval):
+    def __init__(self, vcu_list, check_interval, project):
         super().__init__()
         self.vcu_list = vcu_list
         self.check_interval = check_interval
-        self.max_workers = len(self.vcu_list)
+        self.max_workers = max(1,len(self.vcu_list))
         self.stop_event = Event()
-    
+        self.TCMS_vars = TCMS_vars() #Creamos una instancia de la clase TCMS_vars para acceder a las variables
+        self.project = project
+        
     def run(self):
 
-        inicio = time.time()
         with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
             
             while not self.stop_event.is_set():
+
+                inicio = time.time()
                 
                 # print("FUNCIONANDO")
 
-                future_to_vcu = {executor.submit(self.check_VCU_status, vcu): vcu for vcu in self.vcu_list}
+                future_to_idx_vcu = {executor.submit(self.check_VCU_status, vcu): (i, vcu) for i, vcu in enumerate(self.vcu_list)}
                 
-                for future in as_completed(future_to_vcu):
+                for future in as_completed(future_to_idx_vcu):
                     
-                    vcu = future_to_vcu[future]
+                    index, vcu = future_to_idx_vcu[future]     
+
                     try:
-                        status = future.result()
-                        # print(vcu.ip, status)
-                        self.connection_status_updated.emit(vcu.ip, status)
                         
+                        status = future.result()
+
+                        if maintenance_mode == 0: 
+                            
+                            if status == "success":
+                                if self.project == "DB":
+                                    if index != len(self.vcu_list) - 1: # Si es éxito, el proyecto es DB y no es la última VCU (Cabcar)
+                                        coach = "" if vcu.coach_type is None else str(vcu.coach_type) # Si coach_type es None, asignar cadena vacía
+                                        if (not coach.isdigit()) or (int(coach) < 1): # Si coach_type no es dígito o es < 1
+                                            print("Coach_type inválido (no dígito o < 1) con SSH ok. Leyendo tipo de coche...")
+                                            vcu.coach_type = vcu.SSH_read(self.TCMS_vars.COACH_TYPE)
+                                            print(f"Tipo de coche del VCU {vcu.ip} es: {vcu.coach_type}")
+                                else:
+                                    coach = "" if vcu.coach_type is None else str(vcu.coach_type) # Si coach_type es None, asignar cadena vacía
+                                    if (not coach.isdigit()) or (int(coach) < 1): # Si coach_type no es dígito o es < 1
+                                        print("Coach_type inválido (no dígito o < 1) con SSH ok. Leyendo tipo de coche...")
+                                        vcu.coach_type = vcu.SSH_read(self.TCMS_vars.COACH_TYPE)
+                                        print(f"Tipo de coche del VCU {vcu.ip} es: {vcu.coach_type}")
+
+                            elif status == "failure":
+                                vcu.coach_type = None
+                                vcu.close_SSH()
+                                print(f"VCU {vcu.ip} desconectado. Tipo de coche establecido a None.")
+
+                            elif status == "ping_only":
+                                vcu.coach_type = None
+                                vcu.close_SSH()
+                                print(f"VCU {vcu.ip} solo responde a ping. Tipo de coche establecido a None.")
+
+                        self.connection_status_updated.emit(vcu.ip, status, str(vcu.coach_type))
+                                       
                     except Exception as e:
+                        print(f"Error al comprobar el estado de la VCU para {vcu.ip}: {e}")
                         pass
-                        # logger.error(f"Error checking VCU status for {vcu.ip}: {e}")
-                
+
+                fin = time.time()
+
+                print(f"Tiempo de verificación de estado de VCUs: {fin - inicio} segundos")
+                    
                 # Esperar el intervalo de verificación o hasta que se detenga el hilo
                 if not self.stop_event.wait(self.check_interval):
-                    fin = time.time()
-                    print(f"Tiempo de verificación de estado de VCUs: {fin - inicio} segundos")
                     continue
-
                 else:
                     break
   
@@ -1328,6 +1356,7 @@ class VCU:
         self.WRITE_N_RELEASE_COMMAND = "isacmd -wr"
         self.WRITE_COMMAND = "isacmd -w"
         self.client = None
+        self.coach_type = None
 
     def ping_test(self):
 
@@ -1575,12 +1604,11 @@ class TSCGenerator(QSvgWidget):
     
     coach_connection_status = Signal(str, str) #Señal para actualizar la tabla si alguna IP se cae.
 
-    def __init__(self, project, vcu_list, coach_types, tsc_vars, project_coach_types, tsc_cc_vars):
+    def __init__(self, project, vcu_list, tsc_vars, project_coach_types, tsc_cc_vars):
         
         super().__init__()
         self.project = project
         self.vcu_list = vcu_list
-        self.coaches_type = coach_types
         self.tsc_vars = tsc_vars
         self.tsc_cc_vars = tsc_cc_vars
 
@@ -1593,14 +1621,11 @@ class TSCGenerator(QSvgWidget):
         print(f"Número de IPs: {len(self.vcu_list)}")
         
         self.project_coach_types = project_coach_types
-
-        try:
-            self.pmr_index = self.coaches_type.index('5')
-        except:
-            self.pmr_index = None
-    
+   
     def generate_svg(self, project):
         self.project = project
+
+        self.coach_types = [vcu.coach_type for vcu in self.vcu_list]
 
         base_width = self.num_coaches * 100
 
@@ -1609,7 +1634,7 @@ class TSCGenerator(QSvgWidget):
         cab_extra = 645  # DB (si aplica)
 
         # Índices estables (NO dependen del estado actual “Not SSH”)
-        self.pmr_index = self.coaches_type.index('5') if '5' in self.coaches_type else None
+        self.pmr_index = self.coach_types.index('5') if '5' in self.coach_types else None
         pmr_pos = self.pmr_index
         # Para cabina en DB, mejor localizarla una vez. Si puede haber más de una, ajusta según tu caso.
         cab_pos = None
@@ -1635,7 +1660,7 @@ class TSCGenerator(QSvgWidget):
                 executor.submit(
                     self.process_coach,
                     self.vcu_list[i],
-                    self.coaches_type[i],
+                    self.coach_types[i],
                     self.tsc_vars,
                     self.project_coach_types,
                     self.tsc_cc_vars
@@ -3246,22 +3271,30 @@ class TSCGenerator(QSvgWidget):
                     tsc_data_cc=list(map(str,random.choices([0, 1], k=len(tsc_data_cc)))) # Crea una lista de valores aleatorios en formato str
                     # print(tsc_data_cc)
 
-        if any(not signal.isdigit() for signal in tsc_data) or coach_type == "Not SSH" or coach_type == "N/A":
+        if any(not signal.isdigit() for signal in tsc_data) or not str(coach_type).isdigit():
             
             SubElement(coach, "rect", x="0", y="0", width="100", height="305", fill="black", opacity="0.5")
             SubElement(coach, "line", x1="100", y1="0", x2="100", y2="315", stroke="black", **{"stroke-width": "1", "stroke-dasharray": "5, 5"},opacity="0.35")
             SubElement(coach, "text", x="50", y="292",**{"text-anchor": "middle","font-style": "italic","font-size": "10"}).text = f"Coche {index+1}"
             SubElement(coach, "text", x="50", y="162.5", fill="white", **{"text-anchor": "middle","dominant-baseline": "central","font-style": "italic","font-size": "30","transform": "rotate(-90, 50, 152.5)"}).text = "OFFLINE"
 
+            with vcu.ssh_lock:
+                try:
+                    if vcu.ssh_client is not None:
+                        vcu.close_SSH()
+                finally:
+                    vcu.client = None
+                    vcu.coach_type = None
+
             flag = False
 
-            self.coach_connection_status.emit(vcu.ip, "failure")
+            # self.coach_connection_status.emit(vcu.ip, "failure")
 
-            if index == len(self.vcu_list)-2 and self.project == "DB": #Comprobamos en el CC si además de la VCU_CH, la VCU_PH está muerta, si es así, marcamos fallo de comunicación en su ip.
+            # if index == len(self.vcu_list)-2 and self.project == "DB": #Comprobamos en el CC si además de la VCU_CH, la VCU_PH está muerta, si es así, marcamos fallo de comunicación en su ip.
             
-                if any(not signal.isdigit() for signal in tsc_data_cc) or coach_type == "Not SSH" or coach_type == "N/A": #Si algún dato del CC no es dígito o el tipo de coche es incorrecto, marcamos fallo de comunicación.
+            #     if any(not signal.isdigit() for signal in tsc_data_cc) or coach_type == "Not SSH" or coach_type == "N/A": #Si algún dato del CC no es dígito o el tipo de coche es incorrecto, marcamos fallo de comunicación.
                     
-                    self.coach_connection_status.emit(self.vcu_list[-1].ip, "failure") #Emitimos la señal de fallo de comunicación para la VCU_PH.
+            #         self.coach_connection_status.emit(self.vcu_list[-1].ip, "failure") #Emitimos la señal de fallo de comunicación para la VCU_PH.
             
             return coach, flag
         
@@ -3462,7 +3495,6 @@ class MainWindow(QMainWindow):
         self.layout.addLayout(self.progress_layout)
 
         self.trainset_coaches = []
-        self.connection_states = {}
         self.current_function = None
         
         self.scan_progress_signal.connect(self.coach_scan_progress)
@@ -3865,14 +3897,12 @@ class MainWindow(QMainWindow):
 
     def set_project(self, project_value, project_name):
 
-        self.connection_states = {} #Reseteamos por si existía alguna conexión previa
-        self.coach_types = []
-
         self.setMinimumSize(0, 0)
         self.setMaximumSize(16777215, 16777215)
 
         if self.timer.isActive():
-            self.timer.stop()
+            # self.timer.stop()
+            self.stop_timer()
         
         if self.connection_monitor:
             self.connection_monitor.stop()
@@ -3923,7 +3953,6 @@ class MainWindow(QMainWindow):
         y vaya cambiando el código de colores de la tabla.'''
         
         self.valid_ips = valid_ips
-        self.coaches_type = ["Unknown"] * len(self.valid_ips)
         self.trainset_coaches=[VCU(ip, self.config) for ip in self.valid_ips]
         
         self.progress_bar.setVisible(False)
@@ -3934,92 +3963,28 @@ class MainWindow(QMainWindow):
         
         if not self.connection_monitor:
 
-            self.connection_monitor = ConnectionMonitorThread(self.trainset_coaches, self.config["general"]["monitor_interval"])
+            self.connection_monitor = ConnectionMonitorThread(self.trainset_coaches, self.config["general"]["monitor_interval"], self.project)
             self.connection_monitor.connection_status_updated.connect(self.on_connection_status_updated)
             
         self.connection_monitor.start()
-        
-        self.coach_types = [None] * len(self.trainset_coaches)
-               
-    def on_connection_status_updated(self, ip, status):
+                       
+    def on_connection_status_updated(self, ip, status, coach_type):
 
         try:
 
-            if ip in self.connection_states and self.connection_states[ip] == status:
-                return
+            col=self.valid_ips.index(ip) # Obtener la columna correspondiente a la IP
+            ip_item=self.table.item(0,col) # Obtener el item de la IP en la tabla
 
-            col=self.valid_ips.index(ip)
-            
-            ip_item=self.table.item(0,col)
-
-
-            if maintenance_mode == 0 and status =="success":
+            if maintenance_mode == 1: #Si está en modo mantenimiento, pisar el tipo de coche por el predefinido
                 
-                coach_type = self.trainset_coaches[col].SSH_read(self.TCMS_vars.COACH_TYPE)
+                if self.project == "DSB":
+                    coach_type = PREDEFINED_DSB[col]
+                    self.trainset_coaches[col].coach_type = coach_type
+                elif self.project == "DB":
+                    coach_type = PREDEFINED_DB_13[col]
+                    self.trainset_coaches[col].coach_type = coach_type                     
 
-                # print(f"COL: {col}, IP: {ip}, TIPO: {coach_type}")
-
-                if self.project == "DB":
-                    valid_types = self.TCMS_vars.COACH_TYPES_DB
-                elif self.project == "DSB":
-                    valid_types = self.TCMS_vars.COACH_TYPES_DSB
-                else:
-                    valid_types = {}
-
-                if str(coach_type).isdigit() and int(coach_type) not in valid_types and col != len(self.trainset_coaches)-1: # Si el coche devuelve un número, pero no es de los válidos para el tipo de proyecto y no hablamos de cabcar entonces...
-                
-                    status = "failure"
-                    coach_type = "Not SSH"
-
-                    try:
-                        self.trainset_coaches[col].close_SSH()
-                        print(f"Conexión SSH con coche {col +1} cerrada debido a tipo de coche inválido ({str(coach_type)}).")
-                    except Exception:
-                        pass
-
-                    # self.connection_monitor.stop()
-                    # self.connection_monitor.wait()
-
-                    # msg =f"El tipo de coche (tipo {coach_type}), reportado por la VCU del coche: {col +1} no es válido.\n"
-                    # msg += "Probablemente exista un problema en la configuración de la mochila de la VCU o en la configuración del GW.\n"
-                    # msg += "Si desea forzar el tipo de coche, por favor seleccionalo de la lista:\n"
-
-                    # options = list(valid_types.values())
-                    # option_keys = list(valid_types.keys())
-
-                    # selected, ok = QInputDialog.getItem(
-                    #     self,
-                    #     "Tipo de coche desconocido",
-                    #     msg,
-                    #     options,
-                    #     editable = False
-
-                    # )
-
-                    # if ok:
-                    #     selected_index = options.index(selected)
-                    #     coach_type = option_keys[selected_index]
-                    #     self.trainset_coaches[col].SSH_write_lock('oVCUCH_TRDP_DS_A000.COM_Vehicle_Type', int(coach_type))
-
-                    # self.connection_monitor.run()
-                    # self.connection_monitor.start()
-
-                self.coach_types[col] = coach_type
-            
-            elif maintenance_mode == 0 and status == "failure":
-                coach_type = "Not SSH"
-                self.coach_types[col] = coach_type
-
-            elif maintenance_mode == 1 and self.project == "DSB":
-                coach_type = PREDEFINED_DSB[col]
-                self.coach_types[col] = coach_type   
-            elif maintenance_mode == 1 and self.project == "DB":
-                
-                coach_type = PREDEFINED_DB_13[col]
-
-                self.coach_types[col] = coach_type                     
-
-            if coach_type != "Not SSH" and coach_type != "N/A" or maintenance_mode == 1:
+            if coach_type != "Not SSH" and coach_type != "N/A" or coach_type != None: #Si es un tipo de coche válido, asignar el nombre correspondiente
 
                 if self.project == "DSB":
                     coach_type_item = QTableWidgetItem(self.TCMS_vars.COACH_TYPES_DSB[int(coach_type)])
@@ -4031,6 +3996,7 @@ class MainWindow(QMainWindow):
             else: 
                 coach_type_item = QTableWidgetItem("Not SSH")
 
+            # Asignar color de fondo según el estado de la conexión
             if status == "success":
                 ip_item.setBackground(QColor(175, 242, 175))
             elif status == "ping_only":
@@ -4046,9 +4012,6 @@ class MainWindow(QMainWindow):
                 pass
             else:
                 self.table.setItem(1, col, coach_type_item)
-
-
-            self.connection_states[ip] = status
             
         except Exception:
             pass
@@ -4112,7 +4075,8 @@ class MainWindow(QMainWindow):
 
         # Detener temporizador si está corriendo
         if hasattr(self, "timer") and self.timer is not None:
-            self.timer.stop()
+            # self.timer.stop()
+            self.stop_timer()
 
         # Verificar que hay coches en el tren
         if not self.trainset_coaches:
@@ -4229,9 +4193,9 @@ class MainWindow(QMainWindow):
         # Regenera el TSCGenerator si el proyecto ha cambiado
         if not hasattr(self, 'tsc') or self.project != getattr(self, 'tsc_project', None):
             if self.project == "DSB":
-                self.tsc = TSCGenerator(self.project, self.trainset_coaches, self.coach_types, self.TCMS_vars.TSC_COACH_VARS_DSB, self.TCMS_vars.COACH_TYPES_DSB, self.TCMS_vars.TSC_CC_VARS_DB)
+                self.tsc = TSCGenerator(self.project, self.trainset_coaches, self.TCMS_vars.TSC_COACH_VARS_DSB, self.TCMS_vars.COACH_TYPES_DSB, self.TCMS_vars.TSC_CC_VARS_DB)
             elif self.project == "DB":
-                self.tsc = TSCGenerator(self.project, self.trainset_coaches, self.coach_types, self.TCMS_vars.TSC_COACH_VARS_DB, self.TCMS_vars.COACH_TYPES_DB, self.TCMS_vars.TSC_CC_VARS_DB)
+                self.tsc = TSCGenerator(self.project, self.trainset_coaches, self.TCMS_vars.TSC_COACH_VARS_DB, self.TCMS_vars.COACH_TYPES_DB, self.TCMS_vars.TSC_CC_VARS_DB)
             self.tsc_project = self.project  # Guarda el proyecto actual
 
         # Regenera siempre el SVG para reflejar cambios en los datos
@@ -4499,7 +4463,8 @@ class MainWindow(QMainWindow):
 
     def trainset_tsc_failures(self):
 
-        self.timer.stop()
+        # self.timer.stop()
+        self.stop_timer()
 
         self.results_dict={}
 
@@ -4622,24 +4587,6 @@ class MainWindow(QMainWindow):
 
         self.timer.start()
  
-    def on_mouse_click(self, event):
-
-        self.timer.stop()
-
-        if event.button() == Qt.LeftButton:
-
-            click_position = self.tsc_widget.mapFromGlobal(event.globalPosition().toPoint())
-            x_coord = click_position.x()
-            acummulated = 0
-            # Ejemplo: Determinar el coche según la posición del clic
-
-            for i, length in enumerate(self.svg_coaches_length_DSB):
-                acummulated+=int(length)
-                if x_coord<acummulated:
-                    coach_index = i
-                    break
-            self.open_coach_diagnostic_window(coach_index)
-
     def massive_ping(self):
 
         self.msg = QMessageBox(self)
@@ -5221,10 +5168,18 @@ class MainWindow(QMainWindow):
     
     def start_timer_with_function(self, new_function):
 
+        global RECURRENT_MODE
+        RECURRENT_MODE = True
+
         self.set_timer_function(new_function)
         new_function()  # Llama a la función inmediatamente
         if not self.timer.isActive():  # Verifica si el temporizador no está activo
             self.timer.start(self.config["general"]["test_timeout"])  # Configura el intervalo en 2 segundos
+
+    def stop_timer(self):
+        global RECURRENT_MODE
+        self.timer.stop()
+        RECURRENT_MODE = False
 
 if __name__ == "__main__":
     
