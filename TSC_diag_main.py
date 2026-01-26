@@ -78,7 +78,7 @@ APP_VERSION = "1.0.3"
 GITHUB_OWNER = "Josemmrosa93"
 GITHUB_REPO = "Herramientas-PES"
 
-maintenance_mode = 1
+maintenance_mode = 0
 RECURRENT_MODE = False # Flag para desconectar el monitor cuando hay una función recurrente activa.
 
 MODO_PRUEBA = False
@@ -1253,6 +1253,8 @@ class TCMS_vars:
 
 class ConnectionMonitorThread(QThread):
     connection_status_updated = Signal(str, str, str)  # IP, status, coach_type
+
+    global RECURRENT_MODE
     
     def __init__(self, vcu_list, check_interval, project):
         super().__init__()
@@ -1269,30 +1271,35 @@ class ConnectionMonitorThread(QThread):
             
             while not self.stop_event.is_set():
 
+                # print(RECURRENT_MODE)
+
                 inicio = time.time()
                 
-                # print("FUNCIONANDO")
-
                 future_to_idx_vcu = {executor.submit(self.check_VCU_status, vcu): (i, vcu) for i, vcu in enumerate(self.vcu_list)}
                 
                 for future in as_completed(future_to_idx_vcu):
                     
                     index, vcu = future_to_idx_vcu[future]     
-
+                    # print(index, vcu.ip)
                     try:
                         
                         status = future.result()
 
+                        # print(f"Coche: {index+1}, IP: {vcu.ip}, Estado: {status}")
+
                         if maintenance_mode == 0: 
                             
-                            if status == "success":
+                            if status == "busy":
+                                pass
+
+                            elif status == "success": #Caso en el que hay conexion
                                 if self.project == "DB":
                                     if index != len(self.vcu_list) - 1: # Si es éxito, el proyecto es DB y no es la última VCU (Cabcar)
                                         coach = "" if vcu.coach_type is None else str(vcu.coach_type) # Si coach_type es None, asignar cadena vacía
                                         if (not coach.isdigit()) or (int(coach) < 1): # Si coach_type no es dígito o es < 1
-                                            print("Coach_type inválido (no dígito o < 1) con SSH ok. Leyendo tipo de coche...")
+                                            # print("Coach_type inválçido (no dígito o < 1) con SSH ok. Leyendo tipo de coche...")
                                             vcu.coach_type = vcu.SSH_read(self.TCMS_vars.COACH_TYPE)
-                                            print(f"Tipo de coche del VCU {vcu.ip} es: {vcu.coach_type}")
+                                            # print(f"Tipo de coche del VCU {vcu.ip} es: {vcu.coach_type}")
                                 else:
                                     coach = "" if vcu.coach_type is None else str(vcu.coach_type) # Si coach_type es None, asignar cadena vacía
                                     if (not coach.isdigit()) or (int(coach) < 1): # Si coach_type no es dígito o es < 1
@@ -1300,18 +1307,20 @@ class ConnectionMonitorThread(QThread):
                                         vcu.coach_type = vcu.SSH_read(self.TCMS_vars.COACH_TYPE)
                                         print(f"Tipo de coche del VCU {vcu.ip} es: {vcu.coach_type}")
 
-                            elif status == "failure":
+                            elif status == "failure" and not RECURRENT_MODE: #Caso en el que no hay conexion y no es modo recurrente
                                 vcu.coach_type = None
                                 vcu.close_SSH()
                                 print(f"VCU {vcu.ip} desconectado. Tipo de coche establecido a None.")
 
-                            elif status == "ping_only":
+                            elif status == "ping_only" and not RECURRENT_MODE: #Caso en el que solo responde a ping y no es modo recurrente
                                 vcu.coach_type = None
                                 vcu.close_SSH()
                                 print(f"VCU {vcu.ip} solo responde a ping. Tipo de coche establecido a None.")
-
+                            
+                        # print(f"Coche: {index +1}, IP: {vcu.ip}, Estado: {status}, Tipo: {str(vcu.coach_type)}")
                         self.connection_status_updated.emit(vcu.ip, status, str(vcu.coach_type))
-                                       
+
+                                               
                     except Exception as e:
                         print(f"Error al comprobar el estado de la VCU para {vcu.ip}: {e}")
                         pass
@@ -1332,15 +1341,32 @@ class ConnectionMonitorThread(QThread):
 
     def check_VCU_status(self, vcu):
 
-        if not vcu.SSH_alive():
-            
-            # print(f"VCU del coche: {self.vcu_list.index(vcu) + 1} sin vida")
-            status = vcu.reconnect_SSH()
+        global RECURRENT_MODE
 
-            return status
-    
-        return "success"
+        if RECURRENT_MODE: #En modo recurrente, quien tumba las conexiones es la función recurrente, no el monitor. El monitor solo debe intentar levantar conexiones caídas.
+            acquired = vcu.ssh_lock.acquire(False)
+            if not acquired:
+                # print(f"VCU {vcu.ip} ya está en uso por otro hilo, no se puede verificar su estado.")
+                print("busy")
+                return "busy"
+            try:
+                if vcu.client is None:
+                    return vcu.reconnect_SSH()
+                
+                transport = vcu.client.get_transport()
+                if transport is None or not transport.is_active():
+                    # print(f"VCU {vcu.ip} no está activo, intentando reconectar...")
+                    return vcu.reconnect_SSH()
+                
+                return "success"
+            finally:
+                vcu.ssh_lock.release()
         
+        else: #Modo no recurrente: el monitor es el que debe tumbar conexiones caídas y reconectarlas.
+            if not vcu.SSH_alive():
+                # print(f"VCU {vcu.ip} sin vida, intentando reconectar...")
+                return vcu.reconnect_SSH()
+      
 class VCU:
     def __init__(self, ip, config):
         self.config = config
@@ -1602,7 +1628,7 @@ class ScanThread(QThread):
 
 class TSCGenerator(QSvgWidget):
     
-    coach_connection_status = Signal(str, str) #Señal para actualizar la tabla si alguna IP se cae.
+    coach_connection_status = Signal(str, str, str) #Señal para actualizar la tabla si alguna IP se cae.
 
     def __init__(self, project, vcu_list, tsc_vars, project_coach_types, tsc_cc_vars):
         
@@ -3280,7 +3306,7 @@ class TSCGenerator(QSvgWidget):
 
             with vcu.ssh_lock:
                 try:
-                    if vcu.ssh_client is not None:
+                    if vcu.client is not None:
                         vcu.close_SSH()
                 finally:
                     vcu.client = None
@@ -3288,7 +3314,9 @@ class TSCGenerator(QSvgWidget):
 
             flag = False
 
-            # self.coach_connection_status.emit(vcu.ip, "failure")
+            self.coach_connection_status.emit(vcu.ip, "failure", str(vcu.coach_type))
+
+            print("Los datos de la VCU no son dígitos o el tipo de coche es incorrecto. Marcando como OFFLINE.")
 
             # if index == len(self.vcu_list)-2 and self.project == "DB": #Comprobamos en el CC si además de la VCU_CH, la VCU_PH está muerta, si es así, marcamos fallo de comunicación en su ip.
             
@@ -3298,6 +3326,14 @@ class TSCGenerator(QSvgWidget):
             
             return coach, flag
         
+        if int(coach_type) == 0:
+            
+            SubElement(coach, "rect", x="0", y="0", width="100", height="305", fill="black", opacity="0.5")
+            SubElement(coach, "line", x1="100", y1="0", x2="100", y2="315", stroke="black", **{"stroke-width": "1", "stroke-dasharray": "5, 5"},opacity="0.35")
+            SubElement(coach, "text", x="50", y="292",**{"text-anchor": "middle","font-style": "italic","font-size": "10"}).text = f"Coche {index+1}"
+            SubElement(coach, "text", x="50", y="162.5", fill="white", **{"text-anchor": "middle","dominant-baseline": "central","font-style": "italic","font-size": "30","transform": "rotate(-90, 50, 152.5)"}).text = "OFFLINE"
+
+
         if index == len(self.vcu_list)-2 and self.project == "DB": #Cubrimos el caso en el que solo VCU_PH esté caída.
             
             if any(not signal.isdigit() for signal in tsc_data_cc) or coach_type == "Not SSH" or coach_type == "N/A":
@@ -3984,7 +4020,7 @@ class MainWindow(QMainWindow):
                     coach_type = PREDEFINED_DB_13[col]
                     self.trainset_coaches[col].coach_type = coach_type                     
 
-            if coach_type != "Not SSH" and coach_type != "N/A" or coach_type != None: #Si es un tipo de coche válido, asignar el nombre correspondiente
+            if str(coach_type).isdigit() and int(coach_type)>0: #Si es un tipo de coche válido, asignar el nombre correspondiente
 
                 if self.project == "DSB":
                     coach_type_item = QTableWidgetItem(self.TCMS_vars.COACH_TYPES_DSB[int(coach_type)])
@@ -3995,6 +4031,8 @@ class MainWindow(QMainWindow):
             
             else: 
                 coach_type_item = QTableWidgetItem("Not SSH")
+
+            # print(f"Coche: {col+1}, IP: {ip}, Estado: {status}, Tipo de coche: {coach_type}")
 
             # Asignar color de fondo según el estado de la conexión
             if status == "success":
