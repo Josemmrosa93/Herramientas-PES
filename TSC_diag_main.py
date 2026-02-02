@@ -1489,46 +1489,61 @@ class VCU:
             return "failure"
 
     def SSH_alive(self):
-        if not self.ssh_lock.acquire(False):
+        # No bloquees: si otro hilo usa SSH, el monitor no debe quedarse colgado
+        if not self.ssh_lock.acquire(timeout=0.1):
             return "busy"
-        
+
         try:
             if self.client is None:
                 return False
+
             transport = self.client.get_transport()
-            return transport is not None and transport.is_active()
+            if transport is None or not transport.is_active():
+                return False
+
+            # PROBE REAL: fuerza uso del socket
+            try:
+                transport.send_ignore()
+            except Exception:
+                return False
+
+            return True
+
         finally:
             self.ssh_lock.release()
 
     def SSH_read(self, VARS_LIST):
 
         VARS_NUM = len(VARS_LIST)
-        
-        with self.ssh_lock:
-            client = self.client
-            if client is None:
-                return ["Not Client"] * VARS_NUM if VARS_NUM != 1 else "Not Client"
-            transport = client.get_transport()
-            if transport is None or not transport.is_active():
-                return ["Not SSH"] * VARS_NUM if VARS_NUM != 1 else "Not SSH"
 
         try:
-            cmd_timeout = float(self.config.get("general", {}).get("ssh_cmd_timeout", 2))
             with self.ssh_lock:
+                client = self.client
+                if client is None:
+                    return ["Not Client"] * VARS_NUM if VARS_NUM != 1 else "Not Client"
+                transport = client.get_transport()
+                if transport is None or not transport.is_active():
+                    return ["Not SSH"] * VARS_NUM if VARS_NUM != 1 else "Not SSH"
+
+                
+                cmd_timeout = float(self.config.get("general", {}).get("ssh_cmd_timeout", 2))
+                
                 stdin, stdout, stderr = client.exec_command(self.READ_COMMAND + " ".join(VARS_LIST), timeout=cmd_timeout)
                 output = stdout.read().decode()
-                pattern = r'(\w+):\s*(\d+)\s*\((0x[0-9A-Fa-f]+)\)'
-                matches = re.findall(pattern, output)
-                if matches:
-                    values = [dec_val for var, dec_val, hex_val in matches]
-                else:
-                    # print(output)
-                    values = ["N/A"] * VARS_NUM
-                
-                if VARS_NUM == 1:
-                    return values[0]
-                else:    
-                    return values[:VARS_NUM]
+
+            pattern = r'(\w+):\s*(\d+)\s*\((0x[0-9A-Fa-f]+)\)'
+            matches = re.findall(pattern, output)
+            if matches:
+                values = [dec_val for var, dec_val, hex_val in matches]
+            else:
+                # print(output)
+                values = ["N/A"] * VARS_NUM
+            
+            if VARS_NUM == 1:
+                return values[0]
+            else:    
+                return values[:VARS_NUM]
+            
         except Exception:
             if VARS_NUM == 1:
                 return "Not SSH"
