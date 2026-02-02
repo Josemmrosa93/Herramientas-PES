@@ -1521,34 +1521,76 @@ class VCU:
                 client = self.client
                 if client is None:
                     return ["Not Client"] * VARS_NUM if VARS_NUM != 1 else "Not Client"
+
                 transport = client.get_transport()
                 if transport is None or not transport.is_active():
                     return ["Not SSH"] * VARS_NUM if VARS_NUM != 1 else "Not SSH"
 
-                
                 cmd_timeout = float(self.config.get("general", {}).get("ssh_cmd_timeout", 2))
-                
-                stdin, stdout, stderr = client.exec_command(self.READ_COMMAND + " ".join(VARS_LIST), timeout=cmd_timeout)
-                output = stdout.read().decode()
+
+                stdin, stdout, stderr = client.exec_command(
+                    self.READ_COMMAND + " ".join(VARS_LIST),
+                    timeout=cmd_timeout
+                )
+
+                ch = stdout.channel
+                try:
+                    ch.settimeout(cmd_timeout)
+                except Exception:
+                    pass
+
+                data = b""
+                import time
+                t0 = time.time()
+
+                while True:
+                    # corte duro por tiempo aunque nunca haya recv_ready()
+                    if time.time() - t0 > cmd_timeout:
+                        raise TimeoutError("SSH read timeout")
+
+                    if ch.recv_ready():
+                        data += ch.recv(65535)
+                        continue
+
+                    if ch.exit_status_ready():
+                        while ch.recv_ready():
+                            data += ch.recv(65535)
+                        break
+
+                    time.sleep(0.01)
+
+                output = data.decode(errors="replace")
 
             pattern = r'(\w+):\s*(\d+)\s*\((0x[0-9A-Fa-f]+)\)'
             matches = re.findall(pattern, output)
             if matches:
                 values = [dec_val for var, dec_val, hex_val in matches]
             else:
-                # print(output)
                 values = ["N/A"] * VARS_NUM
-            
+
             if VARS_NUM == 1:
                 return values[0]
-            else:    
+            else:
                 return values[:VARS_NUM]
-            
+
         except Exception:
+            # IMPORTANTE: invalida client para que el monitor reconecte bien
+            try:
+                with self.ssh_lock:
+                    try:
+                        if self.client:
+                            self.client.close()
+                    except Exception:
+                        pass
+                    self.client = None
+            except Exception:
+                pass
+
             if VARS_NUM == 1:
                 return "Not SSH"
             else:
                 return ["Not SSH"] * VARS_NUM
+
 
     def SSH_write_lock(self, VARS_LIST, VALUES_LIST, VERIFY_FLAG):
         VARS_NUM = len(VARS_LIST)
