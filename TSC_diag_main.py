@@ -27,7 +27,7 @@ from PySide6.QtWidgets import (
     QDialogButtonBox,
     QLineEdit,
     QCheckBox,
-    QSpinBox
+    QSpinBox,
 )
 from PySide6.QtGui import (
     QAction,
@@ -39,14 +39,15 @@ from PySide6.QtGui import (
     QTransform,
     QBrush,
     QTextCursor,
-    QGuiApplication
+    QGuiApplication,
 )
 from PySide6.QtCore import (
     Qt,
     QThread,
     Signal,
     QTimer,
-    QPoint
+    QPoint,
+    QObject
 )
 from xml.etree.ElementTree import ( 
     Element,
@@ -72,6 +73,7 @@ import xlsxwriter
 import pandas as pd
 import math
 import copy
+from isagrafInterface import isagrafInterface
 
 
 APP_VERSION = "1.0.3"
@@ -79,9 +81,6 @@ GITHUB_OWNER = "Josemmrosa93"
 GITHUB_REPO = "Herramientas-PES"
 
 maintenance_mode = 0
-RECURRENT_MODE = False # Flag para desconectar el monitor cuando hay una función recurrente activa.
-
-MODO_PRUEBA = False
 
 PREDEFINED_DSB = ['11', '3', '3', '5', '8', '9', '8', '9', '8', '9', '8', '9', '8', '9', '11']
 PREDEFINED_DB_13 = ['11', '9', '8', '10', '8', '9', '7', '6', '5', '4', '3', '3', '2', '2']
@@ -112,7 +111,7 @@ class TCMS_vars:
         self.COACH_TYPES_DB={1: "L9215", 2: "C4340", 3: "C4301", 4: "C4306", 5: "C4314", 6: "C4315", 7: "C4322", 8: "C4302S", 9: "C4302P", 10: "C4302C", 11: "C4328"}
         self.COACH_TYPES_DSB={2: "C4740", 3: "C4701", 5: "C4714", 8: "C4702S", 9: "C4702P", 11: "C4728"}
         #VARIABLE DE TCMS QUE INDICA EL TIPO DE COCHE
-        self.COACH_TYPE = ['oVCUCH_TRDP_DS_A000.COM_Vehicle_Type']
+        # self.COACH_TYPE = ['oVCUCH_TRDP_DS_A000.COM_Vehicle_Type']
         #VARIABLES DEL LAZO DE SEGURIDAD, INCLUYENDO LAS DEL PMR
         self.TSC_COACH_VARS_DSB = [
         'iVCUCH_IO_DS_A602_S45_X1.DIu_RiomS1isOK',
@@ -146,6 +145,7 @@ class TCMS_vars:
         'RIOMSC2r_MVB2_DS_2FE.DigitalInput11', #S62 REDUNDANTE
         'RIOMSC2_MVB1_DS_2FE.DigitalInput4', #S256 PRINCIPAL
         'RIOMSC2r_MVB2_DS_2FE.DigitalInput4', #S256 REDUNDANTE
+        'oVCUCH_TRDP_DS_A000.COM_Vehicle_Type', #TIPO DE COCHE
         ]
         self.TSC_COACH_VARS_DB = [
         'iVCUCH_IO_DS_A602_S45_X1.DIu_RiomS1isOK',
@@ -174,6 +174,7 @@ class TCMS_vars:
         'RIOMSC2r_MVB2_DS_2FE.DigitalInput11', #S62 REDUNDANTE (sólo PMR)
         'RIOMSC2_MVB1_DS_2FE.DigitalInput4', #S256 PRINCIPAL (sólo PMR)
         'RIOMSC2r_MVB2_DS_2FE.DigitalInput4', #S256 REDUNDANTE (sólo PMR)
+        'oVCUCH_TRDP_DS_A000.COM_Vehicle_Type', #TIPO DE COCHE
         ]
         self.TSC_CC_VARS_DB = [
         'RIOMPUP1_MVB1_DS_17D.DIp_BrakeHandlEmer1', #S8
@@ -205,6 +206,7 @@ class TCMS_vars:
         'RIOMCAB1_MVB1_DS_193.DIp_STCMSBypass', #S25
         'RIOMCAB1r_MVB2_DS_193.DIs_STCMSBypass', #S25
         'RIOMCAB1_MVB1_DS_191.DIu_SafBypasLoopOff', #K753
+        'oVCUCH_TRDP_DS_A000.COM_Vehicle_Type', #TIPO DE COCHE
                             ]
                 
         #DESCRIPCIONES FILTRADAS DE ERRORES DE TAR, VELOCIDAD Y TEMPERATURAS DE RODAMIENTOS
@@ -1250,385 +1252,219 @@ class TCMS_vars:
         'DIA_ContEBO_Train_OFF': {'Variable': 'sDiagnosis23_b2', 'Description': 'EBO according UIC 541-6 disabled but a signal has been detected on the EBO train line'}
         }
 
-class ConnectionMonitorThread(QThread):
-    connection_status_updated = Signal(str, str, str)  # IP, status, coach_type
+class CoachClient:
+    """
+    Cliente por coche/coach basado en isagrafInterface (Ethernet).
+    - 1 instancia por coach (reutilizable)
+    - health_check para la tabla (verde/rojo)
+    - read_vars para lecturas de TSC (con timestamp)
+    """
 
-    global RECURRENT_MODE
-    
-    def __init__(self, vcu_list, check_interval, project):
-        super().__init__()
-        self.vcu_list = vcu_list
-        self.check_interval = check_interval
-        self.max_workers = max(1,len(self.vcu_list))
-        self.stop_event = Event()
-        self.TCMS_vars = TCMS_vars() #Creamos una instancia de la clase TCMS_vars para acceder a las variables
-        self.project = project
-        
-    def run(self):
-
-        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
-            
-            while not self.stop_event.is_set():
-
-                print(f"Modo: {RECURRENT_MODE} - Comprobando estado de VCUs...")
-
-                inicio = time.time()
-                
-                future_to_idx_vcu = {executor.submit(self.check_VCU_status, vcu): (i, vcu) for i, vcu in enumerate(self.vcu_list)}
-                
-                for future in as_completed(future_to_idx_vcu):
-                    
-                    index, vcu = future_to_idx_vcu[future]     
-                    # print(index, vcu.ip)
-                    try:
-                        
-                        status = future.result()
-
-                        # print(f"Coche: {index+1}, IP: {vcu.ip}, Estado: {status}")
-
-
-                        if maintenance_mode == 0: 
-                            
-                            if status == "busy":
-                                pass
-
-                            elif status == "success" and not RECURRENT_MODE: #Caso en el que hay conexion y no es modo recurrente
-                                if self.project == "DB":
-                                    if index != len(self.vcu_list) - 1: # Si es éxito, el proyecto es DB y no es la última VCU (Cabcar)
-                                        coach = "" if vcu.coach_type is None else str(vcu.coach_type) # Si coach_type es None, asignar cadena vacía
-                                        if (not coach.isdigit()) or (int(coach) < 1): # Si coach_type no es dígito o es < 1
-                                            # print("Coach_type inválido (no dígito o < 1) con SSH ok. Leyendo tipo de coche...")
-                                            vcu.coach_type = vcu.SSH_read(self.TCMS_vars.COACH_TYPE)
-                                            # print(f"Tipo de coche del VCU {vcu.ip} es: {vcu.coach_type}")
-                                else:
-                                    coach = "" if vcu.coach_type is None else str(vcu.coach_type) # Si coach_type es None, asignar cadena vacía
-                                    if (not coach.isdigit()) or (int(coach) < 1): # Si coach_type no es dígito o es < 1
-                                        # print("Coach_type inválido (no dígito o < 1) con SSH ok. Leyendo tipo de coche...")
-                                        vcu.coach_type = vcu.SSH_read(self.TCMS_vars.COACH_TYPE)
-                                        # print(f"Tipo de coche del VCU {vcu.ip} es: {vcu.coach_type}")
-
-                            elif status == "failure" and not RECURRENT_MODE: #Caso en el que no hay conexion y no es modo recurrente
-                                vcu.coach_type = None
-                                vcu.close_SSH()
-                                # print(f"VCU {vcu.ip} desconectado. Tipo de coche establecido a None.")
-
-                            elif status == "ping_only" and not RECURRENT_MODE: #Caso en el que solo responde a ping y no es modo recurrente
-                                vcu.coach_type = None
-                                vcu.close_SSH()
-                                # print(f"VCU {vcu.ip} solo responde a ping. Tipo de coche establecido a None.")
-                            
-                        # print(f"Coche: {index +1}, IP: {vcu.ip}, Estado: {status}, Tipo: {str(vcu.coach_type)}")
-                        self.connection_status_updated.emit(vcu.ip, status, str(vcu.coach_type))
-
-                                               
-                    except Exception as e:
-                        print(f"Error al comprobar el estado de la VCU para {vcu.ip}: {e}")
-                        pass
-
-                fin = time.time()
-
-                # print(f"Tiempo de verificación de estado de VCUs: {fin - inicio} segundos")
-                    
-                # Esperar el intervalo de verificación o hasta que se detenga el hilo
-                if not self.stop_event.wait(self.check_interval):
-                    continue
-                else:
-                    break
-  
-    def stop(self):
-        # print("PARANDO")
-        self.stop_event.set()
-
-    def check_VCU_status(self, vcu):
-
-        print(f"Comprobando estado de VCU {vcu.ip}...")
-
-        global RECURRENT_MODE
-
-        # print(f"Modo de verificación de VCU {vcu.ip}: {'Recurrente' if RECURRENT_MODE else 'No recurrente'}")
-
-        inicio = time.time()
-        
-        if RECURRENT_MODE: #En modo recurrente, quien tumba las conexiones es la función recurrente, no el monitor. El monitor solo debe intentar levantar conexiones caídas.
-            acquired = vcu.ssh_lock.acquire(0.1)  # Intentar adquirir el lock sin bloquear
-            # print(f"Acquired lock for VCU {vcu.ip}: {acquired}")
-            if not acquired:
-                # print(f"VCU {vcu.ip} ya está en uso por otro hilo, no se puede verificar su estado.")
-                # print(f"No tenemos lock de VCU {vcu.ip}, no podemos verificar estado.")
-                return "busy"
-            else:
-                # print(f"Tenemos lock de VCU {vcu.ip}, verificando estado...")
-                try:
-                    if vcu.client is None:
-                        return vcu.reconnect_SSH()
-                    
-                    transport = vcu.client.get_transport()
-                    if transport is None or not transport.is_active():
-                        # print(f"VCU {vcu.ip} no está activo, intentando reconectar...")
-                        return vcu.reconnect_SSH()
-                    
-                    return "success"
-                finally:
-                    vcu.ssh_lock.release()
-                    fin = time.time()
-                    print(f"Tiempo de verificación de estado de VCU {vcu.ip}: {fin - inicio} segundos")
-            
-        else: #Modo no recurrente: el monitor es el que debe tumbar conexiones caídas y reconectarlas.
-            alive = vcu.SSH_alive()
-            if alive == "busy":
-                return "busy"
-            if not alive:
-                # print(f"VCU {vcu.ip} sin vida, intentando reconectar...")
-                return vcu.reconnect_SSH()
-            return "success"
-      
-class VCU:
-    def __init__(self, ip, config):
-        self.config = config
+    def __init__(self, coach_id: str, ip: str, health_vars: list[str] | None = None):
+        self.coach_id = coach_id
         self.ip = ip
-        # Protege el acceso concurrente al mismo SSHClient/Transport (Paramiko no es thread-safe)
-        self.ssh_lock = RLock()
-        self.last_ssh_ok_ts = 0.0
-        self.last_ssh_fail_ts = 0.0
-        self.USERNAME = "root"
-        self.PASSWORD = "root"
-        self.READ_COMMAND = "isacmd -r "
-        self.WRITE_N_LOCK_COMMAND = "isacmd -wl"
-        self.WRITE_N_RELEASE_COMMAND = "isacmd -wr"
-        self.WRITE_COMMAND = "isacmd -w"
-        self.client = None
-        self.coach_type = None
 
-    def ping_test(self):
+        # Instancia reutilizable (mantiene socket mientras funcione)
+        self.iface = isagrafInterface(ip)
 
-        has_unreachable = False
-        has_timeout = False
-        
-        result = subprocess.Popen(
-                    [   
-                        "ping", 
-                        "-n", "1", 
-                        "-w", str(self.config["general"]["ping_timeout"]), 
-                        self.ip
-                    ],
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    text=True,
-                    shell=True
-                )
-        stdout, stderr = result.communicate()
-        
-        lineas = stdout
-        # print(lineas)
+        # Variables mínimas para comprobar “estoy vivo”
+        # (ideal: 1-3 variables que existan siempre en ese coach)
+        self.health_vars = health_vars or []
 
-        for linea in lineas.splitlines():
-            linea = linea.lower()
-            if "inaccesible" in linea or "unreachable" in linea:
-                has_unreachable = True
-            if "tiempo de espera agotado" in linea or "request timed out" in linea:
-                has_timeout = True
-            if "paquetes" in linea and "enviados" in linea:
-                numeros = re.findall(r'(\d+)', linea)
-                if len(numeros) >= 3:
-                    enviados = int(numeros[0])
-                    recibidos = int(numeros[1])
-                    perdidos = int(numeros[2])
-                    # print(f"Enviados: {enviados}, Recibidos: {recibidos}, Perdidos: {perdidos}")
+        # Último timestamp “bueno” (no Error!)
+        self.last_ok_ts_ms: int = 0
 
-        if recibidos > 0 and perdidos == 0 and not has_unreachable and not has_timeout:
-            ok = True
-        else:
-            ok = False
-                    
-        return ok
+    def _flatten_ts_map(self, ts_map: dict) -> tuple[int, dict]: #El guion bajo en el nombre del método es para indicar que es “privado” (convención, no restricción real), es decir, que se usa sólo dentro del método, no es público
+        """
+        readValues devuelve {ts_ms: {var: value}}
+        Nos quedamos con el ts más reciente para devolver (ts_ms, values_dict).
+        """
+        if not ts_map:
+            return 0, {}
+        ts_ms = max(ts_map.keys())
+        return ts_ms, ts_map[ts_ms] or {}
 
-    def link_SSH(self):
-        
-        with self.ssh_lock:
-            try:
-                if not self.client:
-                    self.client = paramiko.SSHClient()
-                    self.client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-                timeout_SSH = int(self.config["general"]["ssh_timeout"])
-                self.client.connect(self.ip, username=self.USERNAME, password=self.PASSWORD, timeout = timeout_SSH)
-                # Mantén viva la sesión para evitar cortes por "idle" en red/equipos intermedios
-                transport = self.client.get_transport()
-                if transport is not None:
-                    # keepalive = int(self.config.get("general", {}).get("ssh_keepalive", 15))
-                    keepalive = 5
-                    if keepalive > 0:
-                        transport.set_keepalive(keepalive)
-                self.connection_status = "success"
-                return self.connection_status
-            except Exception as e:
-                self.client = None
-                self.connection_status = "ping_only" if self.ping_test() else "failure"
-                # print(f"[{self.ip}] SSH failed: {e}")  # agrega log mínimo
-            return self.connection_status
-
-    def close_SSH(self):
-        
-        if self.client is not None:
-            self.client.close()
-
-    def reconnect_SSH(self):
-        # print("INTENTANDO RECONECTAR")
-        try:
-            if self.client is not None:
-                # print("EXISTE CLIENTE, CERRANDO")
-                self.close_SSH()
-                self.client = None
-
-            status = self.link_SSH()
-            self.connection_status = status  # sincroniza estado
-            # print(f"IP: {self.ip} reconectada, status: {status}")
-            return status
-        except Exception as e:
-            self.connection_status = "failure"
-            # print(f"[{self.ip}] Reconnect failed: {e}")
-            return "failure"
-
-    def SSH_alive(self):
-        # No bloquees: si otro hilo usa SSH, el monitor no debe quedarse colgado
-        if not self.ssh_lock.acquire(timeout=0.1):
-            return "busy"
-
-        try:
-            if self.client is None:
-                return False
-
-            transport = self.client.get_transport()
-            if transport is None or not transport.is_active():
-                return False
-
-            # PROBE REAL: fuerza uso del socket
-            try:
-                transport.send_ignore()
-            except Exception:
-                return False
-
+    def _all_read_error(self, values: dict) -> bool: #El guion bajo en el nombre del método es para indicar que es “privado” (convención, no restricción real), es decir, que se usa sólo dentro del método, no es público
+        """
+        True si TODAS las variables leídas son Error! (no accesible / sin conexión / timeout).
+        """
+        if not values:
             return True
+        return all(v == isagrafInterface.READ_ERROR for v in values.values())
 
-        finally:
-            self.ssh_lock.release()
+    def health_check(self, wait_time: float = 2.0) -> tuple[bool, int, dict]:
+        """
+        Devuelve:
+          (online, ts_ms, values)
 
-    def SSH_read(self, VARS_LIST):
+        online = True si al menos una variable NO es "Error!"
+        online = False si todo es "Error!" (o no hay datos)
+        """
+        if not self.health_vars:
+            # Sin variables de health definidas no podemos comprobar conectividad real
+            return False, 0, {}
 
-        VARS_NUM = len(VARS_LIST)
+        ts_map = self.iface.readValues(self.health_vars, wait_time=wait_time)
+        ts_ms, values = self._flatten_ts_map(ts_map)
 
-        try:
-            with self.ssh_lock:
-                client = self.client
-                if client is None:
-                    return ["Not Client"] * VARS_NUM if VARS_NUM != 1 else "Not Client"
+        online = not self._all_read_error(values)
+        if online:
+            self.last_ok_ts_ms = ts_ms
 
-                transport = client.get_transport()
-                if transport is None or not transport.is_active():
-                    return ["Not SSH"] * VARS_NUM if VARS_NUM != 1 else "Not SSH"
+        return online, ts_ms, values
 
-                cmd_timeout = float(self.config.get("general", {}).get("ssh_cmd_timeout", 2))
+    def read_vars(self, vars_list: list[str], wait_time: float = 2.0) -> tuple[bool, int, dict]:
+        """
+        Lectura genérica (para TSC, diagnósticos, etc.)
 
-                stdin, stdout, stderr = client.exec_command(
-                    self.READ_COMMAND + " ".join(VARS_LIST),
-                    timeout=cmd_timeout
-                )
+        Devuelve:
+          (online, ts_ms, values)
 
-                ch = stdout.channel
-                try:
-                    ch.settimeout(cmd_timeout)
-                except Exception:
-                    pass
+        - online False si todo es Error!
+        - ts_ms = timestamp ms del batch (del driver)
+        - values = dict {var: value}
+        """
+        if not vars_list:
+            return True, 0, {}
 
-                data = b""
-                import time
-                t0 = time.time()
+        ts_map = self.iface.readValues(vars_list, wait_time=wait_time)
+        ts_ms, values = self._flatten_ts_map(ts_map)
 
-                while True:
-                    # corte duro por tiempo aunque nunca haya recv_ready()
-                    if time.time() - t0 > cmd_timeout:
-                        raise TimeoutError("SSH read timeout")
+        online = not self._all_read_error(values)
+        if online:
+            self.last_ok_ts_ms = ts_ms
 
-                    if ch.recv_ready():
-                        data += ch.recv(65535)
-                        continue
+        return online, ts_ms, values
 
-                    if ch.exit_status_ready():
-                        while ch.recv_ready():
-                            data += ch.recv(65535)
-                        break
+class TSCWorker(QObject):
+    """
+    Worker de polling TSC para 1 coach.
+    - Reutiliza el CoachClient (y su isagrafInterface interno)
+    - Lee en bucle vars TSC
+    - Emite data/status sin bloquear la UI
+    """
 
-                    time.sleep(0.01)
+    data = Signal(str, int, dict)           # coach_id, ts_ms, values
+    status = Signal(str, bool, str, int)    # coach_id, online, msg, ts_ms
 
-                output = data.decode(errors="replace")
+    def __init__(self, coach_client: CoachClient, tsc_vars: list[str], period_s: float = 0.5, wait_time: float = 2.0):
+        super().__init__()
+        self.client = coach_client
+        self.coach_id = coach_client.coach_id
 
-            pattern = r'(\w+):\s*(\d+)\s*\((0x[0-9A-Fa-f]+)\)'
-            matches = re.findall(pattern, output)
-            if matches:
-                values = [dec_val for var, dec_val, hex_val in matches]
-            else:
-                values = ["N/A"] * VARS_NUM
+        self.tsc_vars = tsc_vars
+        self.period_s = period_s
+        self.wait_time = wait_time
 
-            if VARS_NUM == 1:
-                return values[0]
-            else:
-                return values[:VARS_NUM]
+        self._running = True
+        self._last_ts_ms_sent = 0
 
-        except Exception:
-            # IMPORTANTE: invalida client para que el monitor reconecte bien
+    def stop(self):
+        self._running = False
+
+    def run(self):
+        """Bucle principal en el hilo. NO llamar desde UI thread."""
+        while self._running:
+            t0 = time.time()
+            ts_ms = 0
+
             try:
-                with self.ssh_lock:
-                    try:
-                        if self.client:
-                            self.client.close()
-                    except Exception:
-                        pass
-                    self.client = None
-            except Exception:
-                pass
+                online, ts_ms, values = self.client.read_vars(self.tsc_vars, wait_time=self.wait_time)
 
-            if VARS_NUM == 1:
-                return "Not SSH"
-            else:
-                return ["Not SSH"] * VARS_NUM
+                # Aviso de estado (siempre)
+                if not online:
+                    self.status.emit(self.coach_id, False, "offline (isagraf Error!)", ts_ms)
+                else:
+                    self.status.emit(self.coach_id, True, "ok", ts_ms)
 
+                    # Datos (solo si hay algo válido)
+                    # (opcional) evitar reemitir el mismo ts
+                    if ts_ms >= self._last_ts_ms_sent:
+                        self._last_ts_ms_sent = ts_ms
+                        self.data.emit(self.coach_id, ts_ms, values)
 
-    def SSH_write_lock(self, VARS_LIST, VALUES_LIST, VERIFY_FLAG):
-        VARS_NUM = len(VARS_LIST)
-        # print(VARS_LIST)
-        if self.client is None:
-            return self.ip, ["Comms.Error"] * VARS_NUM
-        if len(VARS_LIST) != len(VALUES_LIST):
-            return self.ip, "Error: Variable and Value length mismatch"
-        try:
-            command = self.WRITE_N_LOCK_COMMAND + " " + " ".join(f"{var}={val}" for var, val in zip(VARS_LIST, VALUES_LIST))
-            # print(self.WRITE_N_LOCK_COMMAND + " " + " ".join(f"{var}={val}" for var, val in zip(VARS_LIST, VALUES_LIST)))
-            cmd_timeout = float(self.config.get("general", {}).get("ssh_cmd_timeout", 2))
-            stdin, stdout, stderr = self.client.exec_command(command, timeout=cmd_timeout)
-            errors = stderr.read().decode()
-            if errors:
-                return self.ip, [f"Error: {errors.strip()}"] * VARS_NUM
-            if VERIFY_FLAG:
-                _, read_values = self.SSH_read(VARS_LIST)
-                return self.ip, ["OK" if str(read_val) == str(write_val) else "Mismatch"
-                                 for read_val, write_val in zip(read_values, VALUES_LIST)]
-            else:
-                return self.ip, ["OK"] * VARS_NUM
-        except Exception as e:
-            return self.ip, [f"Error: {str(e)}"] * VARS_NUM
+            except Exception as e:
+                self.status.emit(self.coach_id, False, f"excepción: {e}", ts_ms)
 
-    def SSH_release(self, VARS_LIST):
-        VARS_NUM = len(VARS_LIST)
-        if self.client is None:
-            return self.ip, ["Comms.Error"] * VARS_NUM
-        try:
-            command = self.WRITE_N_RELEASE_COMMAND + " " + " ".join(VARS_LIST)
-            stdin, stdout, stderr = self.client.exec_command(command)
-            errors = stderr.read().decode()
-            if errors:
-                return self.ip, [f"Error: {errors.strip()}"] * VARS_NUM
-            return self.ip, ["OK"] * VARS_NUM
-        except Exception as e:
-            return self.ip, [f"Error: {str(e)}"] * VARS_NUM
+            elapsed = time.time() - t0
+            sleep_s = self.period_s - elapsed
+            if sleep_s > 0:
+                time.sleep(sleep_s)
+
+class SimpleSnapshotStore(QObject):
+    """
+    Store central MUY simple (UI thread):
+      - Por coach: online/offline + último values
+      - NO stale
+      - NO loop_state
+      - Emite snapshot SOLO si algo cambia (online/offline o values)
+
+    Conectar:
+      worker.data   -> store.on_data
+      worker.status -> store.on_status
+    """
+
+    snapshotUpdated = Signal(dict)
+
+    def __init__(self, coach_ids, render_hz=10):
+        super().__init__()
+
+        self.state = {
+            cid: {
+                "online": False,
+                "values": {},
+            }
+            for cid in coach_ids
+        }
+
+        self._dirty = True  # fuerza primer emit
+
+        self._timer = QTimer(self)
+        self._timer.setInterval(int(1000 / render_hz))
+        self._timer.timeout.connect(self._tick)
+
+    def start(self):
+        self._timer.start()
+
+    def stop(self):
+        self._timer.stop()
+
+    # ---- Entradas desde los workers ----
+
+    def on_data(self, coach_id, ts_ms, values):
+        st = self.state.get(coach_id)
+        if st is None:
+            return
+
+        # Si los valores no cambian y ya estaba online, no hacemos nada
+        if st["online"] and st["values"] == values:
+            return
+
+        st["online"] = True
+        st["values"] = values
+        self._dirty = True
+
+    def on_status(self, coach_id, online, msg, ts_ms):
+        st = self.state.get(coach_id)
+        if st is None:
+            return
+
+        # Solo cambia si online/offline cambia
+        if st["online"] != online:
+            st["online"] = online
+            if not online:
+                st["values"] = {}
+            self._dirty = True
+
+    # ---- Timer ----
+
+    def _tick(self):
+        if not self._dirty:
+            return
+
+        # snapshot = {"coaches": self.state}
+        self._dirty = False
+        # self.snapshotUpdated.emit(snapshot)
 
 class ScanThread(QThread):
     
@@ -1640,29 +1476,40 @@ class ScanThread(QThread):
         self.ip_list = ip_list
         self.max_initial_ips = max_initial_ips
         self.project = project
-        self.cabcar_vcuch_ips = cabcar_VCUCH_ips
-        self.cabcar_vcuph_ips = cabcar_VCUPH_ips
+        self.cabcar_VCUCH_ips = cabcar_VCUCH_ips
+        self.cabcar_VCUPH_ips = cabcar_VCUPH_ips
         self.config = config
 
-    def run(self):
+    def _ping(self, ip: str) -> bool:
+
+        host = ip.split(':')[0].strip()  # Extraer solo la parte IP, sin el puerto
+        if not host:
+            return False
+        try:
+            cmd = ['ping', '-n', '1', '-w', '500', host]  # -c 1: enviar 1 paquete, -W 1: timeout de 1 segundo
+            r = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            return r.returncode == 0
+        except Exception:
+            return False
+        
+    def run (self):
 
         valid_ips = self.ip_list[:self.max_initial_ips]
-        
-        for i, ip in enumerate(self.ip_list[self.max_initial_ips:]):
-            vcu = VCU(ip, self.config)
-            if vcu.ping_test():
+
+        scan_list = self.ip_list[self.max_initial_ips:]
+
+        total = max (1, len(scan_list))  # Evitar división por cero
+
+        for i, ip in enumerate(scan_list):
+            if self._ping(ip):
                 valid_ips.append(ip)
-                print(ip)
-            progress= ((i+1)*100)//len(self.ip_list[self.max_initial_ips:])
-            coach_number=len(valid_ips)
+            progress = ((i + 1) * 100) // total
+            coach_number  =  len(valid_ips) 
             self.scan_progress.emit(progress, coach_number)
-
-
         
         if self.project == "DB":
-            valid_ips.insert(len(valid_ips) - 1, self.cabcar_vcuch_ips[len(valid_ips) - 1])
-            valid_ips[-1] = self.cabcar_vcuph_ips[len(valid_ips)-2]
-        
+            valid_ips.insert(len(valid_ips) - 1, self.cabcar_VCUCH_ips[len(valid_ips) - 1])
+            valid_ips[-1] = self.cabcar_VCUPH_ips[len(valid_ips) - 2]
 
         self.scan_completed.emit(valid_ips)
 
@@ -3682,7 +3529,9 @@ class MainWindow(QMainWindow):
         diag_menu=self.menu_bar.addMenu("Diagnóstico")
         
         self.check_TSC_action=QAction("Comprobar estado lazo de seguridad (TSC)", self)
-        self.check_TSC_action.triggered.connect(lambda: self.start_timer_with_function(self.draw_tsc))
+        self.check_TSC_action.setCheckable(True)
+        # self.check_TSC_action.toggled.connect(self.on_toggle_tsc)
+        # self.check_TSC_action.triggered.connect(lambda: self.start_timer_with_function(self.draw_tsc))
         self.check_TSC_action.setEnabled(False)
 
         self.massive_ping_action=QAction("Comprobar estado de comunicación de equipos", self)
@@ -3996,15 +3845,6 @@ class MainWindow(QMainWindow):
         self.setMinimumSize(0, 0)
         self.setMaximumSize(16777215, 16777215)
 
-        if self.timer.isActive():
-            # self.timer.stop()
-            self.stop_timer()
-        
-        if self.connection_monitor:
-            self.connection_monitor.stop()
-            self.connection_monitor.wait()
-            self.connection_monitor=None
-
         # Bucle para eliminar widgets del layout
         for i in reversed(range(self.layout.count())):
             widget = self.layout.itemAt(i).widget()
@@ -4023,7 +3863,7 @@ class MainWindow(QMainWindow):
                         
         self.project = project_value
     
-        self.max_initial_ips = 13 if self.project == "DB" else 15 if self.project == "DSB" else 1
+        self.max_initial_ips = 9 if self.project == "DB" else 15 if self.project == "DSB" else 1
         
         self.progress_title.setText(f"Escaneando composición: {self.project}")
         self.detected_label.setText(f"Coches detectados: {0 + self.max_initial_ips} de {len(self.ip_data[self.project])} posibles.")
@@ -4033,7 +3873,6 @@ class MainWindow(QMainWindow):
         self.progress_bar.setVisible(True)
         self.detected_label.setVisible(True)
 
-        self.trainset_coaches = []
         self.valid_ips = []
         
         self.scan_thread = ScanThread(self.ip_data[self.project], self.max_initial_ips, self.project, self.ip_data["DB_VCUCH_CABCAR"], self.ip_data["DB_VCUPH_CABCAR"], self.config)
@@ -4045,25 +3884,27 @@ class MainWindow(QMainWindow):
         
         '''Esta función una vez completado el escaneo de ips, establece las ips validas, 
         crea las instancias de VCU, oculta la barra de progreso y los textos y crea la tabla principal.
-        Además, inicia el monitor de conexiones SSH por si la conexión con alguna VCU se cae, la reestablezca 
-        y vaya cambiando el código de colores de la tabla.'''
+        '''
         
         self.valid_ips = valid_ips
-        self.trainset_coaches=[VCU(ip, self.config) for ip in self.valid_ips]
         
         self.progress_bar.setVisible(False)
         self.detected_label.setVisible(False)
         self.progress_title.setVisible(False)
+
+        self.endpoints_ids = [f"EP {i+1}" for i in range(len(self.valid_ips))]
+
+        self.endpoint_clients = {}
+
+        for eid, ip in zip(self.endpoints_ids, self.valid_ips):
+            self.endpoint_clients[eid] = CoachClient(eid, ip)
+
         
         self.create_table()
-        
-        if not self.connection_monitor:
 
-            self.connection_monitor = ConnectionMonitorThread(self.trainset_coaches, self.config["general"]["monitor_interval"], self.project)
-            self.connection_monitor.connection_status_updated.connect(self.on_connection_status_updated)
-            
-        self.connection_monitor.start()
-                       
+        self.check_TSC_action.setEnabled(True)
+        # self.massive_ping_action.setEnabled(True)
+                             
     def on_connection_status_updated(self, ip, status, coach_type):
 
         try:
@@ -4190,7 +4031,7 @@ class MainWindow(QMainWindow):
             ]
 
         # Si el modo prueba está activado, solo se usa el primer coche
-        coches_a_usar = [self.trainset_coaches[0]] if MODO_PRUEBA else self.trainset_coaches
+        coches_a_usar = self.trainset_coaches
         
 
         # Crear interfaz de progreso
@@ -4201,7 +4042,7 @@ class MainWindow(QMainWindow):
         dialog_layout = QVBoxLayout()
         self.progress_label = QTextEdit()
         self.progress_label.setReadOnly(True)
-        modo_texto = " (MODO PRUEBA - SOLO 1 COCHE)" if MODO_PRUEBA else ""
+        modo_texto = ""
         self.progress_label.append(f"Lanzando comandos a las VCU´s, por favor espere...{modo_texto}\n")
         dialog_layout.addWidget(self.progress_label)
         self.progress_dialog.setLayout(dialog_layout)
@@ -5251,33 +5092,6 @@ class MainWindow(QMainWindow):
         # print(tren.keys())
         
         return tren
-
-    def set_timer_function(self, new_function):
-
-        if self.current_function != new_function:
-            if self.current_function is not None:
-                try:
-                    self.timer.timeout.disconnect(self.current_function)  # Desconecta la función anterior si está conectada
-                except TypeError:
-                    pass  # Ignora el error si la función no está conectada
-
-            self.timer.timeout.connect(new_function)  # Conecta la nueva función
-            self.current_function = new_function  # Actualiza la función actual conectada
-    
-    def start_timer_with_function(self, new_function):
-
-        global RECURRENT_MODE
-        RECURRENT_MODE = True
-
-        self.set_timer_function(new_function)
-        new_function()  # Llama a la función inmediatamente
-        if not self.timer.isActive():  # Verifica si el temporizador no está activo
-            self.timer.start(self.config["general"]["test_timeout"])  # Configura el intervalo en 2 segundos
-
-    def stop_timer(self):
-        global RECURRENT_MODE
-        self.timer.stop()
-        RECURRENT_MODE = False
 
 if __name__ == "__main__":
     
