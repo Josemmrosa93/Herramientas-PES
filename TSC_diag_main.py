@@ -60,7 +60,7 @@ import urllib.request
 import json
 import webbrowser
 import subprocess
-import paramiko
+import platform
 import re
 import sys
 import os
@@ -1480,33 +1480,34 @@ class ScanThread(QThread):
         self.cabcar_VCUPH_ips = cabcar_VCUPH_ips
         self.config = config
 
-    def _ping(self, ip: str) -> bool:
+    def run(self):
 
-        host = ip.split(':')[0].strip()  # Extraer solo la parte IP, sin el puerto
-        if not host:
-            return False
-        try:
-            cmd = ['ping', '-n', '1', '-w', '500', host]  # -c 1: enviar 1 paquete, -W 1: timeout de 1 segundo
-            r = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            return r.returncode == 0
-        except Exception:
-            return False
-        
-    def run (self):
+        def ping(ip: str) -> bool:
+            host = ip.split(":")[0].strip()
+            if not host:
+                return False
+            try:
+                if platform.system().lower().startswith("win"):
+                    cmd = ["ping", "-n", "1", "-w", "500", host]
+                else:
+                    cmd = ["ping", "-c", "1", "-W", "1", host]
+                r = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                return r.returncode == 0
+            except Exception:
+                return False
 
         valid_ips = self.ip_list[:self.max_initial_ips]
-
         scan_list = self.ip_list[self.max_initial_ips:]
-
-        total = max (1, len(scan_list))  # Evitar división por cero
+        total = max(1, len(scan_list))
 
         for i, ip in enumerate(scan_list):
-            if self._ping(ip):
+            if ping(ip):
                 valid_ips.append(ip)
+
             progress = ((i + 1) * 100) // total
-            coach_number  =  len(valid_ips) 
+            coach_number = len(valid_ips)
             self.scan_progress.emit(progress, coach_number)
-        
+
         if self.project == "DB":
             valid_ips.insert(len(valid_ips) - 1, self.cabcar_VCUCH_ips[len(valid_ips) - 1])
             valid_ips[-1] = self.cabcar_VCUPH_ips[len(valid_ips) - 2]
@@ -1514,137 +1515,270 @@ class ScanThread(QThread):
         self.scan_completed.emit(valid_ips)
 
 class TSCGenerator(QSvgWidget):
-    
-    coach_connection_status = Signal(str, str, str) #Señal para actualizar la tabla si alguna IP se cae.
+    """
+    NUEVA versión:
+    - NO hace lecturas (ni SSH ni isagraf).
+    - SOLO dibuja usando snapshot.
+    - Mantiene los mismos dibujos reutilizando tus helpers actuales.
+    """
 
-    def __init__(self, project, vcu_list, tsc_vars, project_coach_types, tsc_cc_vars):
-        
+    def __init__(self, project, endpoint_ids, tsc_vars, project_coach_types, tsc_cc_vars):
         super().__init__()
+
         self.project = project
-        self.vcu_list = vcu_list
-        self.tsc_vars = tsc_vars
-        self.tsc_cc_vars = tsc_cc_vars
+        self.endpoint_ids = list(endpoint_ids)
 
-        if self.project == "DSB":
-            self.num_coaches = len(self.vcu_list)
-        elif self.project == "DB":
-            self.num_coaches = len(self.vcu_list) - 1  # Exclude cab car
+        # Listas de variables (mismo orden que usabas antes)
+        self.tsc_vars = list(tsc_vars)
+        self.tsc_cc_vars = list(tsc_cc_vars) if tsc_cc_vars else []
 
-        print(f"Número de coches: {self.num_coaches}")
-        print(f"Número de IPs: {len(self.vcu_list)}")
-        
+        # Map de tipos (ya lo tienes en TCMS_vars)
         self.project_coach_types = project_coach_types
-        self.TCMS_vars = TCMS_vars()
-   
-    def generate_svg(self, project):
-        self.project = project
 
-        self.coach_types = [vcu.coach_type for vcu in self.vcu_list]
+        # La var de tipo de coche (la usas para mostrar y para decidir dibujo)
+        # OJO: en tu nuevo flujo dijiste que COACH_TYPE está al final de tsc_vars
+        self.coach_type_var = self.tsc_vars[-1] if self.tsc_vars else None
 
+        # snapshot actual (lo alimenta vars_warehouse -> build_svg_snapshot)
+        self.snapshot = {"coaches": {}}
+
+        # tamaño mínimo inicial
+        self.setMinimumSize(800, 125)
+
+    # ------------------------------
+    # Entrada desde MainWindow
+    # ------------------------------
+    def set_snapshot(self, snapshot: dict):
+        self.snapshot = snapshot or {"coaches": {}}
+        self.render_from_snapshot()
+
+    # ------------------------------
+    # Render principal (sin IO)
+    # ------------------------------
+    def render_from_snapshot(self):
+        svg = self.generate_svg_from_snapshot()
+        self.load(bytearray(svg, encoding="utf-8"))
+
+    def generate_svg_from_snapshot(self) -> str:
+        from xml.etree.ElementTree import Element, tostring
+
+        coaches_dict = (self.snapshot or {}).get("coaches", {}) or {}
+
+        # Orden estable: el orden de endpoint_ids, pero solo los que existan en snapshot
+        coach_ids = [eid for eid in self.endpoint_ids if eid in coaches_dict]
+        self.num_coaches = len(coach_ids)
+
+        # Si no hay nada, dibuja un SVG vacío mínimo
+        if self.num_coaches == 0:
+            root = Element("svg", xmlns="http://www.w3.org/2000/svg", width="800", height="125")
+            return tostring(root, encoding="unicode")
+
+        # Extrae tipos por coach (string numérico si se puede)
+        coach_type_codes = []
+        for eid in coach_ids:
+            values = coaches_dict.get(eid, {}).get("values", {}) or {}
+            ct = values.get(self.coach_type_var, "")
+            ct_str = str(ct)
+            coach_type_codes.append(ct_str)
+
+        # Reproduce tu lógica original de tamaños/offsets
         base_width = self.num_coaches * 100
 
-        # Offsets “extra” cuando el PMR está presente/online
-        pmr_extra = 250 if self.project == "DSB" else 100 if self.project == "DB" else 0
-        cab_extra = 645  # DB (si aplica)
-
-        # Índices estables (NO dependen del estado actual “Not SSH”)
-        self.pmr_index = self.coach_types.index('5') if '5' in self.coach_types else None
-        pmr_pos = self.pmr_index
-        # Para cabina en DB, mejor localizarla una vez. Si puede haber más de una, ajusta según tu caso.
+        # offsets “especiales” (los usabas para cabcar)
         cab_pos = None
-        if self.project == "DB":
-            try:
-                cab_pos = self.coach_types.index('2')
-            except:
-                cab_pos = None
-
-        svg_root = Element("svg", xmlns="http://www.w3.org/2000/svg",
-                        width=str(base_width), height="300")
-
-        print("TSC Refresh")
-
-        # 1) Ejecutar en paralelo y guardar resultados por índice (orden estable)
-        coach_elems = [None] * self.num_coaches
-        coach_ok = [False] * self.num_coaches  # flag devuelto por process_coach (True=OK / False=offline)
-
-        inicio = time.time()
-
-        with ThreadPoolExecutor(max_workers=self.num_coaches) as executor:
-            futures = {
-                executor.submit(
-                    self.process_coach,
-                    self.vcu_list[i],
-                    self.coach_types[i],
-                    self.tsc_vars,
-                    self.project_coach_types,
-                    self.tsc_cc_vars
-                ): i
-                for i in range(self.num_coaches)
-            }
-
-            for future in as_completed(futures):
-                i = futures[future]
-                try:
-                    coach, flag = future.result()
-                    coach_elems[i] = coach
-                    coach_ok[i] = bool(flag)
-                except Exception as e:
-                    # Si falla un coche, lo dejamos como None y seguimos sin “ruido”
-                    coach_elems[i] = None
-                    coach_ok[i] = False
-                    print(f"Error al procesar el coche {i + 1}: {e}")
-
-        final = time.time()
-
-        duracion = final - inicio 
-
-        print(duracion)
-
-        # 2) Decidir PMR/cabina y calcular ancho final de forma determinista
         corrected_svg_width = base_width
+        if self.project == "DB":
+            # En tu lógica original, el cabcar se detectaba por coach_type == '2'
+            # (normalmente es el último coche). Si está, ajustas el ancho.
+            if "2" in coach_type_codes:
+                cab_pos = coach_type_codes.index("2")
+                corrected_svg_width += 100  # igual que tu comportamiento anterior (ajuste visual)
 
-        pmr_online = False
-        if pmr_pos is not None and 0 <= pmr_pos < self.num_coaches:
-            pmr_online = coach_ok[pmr_pos]
-            if pmr_online:
-                corrected_svg_width += pmr_extra  # solo si PMR está online
+        svg_root = Element(
+            "svg",
+            xmlns="http://www.w3.org/2000/svg",
+            width=str(corrected_svg_width),
+            height="125"
+        )
 
-        # if self.project == "DB" and cab_pos is not None and 0 <= cab_pos < self.num_coaches:
-        if self.project == "DB" and cab_pos is not None:
-            cab_online = coach_ok[cab_pos]
-            # print(f"Posición del cabcar {cab_pos}")
-            # print(f"Cabcar online {cab_online}")
-            if cab_online:
-                corrected_svg_width += cab_extra  # solo si cabina está online
+        # Genera cada coche (grupo <g>) y lo traslada en X
+        for idx, eid in enumerate(coach_ids):
+            values = coaches_dict.get(eid, {}).get("values", {}) or {}
+            coach_type = str(values.get(self.coach_type_var, ""))
 
-        svg_root.set("width", str(corrected_svg_width))
+            coach_g, _flag = self.process_coach_from_values(
+                coach_id=eid,
+                index=idx,
+                coach_type=coach_type,
+                values=values
+            )
 
-        # 3) Montar SVG en orden (ya no depende del orden de finalización)
-        for i in range(self.num_coaches):
-            coach = coach_elems[i]
-            if coach is None:
-                continue
+            # Posición horizontal: 100 por coche (tu base)
+            x_pos = idx * 100
 
-            x_pos = i * 100
+            # Si quieres replicar el “hueco”/ajuste del cabcar, aplica aquí
+            if cab_pos is not None and idx > cab_pos:
+                x_pos += 100
 
-            # Aplicar desplazamiento si PMR está online y el coche está a la derecha del PMR
-            if pmr_online and pmr_pos is not None:
-                if i > pmr_pos:
-                    x_pos += pmr_extra
+            coach_g.set("transform", f"translate({x_pos}, 0)")
+            svg_root.append(coach_g)
 
-            # (Si tu layout también requiere desplazar por cabina DB, puedes añadirlo aquí
-            #  según tu lógica real. Ahora mismo tu código solo “resta ancho”, no desplaza.)
+        return tostring(svg_root, encoding="unicode")
 
-            coach.set("transform", f"translate({x_pos}, 0)")
-            svg_root.append(coach)
+    # ------------------------------
+    # Reemplazo del antiguo process_coach: ahora NO hay IO.
+    # ------------------------------
+    def process_coach_from_values(self, coach_id, index, coach_type, values):
+        from xml.etree.ElementTree import Element
 
-        svg_string = tostring(svg_root, encoding="unicode")
+        coach = Element("g")
+        flag = True
 
-        self.svg_widget = QSvgWidget()
-        self.svg_widget.load(bytearray(svg_string, encoding="utf-8"))
-        self.svg_widget.setMinimumSize(corrected_svg_width, 125)
+        # helpers de lectura segura por índice (para no petar si falta algo)
+        READ_ERR = isagrafInterface.READ_ERROR
 
-        return self.svg_widget
+        def build_list(vars_list):
+            out = []
+            for v in vars_list:
+                out.append(values.get(v, READ_ERR))
+            return out
+
+        def g(lst, i, default=READ_ERR):
+            return lst[i] if (i is not None and i < len(lst)) else default
+
+        tsc_data = build_list(self.tsc_vars)
+        tsc_data_cc = build_list(self.tsc_cc_vars) if self.tsc_cc_vars else []
+
+        # ONLINE/OFFLINE aquí solo para “flag” si lo estabas usando internamente
+        # (tu dibujo usa valores; si todo es READ_ERROR -> realmente no hay info)
+        any_ok = any(v != READ_ERR for v in tsc_data)
+        any_ok_cc = any(v != READ_ERR for v in tsc_data_cc) if tsc_data_cc else True
+        flag = bool(any_ok and any_ok_cc)
+
+        # ---- Mapea exactamente como hacías antes (mismos índices)
+        # OJO: si faltan vars en snapshot, caen en READ_ERROR pero NO rompe.
+
+        # Vars normales (ejemplo: tus índices actuales)
+        k801 = g(tsc_data, 0)
+        k800 = g(tsc_data, 1)
+        k802 = g(tsc_data, 2)
+        k804 = g(tsc_data, 3)
+        s60 = g(tsc_data, 4)
+        s60_r = g(tsc_data, 5)
+        s62 = g(tsc_data, 6)
+        s62_r = g(tsc_data, 7)
+        s256 = g(tsc_data, 8)
+        s256_r = g(tsc_data, 9)
+
+        # Según tu código, en algunos coches también:
+        s255 = g(tsc_data, 10)
+        s255_r = g(tsc_data, 11)
+
+        # y más señales (en PMR/CABCAR)
+        k810 = g(tsc_data, 12)
+        k811 = g(tsc_data, 13)
+        k812 = g(tsc_data, 14)
+        k814 = g(tsc_data, 15)
+
+        # sifa / etc (si existen en tu orden actual)
+        sifa = g(tsc_data, 16)
+        sifa1_cond = g(tsc_data, 17)
+        sifa2_cond = g(tsc_data, 18)
+
+        # Riom / etc (según tu mapping original)
+        fr_riom_sc1 = g(tsc_data, 19)
+        fr_riom_sc1r = g(tsc_data, 20)
+        fr_riom_sc2 = g(tsc_data, 21)
+        fr_riom_sc2r = g(tsc_data, 22)
+
+        # Bloque “B1” (si aplica)
+        s60_b1 = g(tsc_data, 23)
+        s60_r_b1 = g(tsc_data, 24)
+        s62_b1 = g(tsc_data, 25)
+        s62_r_b1 = g(tsc_data, 26)
+        s256_b1 = g(tsc_data, 27)
+        s256_r_b1 = g(tsc_data, 28)
+
+        # CABCAR extra (si aplica)
+        s8 = g(tsc_data, 29)
+        s8_r = g(tsc_data, 30)
+        s6 = g(tsc_data, 31)
+        s6_r = g(tsc_data, 32)
+        s10 = g(tsc_data, 33)
+
+        k1 = g(tsc_data, 34)
+        k80 = g(tsc_data, 35)
+        k81 = g(tsc_data, 36)
+        k82 = g(tsc_data, 37)
+        k83 = g(tsc_data, 38)
+
+        # CC vars (si cabcar y las tienes)
+        s700 = g(tsc_data_cc, 0)
+        s701 = g(tsc_data_cc, 1)
+        s702 = g(tsc_data_cc, 2)
+        s703 = g(tsc_data_cc, 3)
+        s704 = g(tsc_data_cc, 4)
+        k700 = g(tsc_data_cc, 5)
+        k701 = g(tsc_data_cc, 6)
+        k710 = g(tsc_data_cc, 7)
+        k711 = g(tsc_data_cc, 8)
+        k708 = g(tsc_data_cc, 9)
+        k709 = g(tsc_data_cc, 10)
+        k731 = g(tsc_data_cc, 11)
+        k732 = g(tsc_data_cc, 12)
+        k740 = g(tsc_data_cc, 13)
+        k741 = g(tsc_data_cc, 14)
+        s25 = g(tsc_data_cc, 15)
+        s25_r = g(tsc_data_cc, 16)
+        k753 = g(tsc_data_cc, 17)
+
+        # ------------------------------
+        # Selección de “plantilla” de coche (MISMA que tenías)
+        # coach_type es numérico en string ('11','3','4',...)
+        # project_coach_types[int(coach_type)] se usa para el label
+        # ------------------------------
+        label = ""
+        if coach_type.isdigit():
+            ct_int = int(coach_type)
+            label = self.project_coach_types.get(ct_int, str(coach_type))
+        else:
+            # si no hay tipo válido (p.ej. not found), etiqueta vacía
+            label = ""
+
+        if coach_type == '11':
+            coach = self.end_coach(label, index, k801, k800, k802, k804, s60, s60_r, s62, s62_r, s256, s256_r, s255, s255_r, fr_riom_sc1, fr_riom_sc1r)
+        elif coach_type in ['3', '4', '6', '7', '8', '9', '10']:
+            # pmr_index lo usabas en tu clase original
+            if not hasattr(self, "pmr_index"):
+                self.pmr_index = 0
+            coach = self.normal_coach(label, index, k801, k800, k802, k804, s60, s60_r, s62, s62_r, s256, s256_r, self.pmr_index, fr_riom_sc1, fr_riom_sc1r)
+        elif coach_type == '5' and self.project == "DSB":
+            coach = self.pmr_dsb1(label, index, k801, k800, k802, k810, k811, k812,
+                                  sifa, sifa, sifa1_cond, sifa2_cond, k804, k814, k753, s25,
+                                  s60, s60_r, s62, s62_r, s256, s256_r, s255, s255_r,
+                                  fr_riom_sc1, fr_riom_sc1r, fr_riom_sc2, fr_riom_sc2r,
+                                  s60_b1, s60_r_b1, s62_b1, s62_r_b1, s256_b1, s256_r_b1)
+        elif coach_type == '5' and self.project == "DB":
+            coach = self.pmr_db_dsb2(label, index, k801, k800, k802, k810, k811, k812,
+                                     k804, k814, s60, s60_r, s62, s62_r, s256, s256_r,
+                                     fr_riom_sc1, fr_riom_sc1r, fr_riom_sc2, fr_riom_sc2r,
+                                     s60_b1, s60_r_b1, s62_b1, s62_r_b1, s256_b1, s256_r_b1)
+        elif coach_type == '2' and self.project == "DB":
+            # cabcar usa CC vars + vars normales fusionadas en snapshot
+            coach = self.cabcar(label, index, k801, k800, k802, k804,
+                                s60, s60_r, s62, s62_r, s255, s255_r, s256, s256_r,
+                                s8, s8_r, s6, s6_r, s10, k1, k80, k81, k82, k83,
+                                sifa1_cond, sifa2_cond,
+                                s700, s701, s702, s703, s704,
+                                k700, k701, k710, k711, k708, k709, k731, k732, k740, k741,
+                                s25, s25_r, k753)
+        else:
+            # Si no se reconoce el tipo, dibuja “normal” sin PMR (o lo que prefieras)
+            if not hasattr(self, "pmr_index"):
+                self.pmr_index = 0
+            coach = self.normal_coach(label, index, k801, k800, k802, k804, s60, s60_r, s62, s62_r, s256, s256_r, self.pmr_index, fr_riom_sc1, fr_riom_sc1r)
+
+        return coach, flag
 
     def save_as_png(self, timer):
         timer.stop()
@@ -3159,207 +3293,6 @@ class TSCGenerator(QSvgWidget):
         SubElement(coach, "rect", x=f"{endcar_distance}", y="195", width=f"{bypass_width}", height="110", fill=bypass_color, opacity="0.15")
 
         return coach
-
-    def process_coach(self, vcu, coach_type, tsc_vars, project_coach_types, tsc_cc_vars):
-
-        coach = Element("g")
-
-        index = self.vcu_list.index(vcu)
-        flag = True
-
-        global RECURRENT_MODE
-
-        if RECURRENT_MODE:
-
-            acquired = vcu.ssh_lock.acquire(False)
-            if acquired:    
-                if not str(vcu.coach_type).isdigit():
-                    vcu.coach_type = vcu.SSH_read(self.TCMS_vars.COACH_TYPE)
-                elif str(vcu.coach_type).isdigit() and int(vcu.coach_type) < 1:
-                    vcu.coach_type = vcu.SSH_read(self.TCMS_vars.COACH_TYPE)
-            else:
-                SubElement(coach, "rect", x="0", y="0", width="100", height="305", fill="black", opacity="0.5")
-                SubElement(coach, "line", x1="100", y1="0", x2="100", y2="315", stroke="black", **{"stroke-width": "1", "stroke-dasharray": "5, 5"},opacity="0.35")
-                SubElement(coach, "text", x="50", y="292",**{"text-anchor": "middle","font-style": "italic","font-size": "10"}).text = f"Coche {index+1}"
-                SubElement(coach, "text", x="50", y="162.5", fill="white", **{"text-anchor": "middle","dominant-baseline": "central","font-style": "italic","font-size": "30","transform": "rotate(-90, 50, 152.5)"}).text = "OFFLINE"
-
-                flag = False
-
-                return coach, flag
-        
-        tsc_data = vcu.SSH_read(tsc_vars)
-        
-        if index == len(self.vcu_list)-2 and self.project == "DB":
-
-            tsc_data_cc = self.vcu_list[-1].SSH_read(tsc_cc_vars)
-            # print(f"Indice {index} IP {self.vcu_list[-1].ip}")
-            # print(f"TSC CC: {tsc_data_cc}")
-
-
-        if maintenance_mode == 1:         
-
-            if int(random.choices([0, 1], k=1)[0]) == 1:
-                tsc_data = ["Not SSH"] * len(tsc_data) #Genera una lista con "Not SSH" para simular fallo de comunicación
-                if index == len(self.vcu_list)-2 and self.project == "DB":
-                    tsc_data_cc= ["Not SSH"] * len(tsc_data_cc) # Crea una lista de valores aleatorios en formato str
-            else:
-                tsc_data=list(map(str,random.choices([0, 1], k=len(tsc_data)))) # Crea una lista de valores aleatorios en formato str
-                if index == len(self.vcu_list)-2 and self.project == "DB":
-                    tsc_data_cc=list(map(str,random.choices([0, 1], k=len(tsc_data_cc)))) # Crea una lista de valores aleatorios en formato str
-                    # print(tsc_data_cc)
-
-        if any(not signal.isdigit() for signal in tsc_data) or not str(coach_type).isdigit() or int(coach_type) < 1:
-            
-            SubElement(coach, "rect", x="0", y="0", width="100", height="305", fill="black", opacity="0.5")
-            SubElement(coach, "line", x1="100", y1="0", x2="100", y2="315", stroke="black", **{"stroke-width": "1", "stroke-dasharray": "5, 5"},opacity="0.35")
-            SubElement(coach, "text", x="50", y="292",**{"text-anchor": "middle","font-style": "italic","font-size": "10"}).text = f"Coche {index+1}"
-            SubElement(coach, "text", x="50", y="162.5", fill="white", **{"text-anchor": "middle","dominant-baseline": "central","font-style": "italic","font-size": "30","transform": "rotate(-90, 50, 152.5)"}).text = "OFFLINE"
-
-            with vcu.ssh_lock:
-                try:
-                    if vcu.client is not None:
-                        vcu.close_SSH()
-                finally:
-                    vcu.client = None
-                    vcu.coach_type = None
-
-            flag = False
-
-            self.coach_connection_status.emit(vcu.ip, "failure", str(vcu.coach_type))
-
-            # print("Los datos de la VCU no son dígitos o el tipo de coche es incorrecto. Marcando como OFFLINE.")
-            
-            return coach, flag
-        
-        if index == len(self.vcu_list)-2 and self.project == "DB": #Cubrimos el caso en el que solo VCU_PH esté caída.
-            
-            if any(not signal.isdigit() for signal in tsc_data_cc) or not str(coach_type).isdigit() or int(coach_type) < 1:
-
-                SubElement(coach, "rect", x="0", y="0", width="100", height="305", fill="black", opacity="0.5")
-                SubElement(coach, "line", x1="100", y1="0", x2="100", y2="315", stroke="black", **{"stroke-width": "1", "stroke-dasharray": "5, 5"},opacity="0.35")
-                SubElement(coach, "text", x="50", y="292",**{"text-anchor": "middle","font-style": "italic","font-size": "10"}).text = f"Coche {index+1}"
-                SubElement(coach, "text", x="50", y="162.5", fill="white", **{"text-anchor": "middle","dominant-baseline": "central","font-style": "italic","font-size": "30","transform": "rotate(-90, 50, 152.5)"}).text = "OFFLINE"
-
-                with self.vcu_list[-1].ssh_lock:
-                    try:
-                        if self.vcu_list[-1].client is not None:
-                            self.vcu_list[-1].close_SSH()
-                    finally:
-                        self.vcu_list[-1].client = None
-                        self.vcu_list[-1].coach_type = None
-
-                flag = False
-
-                self.coach_connection_status.emit(self.vcu_list[-1].ip, "failure", str(self.vcu_list[-1].coach_type))
-
-                print("Los datos de la VCU de Cabcar no son dígitos o el tipo de coche es incorrecto. Marcando como OFFLINE.")
-                
-                return coach, flag
-        
-        if self.project == "DSB":
-            k800 = tsc_data[0] # 'iVCUCH_IO_DS_A602_S45_X1.DIu_RiomS1isOK'
-            k801 = tsc_data[1] # 'iVCUCH_IO_DS_A602_S45_X1.DIu_SafCon1Loop'
-            k802 = tsc_data[2] # 'iVCUCH_IO_DS_A602_S45_X1.DIu_SafCon2Loop'
-            k810 = tsc_data[3] # 'iVCUCH_IO_DS_A602_S42_X1.DIu_RiomS1isOKB1'
-            k811 = tsc_data[4] # 'iVCUCH_IO_DS_A602_S43_X1.DIu_SafCon1LoopB1'
-            k812 = tsc_data[5] # 'iVCUCH_IO_DS_A602_S43_X1.DIu_SafCon2LoopB1'
-            s25 = tsc_data[6] # 'iVCUCH_IO_DS_A602_S46_X1.DIu_STCMSBypass'
-            sifa = tsc_data[7] # 'iVCUCH_IO_DS_A602_S42_X1.DIu_EmBrakValvsOpen'
-            sifa1_cond = tsc_data[8] # 'iVCUCH_IO_DS_A602_S46_X1.DIu_SIFA1Cond'
-            sifa2_cond = tsc_data[9] # 'iVCUCH_IO_DS_A602_S46_X1.DIu_SIFA2Cond'
-            k804 = tsc_data[10] # 'iVCUCH_IO_DS_A602_S45_X1.DIu_BypCoachActiv'
-            k814 = tsc_data[11] # 'iVCUCH_IO_DS_A602_S45_X1.DIu_BypPRMActiv'
-            k753 = tsc_data[12] # 'iVCUCH_IO_DS_A602_S46_X1.DIu_SafBypasLoopOff'
-            s60 = tsc_data[13]  # 'RIOMSC1_MVB1_DS_2EA.DigitalInput10' S60 PRINCIPAL
-            s60_r = tsc_data[14] # 'RIOMSC1r_MVB2_DS_2EA.DigitalInput10' S60 REDUNDANTE
-            s62 = tsc_data[15] # 'RIOMSC1_MVB1_DS_2EA.DigitalInput11' S62 PRINCIPAL
-            s62_r = tsc_data[16] # 'RIOMSC1r_MVB2_DS_2EA.DigitalInput11' S62 REDUNDANTE
-            s256 = tsc_data[17] # 'RIOMSC1_MVB1_DS_2EA.DigitalInput4' S256 PRINCIPAL
-            s256_r = tsc_data[18] # 'RIOMSC1r_MVB2_DS_2EA.DigitalInput4' S256 REDUNDANTE
-            s255 = tsc_data[19] # 'RIOMSC1_MVB1_DS_2EA.DigitalInput3' S255 PRINCIPAL
-            s255_r = tsc_data[20] # 'RIOMSC1r_MVB2_DS_2EA.DigitalInput3' S255 REDUNDANTE
-            fr_riom_sc1 = tsc_data[21] # 'RIOMSC1_MVB1_DS_2E7'
-            fr_riom_sc1r = tsc_data[22] # 'RIOMSC1r_MVB2_DS_2E7'
-            fr_riom_sc2 = tsc_data[23] # 'RIOMSC2_MVB1_DS_2E7'
-            fr_riom_sc2r = tsc_data[24] # 'RIOMSC2r_MVB2_DS_2E7'
-            s60_b1 = tsc_data[25]  # 'RIOMSC2_MVB1_DS_2FE.DigitalInput10' S60 PRINCIPAL
-            s60_r_b1 = tsc_data[26] # 'RIOMSC2r_MVB2_DS_2FE.DigitalInput10' S60 REDUNDANTE
-            s62_b1 = tsc_data[27] # 'RIOMSC2_MVB1_DS_2FE.DigitalInput11' S62 PRINCIPAL
-            s62_r_b1 = tsc_data[28] # 'RIOMSC2r_MVB2_DS_2FE.DigitalInput11' S62 REDUNDANTE
-            s256_b1 = tsc_data[29] # 'RIOMSC2_MVB1_DS_2FE.DigitalInput4' S256 PRINCIPAL
-            s256_r_b1 = tsc_data[30] # 'RIOMSC2r_MVB2_DS_2FE.DigitalInput4' S256 REDUNDANTE
-
-        elif self.project == "DB":
-            k800 = tsc_data[0] # 'iVCUCH_IO_DS_A602_S45_X1.DIu_RiomS1isOK'
-            k801 = tsc_data[1] # 'iVCUCH_IO_DS_A602_S45_X1.DIu_SafCon1Loop'
-            k802 = tsc_data[2] # 'iVCUCH_IO_DS_A602_S45_X1.DIu_SafCon2Loop'
-            k810 = tsc_data[3] # 'iVCUCH_IO_DS_A602_S42_X1.DIu_RiomS1isOKB1'
-            k811 = tsc_data[4] # 'iVCUCH_IO_DS_A602_S43_X1.DIu_SafCon1LoopB1'
-            k812 = tsc_data[5] # '_INPUT_LAYER.BRK_TST_F_Emg_Brk.iIO_DS_A602_S43_X1_DIu_SafCon2Loop_B1'
-            k804 = tsc_data[6] # 'iVCUCH_IO_DS_A602_S45_X1.DIu_BypCoachActiv'
-            k814 = tsc_data[7] # 'iVCUCH_IO_DS_A602_S45_X1.DIu_BypPRMActiv'
-            s60 = tsc_data[8]  # 'RIOMSC1_MVB1_DS_2EA.DigitalInput10' S60 PRINCIPAL
-            s60_r = tsc_data[9] # 'RIOMSC1r_MVB2_DS_2EA.DigitalInput10' S60 REDUNDANTE
-            s62 = tsc_data[10] # 'RIOMSC1_MVB1_DS_2EA.DigitalInput11' S62 PRINCIPAL
-            s62_r = tsc_data[11] # 'RIOMSC1r_MVB2_DS_2EA.DigitalInput11' S62 REDUNDANTE
-            s256 = tsc_data[12] # 'RIOMSC1_MVB1_DS_2EA.DigitalInput4' S256 PRINCIPAL
-            s256_r = tsc_data[13] # 'RIOMSC1r_MVB2_DS_2EA.DigitalInput4' S256 REDUNDANTE
-            s255 = tsc_data[14] # 'RIOMSC1_MVB1_DS_2EA.DigitalInput3' S255 PRINCIPAL
-            s255_r = tsc_data[15] # 'RIOMSC1r_MVB2_DS_2EA.DigitalInput3' S255 REDUNDANTE
-            fr_riom_sc1 = tsc_data[16] # 'RIOMSC1_MVB1_DS_2E7'
-            fr_riom_sc1r = tsc_data[17] # 'RIOMSC1r_MVB2_DS_2E7'
-            fr_riom_sc2 = tsc_data[18] # 'RIOMSC2_MVB1_DS_2E7'
-            fr_riom_sc2r = tsc_data[19] # 'RIOMSC2r_MVB2_DS_2E7'
-            s60_b1 = tsc_data[20]  # 'RIOMSC2_MVB1_DS_2FE.DigitalInput10' S60 PRINCIPAL
-            s60_r_b1 = tsc_data[21] # 'RIOMSC2r_MVB2_DS_2FE.DigitalInput10' S60 REDUNDANTE
-            s62_b1 = tsc_data[22] # 'RIOMSC2_MVB1_DS_2FE.DigitalInput11' S62 PRINCIPAL
-            s62_r_b1 = tsc_data[23] # 'RIOMSC2r_MVB2_DS_2FE.DigitalInput11' S62 REDUNDANTE
-            s256_b1 = tsc_data[24] # 'RIOMSC2_MVB1_DS_2FE.DigitalInput4' S256 PRINCIPAL
-            s256_r_b1 = tsc_data[25] # 'RIOMSC2r_MVB2_DS_2FE.DigitalInput4' S256 REDUNDANTE
-
-            if index == len(self.vcu_list)-2 and self.project == "DB":
-                s8 = tsc_data_cc[0]
-                s8_r = tsc_data_cc[1]
-                s6 = tsc_data_cc[2]
-                s6_r = tsc_data_cc[3]
-                s10 = tsc_data_cc[4]
-                k1 = tsc_data_cc[5]
-                k80 = tsc_data_cc[6]
-                k81 = tsc_data_cc[7]
-                k82 = tsc_data_cc[8]
-                k83 = tsc_data_cc[9]
-                sifa1_cond = tsc_data_cc[10]
-                sifa2_cond = tsc_data_cc[11]
-                s700 = tsc_data_cc[12]
-                s701 = tsc_data_cc[13]
-                s702 = tsc_data_cc[14]
-                s703 = tsc_data_cc[15]
-                s704 = tsc_data_cc[16]
-                k700 = tsc_data_cc[17]
-                k701 = tsc_data_cc[18]
-                k710 = tsc_data_cc[19]
-                k711 = tsc_data_cc[20]
-                k708 = tsc_data_cc[21]
-                k709 = tsc_data_cc[21]
-                k731 = tsc_data_cc[22]
-                k732 = tsc_data_cc[23]
-                k740 = tsc_data_cc[24]
-                k741 = tsc_data_cc[25]
-                s25 = tsc_data_cc[26]
-                s25_r = tsc_data_cc[27]
-                k753 = tsc_data_cc[28]
-
-        if coach_type == '11':
-            coach = self.end_coach(project_coach_types[int(coach_type)], index, k801, k800, k802, k804, s60, s60_r, s62, s62_r, s256, s256_r, s255, s255_r, fr_riom_sc1, fr_riom_sc1r)
-        elif coach_type in ['3', '4', '6', '7', '8', '9', '10']:
-            coach = self.normal_coach(project_coach_types[int(coach_type)], index, k801, k800, k802, k804, s60, s60_r, s62, s62_r, s256, s256_r, self.pmr_index, fr_riom_sc1, fr_riom_sc1r)
-        elif coach_type == '5' and self.project == "DSB":
-            coach = self.pmr_dsb1(project_coach_types[int(coach_type)], index, k801, k800, k802, k810, k811, k812, sifa, sifa, sifa1_cond, sifa2_cond, k804, k814, k753, s25, s60, s60_r, s62, s62_r, s256, s256_r, s255, s255_r, fr_riom_sc1, fr_riom_sc1r, fr_riom_sc2, fr_riom_sc2r, s60_b1, s60_r_b1, s62_b1, s62_r_b1, s256_b1, s256_r_b1)
-        elif coach_type == '5' and self.project == "DB":
-            coach = self.pmr_db_dsb2(project_coach_types[int(coach_type)], index, k801, k800, k802, k810, k811, k812, k804, k814, s60, s60_r, s62, s62_r, s256, s256_r, fr_riom_sc1, fr_riom_sc1r, fr_riom_sc2, fr_riom_sc2r, s60_b1, s60_r_b1, s62_b1, s62_r_b1, s256_b1, s256_r_b1)
-        elif coach_type == '2' and self.project == "DB":
-            coach = self.cabcar(project_coach_types[int(coach_type)], index, k801, k800, k802, k804, s60, s60_r, s62, s62_r, s255, s255_r, s256, s256_r, s8, s8_r, s6, s6_r, s10, k1, k80, k81, k82, k83, sifa1_cond, sifa2_cond, s700, s701, s702, s703, s704, k700, k701, k710, k711, k708, k709, k731, k732, k740, k741, s25, s25_r, k753)
-        return coach, flag
    
 class MainWindow(QMainWindow):
     
@@ -3528,10 +3461,9 @@ class MainWindow(QMainWindow):
         
         diag_menu=self.menu_bar.addMenu("Diagnóstico")
         
-        self.check_TSC_action=QAction("Comprobar estado lazo de seguridad (TSC)", self)
+        self.check_TSC_action = QAction("Comprobar estado lazo de seguridad (TSC)", self)
         self.check_TSC_action.setCheckable(True)
-        # self.check_TSC_action.toggled.connect(self.on_toggle_tsc)
-        # self.check_TSC_action.triggered.connect(lambda: self.start_timer_with_function(self.draw_tsc))
+        self.check_TSC_action.toggled.connect(self.on_toggle_tsc)
         self.check_TSC_action.setEnabled(False)
 
         self.massive_ping_action=QAction("Comprobar estado de comunicación de equipos", self)
@@ -3842,6 +3774,9 @@ class MainWindow(QMainWindow):
 
     def set_project(self, project_value, project_name):
 
+        if hasattr(self, "stop_vars_polling"):
+            self.stop_vars_polling()
+
         self.setMinimumSize(0, 0)
         self.setMaximumSize(16777215, 16777215)
 
@@ -3881,30 +3816,241 @@ class MainWindow(QMainWindow):
         self.scan_thread.start()
 
     def on_scan_completed(self, valid_ips):
-        
-        '''Esta función una vez completado el escaneo de ips, establece las ips validas, 
-        crea las instancias de VCU, oculta la barra de progreso y los textos y crea la tabla principal.
-        '''
-        
         self.valid_ips = valid_ips
-        
+
         self.progress_bar.setVisible(False)
         self.detected_label.setVisible(False)
         self.progress_title.setVisible(False)
 
-        self.endpoints_ids = [f"EP {i+1}" for i in range(len(self.valid_ips))]
+        # endpoint por IP (1:1)
+        self.endpoint_ids = [f"EP{i+1}" for i in range(len(self.valid_ips))]
 
+        # instancia por endpoint
         self.endpoint_clients = {}
+        for eid, ip in zip(self.endpoint_ids, self.valid_ips):
+            self.endpoint_clients[eid] = CoachClient(eid, ip, health_vars=[])
 
-        for eid, ip in zip(self.endpoints_ids, self.valid_ips):
-            self.endpoint_clients[eid] = CoachClient(eid, ip)
-
-        
+        # tabla (incluye spans DB como ya lo tienes)
         self.create_table()
 
+        # habilita acciones
         self.check_TSC_action.setEnabled(True)
-        # self.massive_ping_action.setEnabled(True)
-                             
+        self.massive_ping_action.setEnabled(True)
+
+        # arranca polling SIEMPRE (warehouse)
+        self.start_vars_polling()
+
+        # si ya está checkeado, muestra el svg
+        if self.check_TSC_action.isChecked():
+            self.show_tsc_ui()
+
+    def stop_vars_polling(self):
+        if hasattr(self, "vars_workers") and self.vars_workers:
+            for w in self.vars_workers.values():
+                try:
+                    w.stop()
+                except Exception:
+                    pass
+
+        if hasattr(self, "vars_threads") and self.vars_threads:
+            for th in self.vars_threads.values():
+                try:
+                    th.quit()
+                    th.wait()
+                except Exception:
+                    pass
+
+        self.vars_workers = {}
+        self.vars_threads = {}
+
+        if hasattr(self, "vars_warehouse") and self.vars_warehouse:
+            try:
+                self.vars_warehouse.stop()
+            except Exception:
+                pass
+            self.vars_warehouse = None
+
+    def start_vars_polling(self):
+        # Para cualquier polling anterior
+        self.stop_vars_polling()
+
+        # Store: lo quieres llamado vars_warehouse
+        self.vars_warehouse = SimpleSnapshotStore(self.endpoint_ids, render_hz=10)
+        self.vars_warehouse.snapshotUpdated.connect(self.on_vars_snapshot)
+        self.vars_warehouse.start()
+
+        self.vars_threads = {}
+        self.vars_workers = {}
+
+        # SIEMPRE leemos TODO (tsc_vars ya incluye COACH_TYPE al final)
+        vars_to_read = self.tsc_vars
+
+        for eid in self.endpoint_ids:
+            client = self.endpoint_clients[eid]
+
+            th = QThread()
+            w = TSCWorker(client, vars_to_read=vars_to_read, period_s=0.5, wait_time=2.0)
+
+            w.moveToThread(th)
+            th.started.connect(w.run)
+
+            # alimentar warehouse con señales
+            w.data.connect(self.vars_warehouse.on_data)
+            w.status.connect(self.vars_warehouse.on_status)
+
+            self.vars_threads[eid] = th
+            self.vars_workers[eid] = w
+            th.start()
+
+    def on_vars_snapshot(self, snapshot: dict):
+        # 1) tabla siempre
+        self.update_table_from_snapshot(snapshot)
+
+        # 2) svg solo si el diagnóstico está ON y el widget existe
+        if self.check_TSC_action.isChecked() and hasattr(self, "tsc") and self.tsc is not None:
+            svg_snapshot = self.build_svg_snapshot(snapshot)
+            self.tsc.set_snapshot(svg_snapshot)
+
+    def update_table_from_snapshot(self, snapshot: dict):
+        coaches = snapshot.get("coaches", {})
+        type_var = self.TCMS_vars.COACH_TYPE[0]  # incluido en tsc_vars
+
+        cab_main_col = len(self.endpoint_ids) - 2 if (self.project == "DB" and len(self.endpoint_ids) >= 2) else None
+
+        for col, eid in enumerate(self.endpoint_ids):
+            c = coaches.get(eid, {"online": False, "values": {}})
+            online = bool(c.get("online", False))
+            values = c.get("values", {}) or {}
+
+            # fila 0: color por online
+            ip_item = self.table.item(0, col)
+            if ip_item:
+                ip_item.setBackground(QColor(0, 170, 0) if online else QColor(180, 0, 0))
+
+            # fila 1: tipo coche
+            if self.project == "DB" and cab_main_col is not None:
+                # solo escribir en la columna "normal" del cabcar (col -2); la última está en el span
+                if col == cab_main_col:
+                    raw = values.get(type_var, "")
+                    txt = str(raw)
+                    if txt.isdigit():
+                        n = int(txt)
+                        txt = self.TCMS_vars.COACH_TYPES_DB.get(n, txt)
+
+                    type_item = self.table.item(1, col)
+                    if type_item is None:
+                        type_item = QTableWidgetItem("")
+                        type_item.setTextAlignment(Qt.AlignCenter)
+                        self.table.setItem(1, col, type_item)
+                    type_item.setText(txt)
+                continue
+
+            raw = values.get(type_var, "")
+            txt = str(raw)
+            if txt.isdigit():
+                n = int(txt)
+                if self.project == "DSB":
+                    txt = self.TCMS_vars.COACH_TYPES_DSB.get(n, txt)
+                else:
+                    txt = self.TCMS_vars.COACH_TYPES_DB.get(n, txt)
+
+            type_item = self.table.item(1, col)
+            if type_item is None:
+                type_item = QTableWidgetItem("")
+                type_item.setTextAlignment(Qt.AlignCenter)
+                self.table.setItem(1, col, type_item)
+            type_item.setText(txt)
+
+    def build_svg_snapshot(self, endpoint_snapshot: dict) -> dict:
+        ep = endpoint_snapshot.get("coaches", {})
+
+        if self.project != "DB" or len(self.endpoint_ids) < 2:
+            return {"coaches": ep}
+
+        cab_main_col = len(self.endpoint_ids) - 2
+        cab_cc_col   = len(self.endpoint_ids) - 1
+
+        out = {}
+
+        # copia todo menos la IP CC (última)
+        for col, eid in enumerate(self.endpoint_ids):
+            if col == cab_cc_col:
+                continue
+            out[eid] = {
+                "online": bool(ep.get(eid, {}).get("online", False)),
+                "values": dict(ep.get(eid, {}).get("values", {}) or {}),
+            }
+
+        eid_main = self.endpoint_ids[cab_main_col]
+        eid_cc   = self.endpoint_ids[cab_cc_col]
+
+        main = ep.get(eid_main, {"online": False, "values": {}})
+        cc   = ep.get(eid_cc,   {"online": False, "values": {}})
+
+        merged = {}
+        merged.update(main.get("values", {}) or {})
+        merged.update(cc.get("values", {}) or {})
+
+        merged_online = bool(main.get("online", False)) and bool(cc.get("online", False))
+
+        out[eid_main] = {"online": merged_online, "values": merged}
+        return {"coaches": out}
+
+    def on_toggle_tsc(self, checked: bool):
+        if checked:
+            self.show_tsc_ui()
+        else:
+            self.hide_tsc_ui()
+
+    def show_tsc_ui(self):
+        # Separador horizontal
+        if not hasattr(self, "splitter"):
+            self.splitter = QFrame()
+            self.splitter.setFrameShape(QFrame.HLine)
+            self.splitter.setFrameShadow(QFrame.Sunken)
+            self.layout.addWidget(self.splitter)
+
+        # Scroll area para el SVG
+        if not hasattr(self, "scroll_tsc"):
+            self.scroll_tsc = QScrollArea()
+            self.scroll_tsc.setWidgetResizable(True)
+            self.scroll_tsc.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+            self.scroll_tsc.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+            self.layout.addWidget(self.scroll_tsc)
+
+        # Crear el widget TSC si no existe (o si cambió proyecto)
+        if not hasattr(self, "tsc") or self.tsc is None or getattr(self, "tsc_project", None) != self.project:
+            if self.project == "DSB":
+                self.tsc = TSCGenerator(self.project, self.endpoint_ids, self.TCMS_vars.COACH_TYPES_DSB)
+            else:
+                self.tsc = TSCGenerator(self.project, self.endpoint_ids, self.TCMS_vars.COACH_TYPES_DB)
+            self.tsc_project = self.project
+
+        self.scroll_tsc.setWidget(self.tsc)
+
+    def hide_tsc_ui(self):
+        # Quita el widget del scroll
+        if hasattr(self, "scroll_tsc"):
+            try:
+                self.scroll_tsc.takeWidget()
+            except Exception:
+                pass
+            self.scroll_tsc.deleteLater()
+            delattr(self, "scroll_tsc")
+
+        # Quita el separador
+        if hasattr(self, "splitter"):
+            self.splitter.deleteLater()
+            delattr(self, "splitter")
+
+        # Destruye también el widget SVG (opcional)
+        if hasattr(self, "tsc") and self.tsc is not None:
+            try:
+                self.tsc.deleteLater()
+            except Exception:
+                pass
+            self.tsc = None
+
     def on_connection_status_updated(self, ip, status, coach_type):
 
         try:
