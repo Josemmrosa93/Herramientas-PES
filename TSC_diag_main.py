@@ -111,7 +111,7 @@ class TCMS_vars:
         self.COACH_TYPES_DB={1: "L9215", 2: "C4340", 3: "C4301", 4: "C4306", 5: "C4314", 6: "C4315", 7: "C4322", 8: "C4302S", 9: "C4302P", 10: "C4302C", 11: "C4328"}
         self.COACH_TYPES_DSB={2: "C4740", 3: "C4701", 5: "C4714", 8: "C4702S", 9: "C4702P", 11: "C4728"}
         #VARIABLE DE TCMS QUE INDICA EL TIPO DE COCHE
-        # self.COACH_TYPE = ['oVCUCH_TRDP_DS_A000.COM_Vehicle_Type']
+        self.COACH_TYPE = ['oVCUCH_TRDP_DS_A000.COM_Vehicle_Type']
         #VARIABLES DEL LAZO DE SEGURIDAD, INCLUYENDO LAS DEL PMR
         self.TSC_COACH_VARS_DSB = [
         'iVCUCH_IO_DS_A602_S45_X1.DIu_RiomS1isOK',
@@ -145,7 +145,6 @@ class TCMS_vars:
         'RIOMSC2r_MVB2_DS_2FE.DigitalInput11', #S62 REDUNDANTE
         'RIOMSC2_MVB1_DS_2FE.DigitalInput4', #S256 PRINCIPAL
         'RIOMSC2r_MVB2_DS_2FE.DigitalInput4', #S256 REDUNDANTE
-        'oVCUCH_TRDP_DS_A000.COM_Vehicle_Type', #TIPO DE COCHE
         ]
         self.TSC_COACH_VARS_DB = [
         'iVCUCH_IO_DS_A602_S45_X1.DIu_RiomS1isOK',
@@ -174,7 +173,6 @@ class TCMS_vars:
         'RIOMSC2r_MVB2_DS_2FE.DigitalInput11', #S62 REDUNDANTE (sólo PMR)
         'RIOMSC2_MVB1_DS_2FE.DigitalInput4', #S256 PRINCIPAL (sólo PMR)
         'RIOMSC2r_MVB2_DS_2FE.DigitalInput4', #S256 REDUNDANTE (sólo PMR)
-        'oVCUCH_TRDP_DS_A000.COM_Vehicle_Type', #TIPO DE COCHE
         ]
         self.TSC_CC_VARS_DB = [
         'RIOMPUP1_MVB1_DS_17D.DIp_BrakeHandlEmer1', #S8
@@ -1313,7 +1311,7 @@ class CoachClient:
 
         return online, ts_ms, values
 
-    def read_vars(self, vars_list: list[str], wait_time: float = 2.0) -> tuple[bool, int, dict]:
+    def read_vars(self, vars_list: list[str], wait_time: float = 1.0) -> tuple[bool, int, dict]:
         """
         Lectura genérica (para TSC, diagnósticos, etc.)
 
@@ -1337,90 +1335,63 @@ class CoachClient:
         return online, ts_ms, values
 
 class TSCWorker(QObject):
-    """
-    Worker de polling TSC para 1 coach.
-    - Reutiliza el CoachClient (y su isagrafInterface interno)
-    - Lee en bucle vars TSC
-    - Emite data/status sin bloquear la UI
-    """
+    data = Signal(str, object, dict)           # endpoint_id, ts_ms, values
+    status = Signal(str, bool, str, object)    # endpoint_id, online, msg, ts_ms
 
-    data = Signal(str, int, dict)           # coach_id, ts_ms, values
-    status = Signal(str, bool, str, int)    # coach_id, online, msg, ts_ms
-
-    def __init__(self, coach_client: CoachClient, tsc_vars: list[str], period_s: float = 0.5, wait_time: float = 2.0):
+    def __init__(self, endpoint_client: CoachClient, vars_to_read: list[str], period_s: float = 0.5, wait_time: float = 1.0):
         super().__init__()
-        self.client = coach_client
-        self.coach_id = coach_client.coach_id
+        self.client = endpoint_client
+        self.endpoint_id = endpoint_client.coach_id
 
-        self.tsc_vars = tsc_vars
-        self.period_s = period_s
-        self.wait_time = wait_time
+        self.vars_to_read = list(vars_to_read)
+        self.period_s = float(period_s)
+        self.wait_time = float(wait_time)
 
         self._running = True
-        self._last_ts_ms_sent = 0
+        self._last_ts = -1
 
     def stop(self):
         self._running = False
 
     def run(self):
-        """Bucle principal en el hilo. NO llamar desde UI thread."""
         while self._running:
             t0 = time.time()
             ts_ms = 0
-
             try:
-                online, ts_ms, values = self.client.read_vars(self.tsc_vars, wait_time=self.wait_time)
+                online, ts_ms, values = self.client.read_vars(self.vars_to_read, wait_time=self.wait_time)
 
-                # Aviso de estado (siempre)
                 if not online:
-                    self.status.emit(self.coach_id, False, "offline (isagraf Error!)", ts_ms)
+                    # if self.endpoint_id == "EP9":
+                    #     print(f"[{self.endpoint_id}] está {'Online' if online == True else 'Offline'}")
+                    #     print(f"Variables: {values}")
+                    self.status.emit(self.endpoint_id, False, "offline (READ_ERROR)", ts_ms)
                 else:
-                    self.status.emit(self.coach_id, True, "ok", ts_ms)
-
-                    # Datos (solo si hay algo válido)
-                    # (opcional) evitar reemitir el mismo ts
-                    if ts_ms >= self._last_ts_ms_sent:
-                        self._last_ts_ms_sent = ts_ms
-                        self.data.emit(self.coach_id, ts_ms, values)
+                    # self.status.emit(self.endpoint_id, True, "ok", ts_ms)
+                    if ts_ms >= self._last_ts:
+                        self._last_ts = ts_ms
+                        self.data.emit(self.endpoint_id, ts_ms, values)
 
             except Exception as e:
-                self.status.emit(self.coach_id, False, f"excepción: {e}", ts_ms)
+                self.status.emit(self.endpoint_id, False, f"excepción: {e}", ts_ms)
 
             elapsed = time.time() - t0
             sleep_s = self.period_s - elapsed
             if sleep_s > 0:
                 time.sleep(sleep_s)
 
-class SimpleSnapshotStore(QObject):
-    """
-    Store central MUY simple (UI thread):
-      - Por coach: online/offline + último values
-      - NO stale
-      - NO loop_state
-      - Emite snapshot SOLO si algo cambia (online/offline o values)
-
-    Conectar:
-      worker.data   -> store.on_data
-      worker.status -> store.on_status
-    """
-
+class Vars_Warehouse(QObject):
     snapshotUpdated = Signal(dict)
 
-    def __init__(self, coach_ids, render_hz=10):
+    def __init__(self, endpoint_ids, render_hz=10):
         super().__init__()
+        self.state = {eid: {"online": False, "values": {}} for eid in endpoint_ids}
+        # print(f"Se inicia el almacenamiento: {self.state}")
+        self._dirty = True
 
-        self.state = {
-            cid: {
-                "online": False,
-                "values": {},
-            }
-            for cid in coach_ids
-        }
-
-        self._dirty = True  # fuerza primer emit
-
+        hz = max(1.0, float(render_hz))
+        interval_ms = max(20, int(1000 / hz))
         self._timer = QTimer(self)
-        self._timer.setInterval(int(1000 / render_hz))
+        self._timer.setInterval(interval_ms)
         self._timer.timeout.connect(self._tick)
 
     def start(self):
@@ -1429,14 +1400,16 @@ class SimpleSnapshotStore(QObject):
     def stop(self):
         self._timer.stop()
 
-    # ---- Entradas desde los workers ----
-
-    def on_data(self, coach_id, ts_ms, values):
-        st = self.state.get(coach_id)
+    def on_data(self, endpoint_id, ts_ms, values):
+        st = self.state.get(endpoint_id)
         if st is None:
             return
+        
+        print(f"Datos recibidos de {endpoint_id} a ts {ts_ms}: {values}")
 
-        # Si los valores no cambian y ya estaba online, no hacemos nada
+        values = values or {}
+
+        # Si ya estaba online y los valores son iguales -> no hay cambio real
         if st["online"] and st["values"] == values:
             return
 
@@ -1444,27 +1417,30 @@ class SimpleSnapshotStore(QObject):
         st["values"] = values
         self._dirty = True
 
-    def on_status(self, coach_id, online, msg, ts_ms):
-        st = self.state.get(coach_id)
+    def on_status(self, endpoint_id, online, msg, ts_ms):
+        st = self.state.get(endpoint_id)
         if st is None:
             return
 
-        # Solo cambia si online/offline cambia
+        online = bool(online)
         if st["online"] != online:
             st["online"] = online
             if not online:
                 st["values"] = {}
             self._dirty = True
 
-    # ---- Timer ----
-
     def _tick(self):
         if not self._dirty:
             return
 
-        # snapshot = {"coaches": self.state}
+        snapshot = {
+            "coaches": {
+                eid: {"online": bool(st["online"]), "values": dict(st["values"])}
+                for eid, st in self.state.items()
+            }
+        }
         self._dirty = False
-        # self.snapshotUpdated.emit(snapshot)
+        self.snapshotUpdated.emit(snapshot)
 
 class ScanThread(QThread):
     
@@ -1543,22 +1519,17 @@ class TSCGenerator(QSvgWidget):
         self.snapshot = {"coaches": {}}
 
         # tamaño mínimo inicial
-        self.setMinimumSize(800, 125)
+        self.setMinimumSize(800, 300)
 
-    # ------------------------------
-    # Entrada desde MainWindow
-    # ------------------------------
     def set_snapshot(self, snapshot: dict):
         self.snapshot = snapshot or {"coaches": {}}
+        # print(f"Snapshot actualizado: {self.snapshot}")
         self.render_from_snapshot()
 
-    # ------------------------------
-    # Render principal (sin IO)
-    # ------------------------------
     def render_from_snapshot(self):
         svg = self.generate_svg_from_snapshot()
         self.load(bytearray(svg, encoding="utf-8"))
-
+  
     def generate_svg_from_snapshot(self) -> str:
         from xml.etree.ElementTree import Element, tostring
 
@@ -1568,217 +1539,151 @@ class TSCGenerator(QSvgWidget):
         coach_ids = [eid for eid in self.endpoint_ids if eid in coaches_dict]
         self.num_coaches = len(coach_ids)
 
-        # Si no hay nada, dibuja un SVG vacío mínimo
+        # Si no hay nada, dibuja un SVG vacío mínimo (alto antiguo)
         if self.num_coaches == 0:
-            root = Element("svg", xmlns="http://www.w3.org/2000/svg", width="800", height="125")
+            root = Element("svg", xmlns="http://www.w3.org/2000/svg", width="800", height="300")
             return tostring(root, encoding="unicode")
 
-        # Extrae tipos por coach (string numérico si se puede)
+        # Tipos y online por coach (para offsets como el antiguo)
         coach_type_codes = []
+        coach_online = []
         for eid in coach_ids:
-            values = coaches_dict.get(eid, {}).get("values", {}) or {}
+            st = coaches_dict.get(eid, {}) or {}
+            values = st.get("values", {}) or {}
             ct = values.get(self.coach_type_var, "")
-            ct_str = str(ct)
-            coach_type_codes.append(ct_str)
+            coach_type_codes.append(str(ct))
+            coach_online.append(bool(st.get("online", False)))
 
-        # Reproduce tu lógica original de tamaños/offsets
         base_width = self.num_coaches * 100
 
-        # offsets “especiales” (los usabas para cabcar)
-        cab_pos = None
+        # Offsets “antiguos”
+        pmr_extra = 250 if self.project == "DSB" else 100 if self.project == "DB" else 0
+        cab_extra = 645 if self.project == "DB" else 0
+
+        pmr_pos = coach_type_codes.index("5") if "5" in coach_type_codes else None
+        cab_pos = coach_type_codes.index("2") if (self.project == "DB" and "2" in coach_type_codes) else None
+
+        pmr_online = bool(coach_online[pmr_pos]) if pmr_pos is not None else False
+        cab_online = bool(coach_online[cab_pos]) if cab_pos is not None else False
+
         corrected_svg_width = base_width
-        if self.project == "DB":
-            # En tu lógica original, el cabcar se detectaba por coach_type == '2'
-            # (normalmente es el último coche). Si está, ajustas el ancho.
-            if "2" in coach_type_codes:
-                cab_pos = coach_type_codes.index("2")
-                corrected_svg_width += 100  # igual que tu comportamiento anterior (ajuste visual)
+        if pmr_pos is not None and pmr_online:
+            corrected_svg_width += pmr_extra
+        if cab_pos is not None and cab_online:
+            corrected_svg_width += cab_extra
+
+        # Ajusta el mínimo del widget para que el scroll area lo respete
+        self.setMinimumSize(max(800, corrected_svg_width), 300)
 
         svg_root = Element(
             "svg",
             xmlns="http://www.w3.org/2000/svg",
             width=str(corrected_svg_width),
-            height="125"
+            height="300"
         )
 
         # Genera cada coche (grupo <g>) y lo traslada en X
         for idx, eid in enumerate(coach_ids):
-            values = coaches_dict.get(eid, {}).get("values", {}) or {}
+            st = coaches_dict.get(eid, {}) or {}
+            values = st.get("values", {}) or {}
             coach_type = str(values.get(self.coach_type_var, ""))
+            online = bool(st.get("online", False))
 
             coach_g, _flag = self.process_coach_from_values(
                 coach_id=eid,
                 index=idx,
                 coach_type=coach_type,
-                values=values
+                values=values,
+                online=online,   # <-- CLAVE
             )
 
-            # Posición horizontal: 100 por coche (tu base)
             x_pos = idx * 100
 
-            # Si quieres replicar el “hueco”/ajuste del cabcar, aplica aquí
-            if cab_pos is not None and idx > cab_pos:
-                x_pos += 100
+            # “Hueco PMR” como el comportamiento antiguo: solo si PMR online y estás a la derecha
+            if pmr_pos is not None and pmr_online and idx > pmr_pos:
+                x_pos += pmr_extra
 
             coach_g.set("transform", f"translate({x_pos}, 0)")
             svg_root.append(coach_g)
 
         return tostring(svg_root, encoding="unicode")
 
-    # ------------------------------
-    # Reemplazo del antiguo process_coach: ahora NO hay IO.
-    # ------------------------------
-    def process_coach_from_values(self, coach_id, index, coach_type, values):
-        from xml.etree.ElementTree import Element
+    def process_coach_from_values(
+        self,
+        coach_id: str,
+        index: int,
+        coach_type: str,
+        values: dict,
+        online: bool = True
+    ):
 
-        coach = Element("g")
-        flag = True
+        # ==========================================================
+        # 1) REGLA DE ORO: OFFLINE → NO MIRAR VALUES
+        # ==========================================================
+        if not online:
+            return self.offline_coach(coach_id, index), False
 
-        # helpers de lectura segura por índice (para no petar si falta algo)
-        READ_ERR = isagrafInterface.READ_ERROR
+        # ==========================================================
+        # 2) Construir tsc_data en ORDEN ANTIGUO
+        # ==========================================================
+        def g(v):
+            val = values.get(v)
+            return "" if val is None else str(val)
 
-        def build_list(vars_list):
-            out = []
-            for v in vars_list:
-                out.append(values.get(v, READ_ERR))
-            return out
+        tsc_data = [g(v) for v in (self.tsc_vars or [])]
+        tsc_data_cc = [g(v) for v in (self.tsc_cc_vars or [])]
 
-        def g(lst, i, default=READ_ERR):
-            return lst[i] if (i is not None and i < len(lst)) else default
+        # ==========================================================
+        # 3) Si algo no es numérico → tratar como OFFLINE (como antes)
+        # ==========================================================
+        for s in tsc_data:
+            if s != "" and not s.isdigit():
+                return self.offline_coach(coach_id, index), False
 
-        tsc_data = build_list(self.tsc_vars)
-        tsc_data_cc = build_list(self.tsc_cc_vars) if self.tsc_cc_vars else []
+        # ==========================================================
+        # 4) MAPEO EXACTO COMO EL CÓDIGO ANTIGUO
+        # ==========================================================
+        # DB / DSB mantenían el mismo orden base
+        try:
+            k800 = tsc_data[0]
+            k801 = tsc_data[1]
+            k802 = tsc_data[2]
+            k804 = tsc_data[3]
+            s60  = tsc_data[4]
+            s60r = tsc_data[5]
+            s62  = tsc_data[6]
+            s62r = tsc_data[7]
+            s256 = tsc_data[8]
+            s256r= tsc_data[9]
+        except Exception:
+            return self.offline_coach(coach_id, index), False
 
-        # ONLINE/OFFLINE aquí solo para “flag” si lo estabas usando internamente
-        # (tu dibujo usa valores; si todo es READ_ERROR -> realmente no hay info)
-        any_ok = any(v != READ_ERR for v in tsc_data)
-        any_ok_cc = any(v != READ_ERR for v in tsc_data_cc) if tsc_data_cc else True
-        flag = bool(any_ok and any_ok_cc)
+        # CC vars (si existen)
+        fr_riom_sc1  = tsc_data_cc[0] if len(tsc_data_cc) > 0 else ""
+        fr_riom_sc1r = tsc_data_cc[1] if len(tsc_data_cc) > 1 else ""
 
-        # ---- Mapea exactamente como hacías antes (mismos índices)
-        # OJO: si faltan vars en snapshot, caen en READ_ERROR pero NO rompe.
+        # ==========================================================
+        # 5) LLAMADA A DIBUJO ANTIGUO
+        # ==========================================================
+        coach = self.normal_coach(
+            label=str(coach_id),
+            coach_pos=index,
+            k801_state=k801,
+            k800_state=k800,
+            k802_state=k802,
+            k804_state=k804,
+            s60=s60,
+            s60_r=s60r,
+            s62=s62,
+            s62_r=s62r,
+            s256=s256,
+            s256_r=s256r,
+            pmr_index=self.pmr_index,
+            fr_riom_sc1=fr_riom_sc1,
+            fr_riom_sc1r=fr_riom_sc1r
+        )
 
-        # Vars normales (ejemplo: tus índices actuales)
-        k801 = g(tsc_data, 0)
-        k800 = g(tsc_data, 1)
-        k802 = g(tsc_data, 2)
-        k804 = g(tsc_data, 3)
-        s60 = g(tsc_data, 4)
-        s60_r = g(tsc_data, 5)
-        s62 = g(tsc_data, 6)
-        s62_r = g(tsc_data, 7)
-        s256 = g(tsc_data, 8)
-        s256_r = g(tsc_data, 9)
-
-        # Según tu código, en algunos coches también:
-        s255 = g(tsc_data, 10)
-        s255_r = g(tsc_data, 11)
-
-        # y más señales (en PMR/CABCAR)
-        k810 = g(tsc_data, 12)
-        k811 = g(tsc_data, 13)
-        k812 = g(tsc_data, 14)
-        k814 = g(tsc_data, 15)
-
-        # sifa / etc (si existen en tu orden actual)
-        sifa = g(tsc_data, 16)
-        sifa1_cond = g(tsc_data, 17)
-        sifa2_cond = g(tsc_data, 18)
-
-        # Riom / etc (según tu mapping original)
-        fr_riom_sc1 = g(tsc_data, 19)
-        fr_riom_sc1r = g(tsc_data, 20)
-        fr_riom_sc2 = g(tsc_data, 21)
-        fr_riom_sc2r = g(tsc_data, 22)
-
-        # Bloque “B1” (si aplica)
-        s60_b1 = g(tsc_data, 23)
-        s60_r_b1 = g(tsc_data, 24)
-        s62_b1 = g(tsc_data, 25)
-        s62_r_b1 = g(tsc_data, 26)
-        s256_b1 = g(tsc_data, 27)
-        s256_r_b1 = g(tsc_data, 28)
-
-        # CABCAR extra (si aplica)
-        s8 = g(tsc_data, 29)
-        s8_r = g(tsc_data, 30)
-        s6 = g(tsc_data, 31)
-        s6_r = g(tsc_data, 32)
-        s10 = g(tsc_data, 33)
-
-        k1 = g(tsc_data, 34)
-        k80 = g(tsc_data, 35)
-        k81 = g(tsc_data, 36)
-        k82 = g(tsc_data, 37)
-        k83 = g(tsc_data, 38)
-
-        # CC vars (si cabcar y las tienes)
-        s700 = g(tsc_data_cc, 0)
-        s701 = g(tsc_data_cc, 1)
-        s702 = g(tsc_data_cc, 2)
-        s703 = g(tsc_data_cc, 3)
-        s704 = g(tsc_data_cc, 4)
-        k700 = g(tsc_data_cc, 5)
-        k701 = g(tsc_data_cc, 6)
-        k710 = g(tsc_data_cc, 7)
-        k711 = g(tsc_data_cc, 8)
-        k708 = g(tsc_data_cc, 9)
-        k709 = g(tsc_data_cc, 10)
-        k731 = g(tsc_data_cc, 11)
-        k732 = g(tsc_data_cc, 12)
-        k740 = g(tsc_data_cc, 13)
-        k741 = g(tsc_data_cc, 14)
-        s25 = g(tsc_data_cc, 15)
-        s25_r = g(tsc_data_cc, 16)
-        k753 = g(tsc_data_cc, 17)
-
-        # ------------------------------
-        # Selección de “plantilla” de coche (MISMA que tenías)
-        # coach_type es numérico en string ('11','3','4',...)
-        # project_coach_types[int(coach_type)] se usa para el label
-        # ------------------------------
-        label = ""
-        if coach_type.isdigit():
-            ct_int = int(coach_type)
-            label = self.project_coach_types.get(ct_int, str(coach_type))
-        else:
-            # si no hay tipo válido (p.ej. not found), etiqueta vacía
-            label = ""
-
-        if coach_type == '11':
-            coach = self.end_coach(label, index, k801, k800, k802, k804, s60, s60_r, s62, s62_r, s256, s256_r, s255, s255_r, fr_riom_sc1, fr_riom_sc1r)
-        elif coach_type in ['3', '4', '6', '7', '8', '9', '10']:
-            # pmr_index lo usabas en tu clase original
-            if not hasattr(self, "pmr_index"):
-                self.pmr_index = 0
-            coach = self.normal_coach(label, index, k801, k800, k802, k804, s60, s60_r, s62, s62_r, s256, s256_r, self.pmr_index, fr_riom_sc1, fr_riom_sc1r)
-        elif coach_type == '5' and self.project == "DSB":
-            coach = self.pmr_dsb1(label, index, k801, k800, k802, k810, k811, k812,
-                                  sifa, sifa, sifa1_cond, sifa2_cond, k804, k814, k753, s25,
-                                  s60, s60_r, s62, s62_r, s256, s256_r, s255, s255_r,
-                                  fr_riom_sc1, fr_riom_sc1r, fr_riom_sc2, fr_riom_sc2r,
-                                  s60_b1, s60_r_b1, s62_b1, s62_r_b1, s256_b1, s256_r_b1)
-        elif coach_type == '5' and self.project == "DB":
-            coach = self.pmr_db_dsb2(label, index, k801, k800, k802, k810, k811, k812,
-                                     k804, k814, s60, s60_r, s62, s62_r, s256, s256_r,
-                                     fr_riom_sc1, fr_riom_sc1r, fr_riom_sc2, fr_riom_sc2r,
-                                     s60_b1, s60_r_b1, s62_b1, s62_r_b1, s256_b1, s256_r_b1)
-        elif coach_type == '2' and self.project == "DB":
-            # cabcar usa CC vars + vars normales fusionadas en snapshot
-            coach = self.cabcar(label, index, k801, k800, k802, k804,
-                                s60, s60_r, s62, s62_r, s255, s255_r, s256, s256_r,
-                                s8, s8_r, s6, s6_r, s10, k1, k80, k81, k82, k83,
-                                sifa1_cond, sifa2_cond,
-                                s700, s701, s702, s703, s704,
-                                k700, k701, k710, k711, k708, k709, k731, k732, k740, k741,
-                                s25, s25_r, k753)
-        else:
-            # Si no se reconoce el tipo, dibuja “normal” sin PMR (o lo que prefieras)
-            if not hasattr(self, "pmr_index"):
-                self.pmr_index = 0
-            coach = self.normal_coach(label, index, k801, k800, k802, k804, s60, s60_r, s62, s62_r, s256, s256_r, self.pmr_index, fr_riom_sc1, fr_riom_sc1r)
-
-        return coach, flag
+        return coach, True
 
     def save_as_png(self, timer):
         timer.stop()
@@ -3293,7 +3198,44 @@ class TSCGenerator(QSvgWidget):
         SubElement(coach, "rect", x=f"{endcar_distance}", y="195", width=f"{bypass_width}", height="110", fill=bypass_color, opacity="0.15")
 
         return coach
-   
+
+    def offline_coach(self, coach_id: str, index: int):
+        from xml.etree.ElementTree import Element, SubElement
+
+        coach = Element("g")
+
+        SubElement(coach, "rect", x="0", y="0", width="100", height="305", fill="black", opacity="0.5")
+        SubElement(
+            coach,
+            "line",
+            x1="100", y1="0", x2="100", y2="315",
+            stroke="black",
+            **{"stroke-width": "1", "stroke-dasharray": "5, 5"},
+            opacity="0.35"
+        )
+        SubElement(
+            coach,
+            "text",
+            x="50", y="292",
+            **{"text-anchor": "middle", "font-style": "italic", "font-size": "10"}
+        ).text = f"Coche {index+1}"
+
+        SubElement(
+            coach,
+            "text",
+            x="50", y="162.5",
+            fill="white",
+            **{
+                "text-anchor": "middle",
+                "dominant-baseline": "central",
+                "font-style": "italic",
+                "font-size": "30",
+                "transform": "rotate(-90, 50, 152.5)"
+            }
+        ).text = "OFFLINE"
+
+        return coach
+
 class MainWindow(QMainWindow):
     
     scan_progress_signal = Signal(int)
@@ -3327,7 +3269,6 @@ class MainWindow(QMainWindow):
         }
 
         self.TCMS_vars = TCMS_vars()
-        self.timer=QTimer()
 
         self.default_width = 800
         self.default_height = 434
@@ -3370,14 +3311,8 @@ class MainWindow(QMainWindow):
 
         self.layout.addLayout(self.progress_layout)
 
-        self.trainset_coaches = []
-        self.current_function = None
-        
         self.scan_progress_signal.connect(self.coach_scan_progress)
         self.ping_result_signal.connect(self.update_ping_cell)
-
-        self.svg_coaches_length_DSB = [100,100,100,350,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100]
-        # self.svg_coaches_length_DB = [100,100,100,350,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100]
 
         self.config = self.load_config()
 
@@ -3395,14 +3330,6 @@ class MainWindow(QMainWindow):
         painter.setOpacity(0.05)
         painter.drawPixmap(0, 22, self.width(), self.height(), self.background_pixmap)
         super().paintEvent(event)
-
-    def windows_ver(self):
-       if hasattr(sys, 'getwindowsversion'):
-           winver = sys.getwindowsversion()
-           if winver.build >= 22000:
-               return "11"
-           elif winver.build >= 19000:
-               return "10"
  
     def create_menus(self):
         
@@ -3822,25 +3749,23 @@ class MainWindow(QMainWindow):
         self.detected_label.setVisible(False)
         self.progress_title.setVisible(False)
 
-        # endpoint por IP (1:1)
+        # endpoints 1:1 con IPs
         self.endpoint_ids = [f"EP{i+1}" for i in range(len(self.valid_ips))]
 
-        # instancia por endpoint
+        # instancias por endpoint
         self.endpoint_clients = {}
         for eid, ip in zip(self.endpoint_ids, self.valid_ips):
             self.endpoint_clients[eid] = CoachClient(eid, ip, health_vars=[])
 
-        # tabla (incluye spans DB como ya lo tienes)
+        # tabla como ya la tienes (IPs + span tipo cabcar)
         self.create_table()
 
-        # habilita acciones
         self.check_TSC_action.setEnabled(True)
         self.massive_ping_action.setEnabled(True)
 
-        # arranca polling SIEMPRE (warehouse)
-        self.start_vars_polling()
+        # arrancar polling selectivo (opción 2)
+        self.start_vars_polling_selective()
 
-        # si ya está checkeado, muestra el svg
         if self.check_TSC_action.isChecked():
             self.show_tsc_ui()
 
@@ -3870,31 +3795,48 @@ class MainWindow(QMainWindow):
                 pass
             self.vars_warehouse = None
 
-    def start_vars_polling(self):
-        # Para cualquier polling anterior
+    def start_vars_polling_selective(self):
         self.stop_vars_polling()
 
-        # Store: lo quieres llamado vars_warehouse
-        self.vars_warehouse = SimpleSnapshotStore(self.endpoint_ids, render_hz=10)
+        # crea store
+        self.vars_warehouse = Vars_Warehouse(self.endpoint_ids, render_hz=10)
         self.vars_warehouse.snapshotUpdated.connect(self.on_vars_snapshot)
         self.vars_warehouse.start()
 
         self.vars_threads = {}
         self.vars_workers = {}
 
-        # SIEMPRE leemos TODO (tsc_vars ya incluye COACH_TYPE al final)
-        vars_to_read = self.tsc_vars
+        # Listas selectivas
+        coach_type_var = self.TCMS_vars.COACH_TYPE[0]
 
-        for eid in self.endpoint_ids:
+        if self.project == "DSB":
+            normal_vars = list(self.TCMS_vars.TSC_COACH_VARS_DSB)
+            cc_vars = []
+        else:
+            normal_vars = list(self.TCMS_vars.TSC_COACH_VARS_DB)
+            cc_vars = list(self.TCMS_vars.TSC_CC_VARS_DB)
+
+        # normal_vars + coach_type al final (tu regla)
+        normal_vars = [v for v in normal_vars if v != coach_type_var] + [coach_type_var]
+
+        # índices cabcar en DB: las 2 últimas IPs
+        cabcar_ph_index = len(self.endpoint_ids) - 1 if (self.project == "DB" and len(self.endpoint_ids) >= 2) else None
+
+        for idx, eid in enumerate(self.endpoint_ids):
             client = self.endpoint_clients[eid]
 
+            # Si es VCU_PH (última IP en DB) -> solo CC vars
+            if cabcar_ph_index is not None and idx == cabcar_ph_index:
+                vars_to_read = cc_vars
+            else:
+                vars_to_read = normal_vars
+
             th = QThread()
-            w = TSCWorker(client, vars_to_read=vars_to_read, period_s=0.5, wait_time=2.0)
+            w = TSCWorker(client, vars_to_read=vars_to_read, period_s=0.5, wait_time=1.0)
 
             w.moveToThread(th)
             th.started.connect(w.run)
 
-            # alimentar warehouse con señales
             w.data.connect(self.vars_warehouse.on_data)
             w.status.connect(self.vars_warehouse.on_status)
 
@@ -3908,6 +3850,7 @@ class MainWindow(QMainWindow):
 
         # 2) svg solo si el diagnóstico está ON y el widget existe
         if self.check_TSC_action.isChecked() and hasattr(self, "tsc") and self.tsc is not None:
+            print("Actualizando SVG con snapshot:", snapshot)
             svg_snapshot = self.build_svg_snapshot(snapshot)
             self.tsc.set_snapshot(svg_snapshot)
 
@@ -3925,7 +3868,7 @@ class MainWindow(QMainWindow):
             # fila 0: color por online
             ip_item = self.table.item(0, col)
             if ip_item:
-                ip_item.setBackground(QColor(0, 170, 0) if online else QColor(180, 0, 0))
+                ip_item.setBackground(QColor(175, 242, 175) if online else QColor(255, 131, 131))
 
             # fila 1: tipo coche
             if self.project == "DB" and cab_main_col is not None:
@@ -3962,8 +3905,11 @@ class MainWindow(QMainWindow):
             type_item.setText(txt)
 
     def build_svg_snapshot(self, endpoint_snapshot: dict) -> dict:
+
+        print("Construyendo snapshot para SVG a partir de:", endpoint_snapshot)
         ep = endpoint_snapshot.get("coaches", {})
 
+        # Si no es DB o no hay doble IP, no hacemos merge
         if self.project != "DB" or len(self.endpoint_ids) < 2:
             return {"coaches": ep}
 
@@ -3972,7 +3918,7 @@ class MainWindow(QMainWindow):
 
         out = {}
 
-        # copia todo menos la IP CC (última)
+        # Copia todo menos la IP CC (última)
         for col, eid in enumerate(self.endpoint_ids):
             if col == cab_cc_col:
                 continue
@@ -3999,8 +3945,50 @@ class MainWindow(QMainWindow):
     def on_toggle_tsc(self, checked: bool):
         if checked:
             self.show_tsc_ui()
+
+            # Guarda la posición actual del scroll (si hay contenido previo)
+            h_scroll_position = self.scroll_tsc.horizontalScrollBar().value()
+            v_scroll_position = self.scroll_tsc.verticalScrollBar().value()
+
+            # EXACTO como el antiguo: tamaño fijo
+            self.setMinimumSize(0, 0)
+            self.setMaximumSize(16777215, 16777215)
+            self.setFixedSize(int(self.table_width + 21), 515)
+
+            # Fuerza un render inmediato aunque no haya cambios (offline estable)
+            if hasattr(self, "vars_warehouse") and self.vars_warehouse is not None and hasattr(self, "tsc") and self.tsc is not None:
+                snapshot = {
+                    "coaches": {
+                        eid: {"online": bool(st.get("online", False)), "values": dict(st.get("values", {}) or {})}
+                        for eid, st in self.vars_warehouse.state.items()
+                    }
+                }
+                svg_snapshot = self.build_svg_snapshot(snapshot)
+                self.tsc.set_snapshot(svg_snapshot)
+
+            # Restaura scroll
+            self.scroll_tsc.horizontalScrollBar().setValue(h_scroll_position)
+            self.scroll_tsc.verticalScrollBar().setValue(v_scroll_position)
+
+            # Export habilitado
+            if hasattr(self, "export_TSC_action") and self.export_TSC_action is not None:
+                self.export_TSC_action.setEnabled(True)
+
         else:
             self.hide_tsc_ui()
+
+            # Volver EXACTO al tamaño de tabla (como create_table)
+            try:
+                table_height = sum(self.table.rowHeight(row) for row in range(2)) + self.table.horizontalHeader().height()
+                self.setMinimumSize(0, 0)
+                self.setMaximumSize(16777215, 16777215)
+                self.setFixedSize(int(self.table_width + 21), int(table_height + 42))
+            except Exception:
+                # fallback razonable
+                self.setFixedSize(int(self.default_width), int(self.default_height))
+
+            if hasattr(self, "export_TSC_action") and self.export_TSC_action is not None:
+                self.export_TSC_action.setEnabled(False)
 
     def show_tsc_ui(self):
         # Separador horizontal
@@ -4018,15 +4006,55 @@ class MainWindow(QMainWindow):
             self.scroll_tsc.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
             self.layout.addWidget(self.scroll_tsc)
 
-        # Crear el widget TSC si no existe (o si cambió proyecto)
+        # ======= (IMPORTANTE) Esto existía en el antiguo y “rellena” el alto 520 =======
+        if not hasattr(self, "splitter_2"):
+            self.splitter_2 = QFrame()
+            self.splitter_2.setFrameShape(QFrame.HLine)
+            self.splitter_2.setFrameShadow(QFrame.Sunken)
+            self.layout.addWidget(self.splitter_2)
+
+        if not hasattr(self, "trainset_failures_scan"):
+            self.trainset_failures_scan = QPushButton("Escanear fallos de composición completa")
+            self.layout.addWidget(self.trainset_failures_scan)
+            # self.trainset_failures_scan.clicked.connect(self.trainset_tsc_failures)
+
+        if not hasattr(self, "reset_failures"):
+            self.reset_failures = QPushButton("Reestablecer fallos a composición")
+            self.layout.addWidget(self.reset_failures)
+            # self.reset_failures.clicked.connect(self.reset_TAR_TEMP_failures)
+        # ============================================================================
+
+        # ---- Vars exactamente como polling (tu versión nueva ya lo tenía así)
+        coach_type_var = self.TCMS_vars.COACH_TYPE[0]
+
+        if self.project == "DSB":
+            coach_types_map = self.TCMS_vars.COACH_TYPES_DSB
+            normal_vars = list(self.TCMS_vars.TSC_COACH_VARS_DSB)
+            cc_vars = []
+        else:
+            coach_types_map = self.TCMS_vars.COACH_TYPES_DB
+            normal_vars = list(self.TCMS_vars.TSC_COACH_VARS_DB)
+            cc_vars = list(self.TCMS_vars.TSC_CC_VARS_DB)
+
+        normal_vars = [v for v in normal_vars if v != coach_type_var] + [coach_type_var]
+
         if not hasattr(self, "tsc") or self.tsc is None or getattr(self, "tsc_project", None) != self.project:
-            if self.project == "DSB":
-                self.tsc = TSCGenerator(self.project, self.endpoint_ids, self.TCMS_vars.COACH_TYPES_DSB)
-            else:
-                self.tsc = TSCGenerator(self.project, self.endpoint_ids, self.TCMS_vars.COACH_TYPES_DB)
+            self.tsc = TSCGenerator(
+                project=self.project,
+                endpoint_ids=self.endpoint_ids,
+                tsc_vars=normal_vars,
+                project_coach_types=coach_types_map,
+                tsc_cc_vars=cc_vars
+            )
             self.tsc_project = self.project
 
         self.scroll_tsc.setWidget(self.tsc)
+
+        # Igual que el antiguo: altura del scroll según contenido
+        try:
+            self.scroll_tsc.setMinimumHeight(320)
+        except Exception:
+            pass
 
     def hide_tsc_ui(self):
         # Quita el widget del scroll
@@ -4038,12 +4066,25 @@ class MainWindow(QMainWindow):
             self.scroll_tsc.deleteLater()
             delattr(self, "scroll_tsc")
 
-        # Quita el separador
+        # Quita separadores
         if hasattr(self, "splitter"):
             self.splitter.deleteLater()
             delattr(self, "splitter")
 
-        # Destruye también el widget SVG (opcional)
+        if hasattr(self, "splitter_2"):
+            self.splitter_2.deleteLater()
+            delattr(self, "splitter_2")
+
+        # Quita botones (como el antiguo, que los creaba solo para diagnóstico)
+        if hasattr(self, "trainset_failures_scan"):
+            self.trainset_failures_scan.deleteLater()
+            delattr(self, "trainset_failures_scan")
+
+        if hasattr(self, "reset_failures"):
+            self.reset_failures.deleteLater()
+            delattr(self, "reset_failures")
+
+        # (Opcional) destruye el widget TSC
         if hasattr(self, "tsc") and self.tsc is not None:
             try:
                 self.tsc.deleteLater()
