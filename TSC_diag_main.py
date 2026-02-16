@@ -1334,15 +1334,17 @@ class CoachClient:
         return online, ts_ms, values
 
 class TSCWorker(QObject):
-    data = Signal(str, object, dict)           # endpoint_id, ts_ms, values
+    on_tsc_data = Signal(str, object, dict)    # endpoint_id, ts_ms, values
+    on_tsc_diag_data = Signal(str, object, dict)    # endpoint_id, ts_ms, values
     status = Signal(str, bool, str, object)    # endpoint_id, online, msg, ts_ms
 
-    def __init__(self, endpoint_client: CoachClient, vars_to_read: list[str], period_s: float = 0.5, wait_time: float = 1.0):
+    def __init__(self, endpoint_client: CoachClient, tsc_vars_to_read: list[str], tsc_diag_vars: list[str], period_s: float = 0.5, wait_time: float = 1.0):
         super().__init__()
         self.client = endpoint_client
         self.endpoint_id = endpoint_client.coach_id
 
-        self.vars_to_read = list(vars_to_read)
+        self.tsc_vars_to_read = list(tsc_vars_to_read)
+        self.tsd_diag_vars = list(tsc_diag_vars)
         self.period_s = float(period_s)
         self.wait_time = float(wait_time)
 
@@ -1357,7 +1359,7 @@ class TSCWorker(QObject):
             t0 = time.time()
             ts_ms = 0
             try:
-                online, ts_ms, values = self.client.read_vars(self.vars_to_read, wait_time=self.wait_time)
+                online, ts_ms, tsc_values = self.client.read_vars(self.tsc_vars_to_read, wait_time=self.wait_time)
                 EP_tocheck = "EP1"
                 if not online:
                     self.status.emit(self.endpoint_id, False, "offline (READ_ERROR)", ts_ms)
@@ -1365,9 +1367,9 @@ class TSCWorker(QObject):
                     self.status.emit(self.endpoint_id, True, "ok", ts_ms)
                     if ts_ms >= self._last_ts:
                         self._last_ts = ts_ms
-                        norm_values = {k: self._to_str_value(v) for k, v in (values or {}).items()}
+                        norm_tsc_values = {k: self._to_str_value(v) for k, v in (tsc_values or {}).items()}
                         
-                        self.data.emit(self.endpoint_id, ts_ms, norm_values)
+                        self.on_tsc_data.emit(self.endpoint_id, ts_ms, norm_tsc_values)
 
             except Exception as e:
                 self.status.emit(self.endpoint_id, False, f"excepción: {e}", ts_ms)
@@ -1419,7 +1421,7 @@ class Vars_Warehouse(QObject):
 
     def __init__(self, endpoint_ids, render_hz=1):
         super().__init__()
-        self.state = {eid: {"online": False, "values": {}} for eid in endpoint_ids}
+        self.tsc_state = {eid: {"online": False, "values": {}} for eid in endpoint_ids}
         self._dirty = True
 
         hz = max(1.0, float(render_hz))
@@ -1434,8 +1436,8 @@ class Vars_Warehouse(QObject):
     def stop(self):
         self._timer.stop()
 
-    def on_data(self, endpoint_id, ts_ms, values):
-        st = self.state.get(endpoint_id)
+    def on_tsc_data(self, endpoint_id, ts_ms, values):
+        st = self.tsc_state.get(endpoint_id)
         if st is None:
             return
         
@@ -1468,7 +1470,7 @@ class Vars_Warehouse(QObject):
         snapshot = {
             "coaches": {
                 eid: {"online": bool(st["online"]), "values": dict(st["values"])}
-                for eid, st in self.state.items()
+                for eid, st in self.tsc_state.items()
             }
         }
         self._dirty = False
@@ -1508,18 +1510,21 @@ class ScanThread(QThread):
 
         valid_ips = self.ip_list[:self.max_initial_ips]
         scan_list = self.ip_list[self.max_initial_ips:]
+        scan_list_vcuch_cc = self.cabcar_VCUCH_ips[self.max_initial_ips:]
         total = max(1, len(scan_list))
 
         for i, ip in enumerate(scan_list):
             if ping(ip):
                 valid_ips.append(ip)
+            if ping(scan_list_vcuch_cc[i]):
+                valid_ips.append(scan_list_vcuch_cc[i])
 
             progress = ((i + 1) * 100) // total
-            coach_number = len(valid_ips) + 1
+            coach_number = len(valid_ips)
             self.scan_progress.emit(progress, coach_number)
 
         if self.project == "DB":
-            valid_ips.append(self.cabcar_VCUCH_ips[len(valid_ips)-1])
+            # valid_ips.append(self.cabcar_VCUCH_ips[len(valid_ips)-1])
             valid_ips.insert(len(valid_ips) - 1, self.cabcar_VCUCH_ips[len(valid_ips) - 1])
             valid_ips[-1] = self.cabcar_VCUPH_ips[len(valid_ips) - 2]
 
@@ -1763,17 +1768,16 @@ class TSCGenerator(QSvgWidget):
 
     def save_as_png(self):
 
-        filename, _ = QFileDialog.getSaveFileName(self.svg_widget, "Guardar como PNG", "", "Archivos PNG (*.png)")
+        filename, _ = QFileDialog.getSaveFileName(self, "Guardar como PNG", "", "Archivos PNG (*.png)")
         
         if filename:
             if not filename.endswith('.png'):
                 filename += '.png'
             
-            
             scale = 2
             # Ajustar las dimensiones del PNG basadas en el SVG
-            new_width = self.svg_widget.width() * scale
-            new_height = self.svg_widget.height() * scale
+            new_width = self.width() * scale
+            new_height = self.height() * scale
             
             # Crear una imagen con el tamaño ajustado
             image = QImage(new_width, new_height, QImage.Format_ARGB32)
@@ -1783,7 +1787,7 @@ class TSCGenerator(QSvgWidget):
     
             # Escalar el contenido del SVG para ajustarlo al nuevo tamaño
             painter.setTransform(QTransform().scale(2, 2))
-            self.svg_widget.render(painter, QPoint(0, 0), QRegion(self.svg_widget.rect()))
+            self.render(painter, QPoint(0, 0), QRegion(self.rect()))
             painter.end()
         
             # Guardar la imagen como PNG
@@ -3888,14 +3892,19 @@ class MainWindow(QMainWindow):
         coach_type_var = self.TCMS_vars.COACH_TYPE[0]
 
         if self.project == "DSB":
-            normal_vars = list(self.TCMS_vars.TSC_COACH_VARS_DSB)
-            cc_vars = []
+            tsc_normal_vars = list(self.TCMS_vars.TSC_COACH_VARS_DSB)
+            tsc_cc_vars = []
+            
         else:
-            normal_vars = list(self.TCMS_vars.TSC_COACH_VARS_DB)
-            cc_vars = list(self.TCMS_vars.TSC_CC_VARS_DB)
+            tsc_normal_vars = list(self.TCMS_vars.TSC_COACH_VARS_DB)
+            tsc_cc_vars = list(self.TCMS_vars.TSC_CC_VARS_DB)
+
+        tsc_diagnostic_vars = list(self.TCMS_vars.TSC_DIAG_VARS)
+        bcu_diagnostic_vars = list(self.TCMS_vars.BCU_DIAGNOSIS)
+        bcu_cc_diagnostic_vars = list(self.TCMS_vars.BCU_DIAGNOSIS_CC)
 
         # normal_vars + coach_type al final (tu regla)
-        normal_vars = [v for v in normal_vars if v != coach_type_var] + [coach_type_var]
+        tsc_normal_vars = [v for v in tsc_normal_vars if v != coach_type_var] + [coach_type_var]
 
         # índices cabcar en DB: las 2 últimas IPs
         cabcar_ph_index = len(self.endpoint_ids) - 1 if (self.project == "DB" and len(self.endpoint_ids) >= 2) else None
@@ -3905,17 +3914,19 @@ class MainWindow(QMainWindow):
 
             # Si es VCU_PH (última IP en DB) -> solo CC vars
             if cabcar_ph_index is not None and idx == cabcar_ph_index:
-                vars_to_read = cc_vars
+                tsc_vars_to_read = tsc_cc_vars
+                tsc_diag_vars = bcu_cc_diagnostic_vars
             else:
-                vars_to_read = normal_vars
+                tsc_vars_to_read = tsc_normal_vars
+                tsc_diag_vars = tsc_diagnostic_vars + bcu_diagnostic_vars
 
             th = QThread()
-            w = TSCWorker(client, vars_to_read=vars_to_read, period_s=1.5, wait_time=1.0)
+            w = TSCWorker(client, tsc_vars_to_read=tsc_vars_to_read, tsc_diag_vars=tsc_diag_vars, period_s=1.5, wait_time=1.0)
 
             w.moveToThread(th)
             th.started.connect(w.run)
 
-            w.data.connect(self.vars_warehouse.on_data)
+            w.on_tsc_data.connect(self.vars_warehouse.on_tsc_data)
             w.status.connect(self.vars_warehouse.on_status)
 
             self.vars_threads[eid] = th
