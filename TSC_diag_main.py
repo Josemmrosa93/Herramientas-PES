@@ -204,7 +204,6 @@ class TCMS_vars:
         'RIOMCAB1_MVB1_DS_193.DIp_STCMSBypass', #S25
         'RIOMCAB1r_MVB2_DS_193.DIs_STCMSBypass', #S25
         'RIOMCAB1_MVB1_DS_191.DIu_SafBypasLoopOff', #K753
-        'oVCUCH_TRDP_DS_A000.COM_Vehicle_Type', #TIPO DE COCHE
                             ]
                 
         #DESCRIPCIONES FILTRADAS DE ERRORES DE TAR, VELOCIDAD Y TEMPERATURAS DE RODAMIENTOS
@@ -1359,17 +1358,16 @@ class TSCWorker(QObject):
             ts_ms = 0
             try:
                 online, ts_ms, values = self.client.read_vars(self.vars_to_read, wait_time=self.wait_time)
-
+                EP_tocheck = "EP1"
                 if not online:
-                    # if self.endpoint_id == "EP9":
-                    #     print(f"[{self.endpoint_id}] está {'Online' if online == True else 'Offline'}")
-                    #     print(f"Variables: {values}")
                     self.status.emit(self.endpoint_id, False, "offline (READ_ERROR)", ts_ms)
                 else:
-                    # self.status.emit(self.endpoint_id, True, "ok", ts_ms)
+                    self.status.emit(self.endpoint_id, True, "ok", ts_ms)
                     if ts_ms >= self._last_ts:
                         self._last_ts = ts_ms
-                        self.data.emit(self.endpoint_id, ts_ms, values)
+                        norm_values = {k: self._to_str_value(v) for k, v in (values or {}).items()}
+                        
+                        self.data.emit(self.endpoint_id, ts_ms, norm_values)
 
             except Exception as e:
                 self.status.emit(self.endpoint_id, False, f"excepción: {e}", ts_ms)
@@ -1379,13 +1377,49 @@ class TSCWorker(QObject):
             if sleep_s > 0:
                 time.sleep(sleep_s)
 
+    def _to_str_value(self, v):
+        
+        try:
+            if v == isagrafInterface.READ_ERROR:
+                return isagrafInterface.READ_ERROR
+        except Exception:
+            pass
+
+        if v is None:
+            return isagrafInterface.READ_ERROR
+    
+        if isinstance(v, bool):
+            return "1" if v else "0"
+        
+        if isinstance(v, (int,float)):
+            try: 
+                return str(int(v))
+            except Exception:
+                return isagrafInterface.READ_ERROR
+            
+        if isinstance(v, str):
+            s = v.strip().lower()
+            if s in ("true", "t", "yes", "y", "on"):
+                return "1"
+            if s in ("false", "f", "no", "n", "off"):
+                return "0"
+            
+            try:
+                return str(int(float(s)))
+            except Exception:
+                return isagrafInterface.READ_ERROR
+
+        try:
+            return str(int(v))
+        except Exception:
+            return isagrafInterface.READ_ERROR
+         
 class Vars_Warehouse(QObject):
     snapshotUpdated = Signal(dict)
 
-    def __init__(self, endpoint_ids, render_hz=10):
+    def __init__(self, endpoint_ids, render_hz=1):
         super().__init__()
         self.state = {eid: {"online": False, "values": {}} for eid in endpoint_ids}
-        # print(f"Se inicia el almacenamiento: {self.state}")
         self._dirty = True
 
         hz = max(1.0, float(render_hz))
@@ -1405,8 +1439,6 @@ class Vars_Warehouse(QObject):
         if st is None:
             return
         
-        print(f"Datos recibidos de {endpoint_id} a ts {ts_ms}: {values}")
-
         values = values or {}
 
         # Si ya estaba online y los valores son iguales -> no hay cambio real
@@ -1459,15 +1491,17 @@ class ScanThread(QThread):
     def run(self):
 
         def ping(ip: str) -> bool:
+            
             host = ip.split(":")[0].strip()
             if not host:
                 return False
             try:
                 if platform.system().lower().startswith("win"):
-                    cmd = ["ping", "-n", "1", "-w", "500", host]
+                    cmd = ["ping", "-n", "1", "-w", "100", host]
                 else:
                     cmd = ["ping", "-c", "1", "-W", "1", host]
                 r = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                print(ip, r.returncode == 0)
                 return r.returncode == 0
             except Exception:
                 return False
@@ -1481,10 +1515,11 @@ class ScanThread(QThread):
                 valid_ips.append(ip)
 
             progress = ((i + 1) * 100) // total
-            coach_number = len(valid_ips)
+            coach_number = len(valid_ips) + 1
             self.scan_progress.emit(progress, coach_number)
 
         if self.project == "DB":
+            valid_ips.append(self.cabcar_VCUCH_ips[len(valid_ips)-1])
             valid_ips.insert(len(valid_ips) - 1, self.cabcar_VCUCH_ips[len(valid_ips) - 1])
             valid_ips[-1] = self.cabcar_VCUPH_ips[len(valid_ips) - 2]
 
@@ -1523,7 +1558,6 @@ class TSCGenerator(QSvgWidget):
 
     def set_snapshot(self, snapshot: dict):
         self.snapshot = snapshot or {"coaches": {}}
-        # print(f"Snapshot actualizado: {self.snapshot}")
         self.render_from_snapshot()
 
     def render_from_snapshot(self):
@@ -1531,7 +1565,6 @@ class TSCGenerator(QSvgWidget):
         self.load(bytearray(svg, encoding="utf-8"))
   
     def generate_svg_from_snapshot(self) -> str:
-        from xml.etree.ElementTree import Element, tostring
 
         coaches_dict = (self.snapshot or {}).get("coaches", {}) or {}
 
@@ -1554,22 +1587,24 @@ class TSCGenerator(QSvgWidget):
             coach_type_codes.append(str(ct))
             coach_online.append(bool(st.get("online", False)))
 
+        # print(coach_type_codes)
+
         base_width = self.num_coaches * 100
 
         # Offsets “antiguos”
         pmr_extra = 250 if self.project == "DSB" else 100 if self.project == "DB" else 0
         cab_extra = 645 if self.project == "DB" else 0
 
-        pmr_pos = coach_type_codes.index("5") if "5" in coach_type_codes else None
-        cab_pos = coach_type_codes.index("2") if (self.project == "DB" and "2" in coach_type_codes) else None
+        self.pmr_pos = coach_type_codes.index("5") if "5" in coach_type_codes else None
+        self.cab_pos = coach_type_codes.index("2") if (self.project == "DB" and "2" in coach_type_codes) else None
 
-        pmr_online = bool(coach_online[pmr_pos]) if pmr_pos is not None else False
-        cab_online = bool(coach_online[cab_pos]) if cab_pos is not None else False
+        pmr_online = bool(coach_online[self.pmr_pos]) if self.pmr_pos is not None else False
+        cab_online = bool(coach_online[self.cab_pos]) if self.cab_pos is not None else False
 
         corrected_svg_width = base_width
-        if pmr_pos is not None and pmr_online:
+        if self.pmr_pos is not None and pmr_online:
             corrected_svg_width += pmr_extra
-        if cab_pos is not None and cab_online:
+        if self.cab_pos is not None and cab_online:
             corrected_svg_width += cab_extra
 
         # Ajusta el mínimo del widget para que el scroll area lo respete
@@ -1594,13 +1629,13 @@ class TSCGenerator(QSvgWidget):
                 index=idx,
                 coach_type=coach_type,
                 values=values,
-                online=online,   # <-- CLAVE
+                online=online,
             )
 
             x_pos = idx * 100
 
             # “Hueco PMR” como el comportamiento antiguo: solo si PMR online y estás a la derecha
-            if pmr_pos is not None and pmr_online and idx > pmr_pos:
+            if self.pmr_pos is not None and pmr_online and idx > self.pmr_pos:
                 x_pos += pmr_extra
 
             coach_g.set("transform", f"translate({x_pos}, 0)")
@@ -1608,85 +1643,126 @@ class TSCGenerator(QSvgWidget):
 
         return tostring(svg_root, encoding="unicode")
 
-    def process_coach_from_values(
-        self,
-        coach_id: str,
-        index: int,
-        coach_type: str,
-        values: dict,
-        online: bool = True
-    ):
+    def process_coach_from_values(self, coach_id, index, coach_type, values, online=True):
 
-        # ==========================================================
-        # 1) REGLA DE ORO: OFFLINE → NO MIRAR VALUES
-        # ==========================================================
+        READ_ERR = isagrafInterface.READ_ERROR
+
         if not online:
             return self.offline_coach(coach_id, index), False
 
-        # ==========================================================
-        # 2) Construir tsc_data en ORDEN ANTIGUO
-        # ==========================================================
-        def g(v):
-            val = values.get(v)
-            return "" if val is None else str(val)
+        def build_list(vars_list):
+            return [values.get(v, READ_ERR) for v in (vars_list or [])]
 
-        tsc_data = [g(v) for v in (self.tsc_vars or [])]
-        tsc_data_cc = [g(v) for v in (self.tsc_cc_vars or [])]
+        def g(lst, i, default=READ_ERR):
+            return lst[i] if (i is not None and i < len(lst)) else default
 
-        # ==========================================================
-        # 3) Si algo no es numérico → tratar como OFFLINE (como antes)
-        # ==========================================================
-        for s in tsc_data:
-            if s != "" and not s.isdigit():
-                return self.offline_coach(coach_id, index), False
+        tsc_data = build_list(self.tsc_vars)
+        tsc_data_cc = build_list(self.tsc_cc_vars) if self.tsc_cc_vars else []
 
-        # ==========================================================
-        # 4) MAPEO EXACTO COMO EL CÓDIGO ANTIGUO
-        # ==========================================================
-        # DB / DSB mantenían el mismo orden base
-        try:
-            k800 = tsc_data[0]
-            k801 = tsc_data[1]
-            k802 = tsc_data[2]
-            k804 = tsc_data[3]
-            s60  = tsc_data[4]
-            s60r = tsc_data[5]
-            s62  = tsc_data[6]
-            s62r = tsc_data[7]
-            s256 = tsc_data[8]
-            s256r= tsc_data[9]
-        except Exception:
-            return self.offline_coach(coach_id, index), False
+        label = ""
+        if isinstance(coach_type, str) and coach_type.isdigit():
+            label = self.project_coach_types.get(int(coach_type), str(coach_type))
 
-        # CC vars (si existen)
-        fr_riom_sc1  = tsc_data_cc[0] if len(tsc_data_cc) > 0 else ""
-        fr_riom_sc1r = tsc_data_cc[1] if len(tsc_data_cc) > 1 else ""
+        if self.project == "DB":
+            k800   = g(tsc_data, 0)
+            k801   = g(tsc_data, 1)
+            k802   = g(tsc_data, 2)
+            k810   = g(tsc_data, 3)
+            k811   = g(tsc_data, 4)
+            k812   = g(tsc_data, 5)
+            k804   = g(tsc_data, 6)
+            k814   = g(tsc_data, 7)
 
-        # ==========================================================
-        # 5) LLAMADA A DIBUJO ANTIGUO
-        # ==========================================================
-        coach = self.normal_coach(
-            label=str(coach_id),
-            coach_pos=index,
-            k801_state=k801,
-            k800_state=k800,
-            k802_state=k802,
-            k804_state=k804,
-            s60=s60,
-            s60_r=s60r,
-            s62=s62,
-            s62_r=s62r,
-            s256=s256,
-            s256_r=s256r,
-            pmr_index=self.pmr_index,
-            fr_riom_sc1=fr_riom_sc1,
-            fr_riom_sc1r=fr_riom_sc1r
-        )
+            s60    = g(tsc_data, 8)
+            s60_r  = g(tsc_data, 9)
+            s62    = g(tsc_data, 10)
+            s62_r  = g(tsc_data, 11)
+            s256   = g(tsc_data, 12)
+            s256_r = g(tsc_data, 13)
+            s255   = g(tsc_data, 14)
+            s255_r = g(tsc_data, 15)
 
-        return coach, True
+            fr_riom_sc1  = g(tsc_data, 16)
+            fr_riom_sc1r = g(tsc_data, 17)
+            fr_riom_sc2  = g(tsc_data, 18)
+            fr_riom_sc2r = g(tsc_data, 19)
 
-    def save_as_png(self, timer):
-        timer.stop()
+            s60_b1    = g(tsc_data, 25)
+            s60_r_b1  = g(tsc_data, 26)
+            s62_b1    = g(tsc_data, 27)
+            s62_r_b1  = g(tsc_data, 28)
+            s256_b1   = g(tsc_data, 29)
+            s256_r_b1 = g(tsc_data, 30)
+
+            if coach_type == '11':
+                coach = self.end_coach(label, index, k801, k800, k802, k804,
+                                    s60, s60_r, s62, s62_r, s256, s256_r,
+                                    s255, s255_r, fr_riom_sc1, fr_riom_sc1r)
+
+            elif coach_type in ['3','4','6','7','8','9','10']:
+                coach = self.normal_coach(label, index, k801, k800, k802, k804,
+                                        s60, s60_r, s62, s62_r, s256, s256_r,
+                                        self.pmr_pos, fr_riom_sc1, fr_riom_sc1r)
+
+            elif coach_type == '5':
+                coach = self.pmr_db_dsb2(label, index, k801, k800, k802, k810, k811, k812,
+                                        k804, k814, s60, s60_r, s62, s62_r, s256, s256_r,
+                                        fr_riom_sc1, fr_riom_sc1r, fr_riom_sc2, fr_riom_sc2r,
+                                        s60_b1, s60_r_b1, s62_b1, s62_r_b1, s256_b1, s256_r_b1)
+
+            elif coach_type == '2':
+                s8    = g(tsc_data_cc, 0)
+                s8_r  = g(tsc_data_cc, 1)
+                s6    = g(tsc_data_cc, 2)
+                s6_r  = g(tsc_data_cc, 3)
+                s10   = g(tsc_data_cc, 4)
+
+                k1    = g(tsc_data_cc, 5)
+                k80   = g(tsc_data_cc, 6)
+                k81   = g(tsc_data_cc, 7)
+                k82   = g(tsc_data_cc, 8)
+                k83   = g(tsc_data_cc, 9)
+
+                sifa1_cond = g(tsc_data_cc, 10)
+                sifa2_cond = g(tsc_data_cc, 11)
+
+                s700  = g(tsc_data_cc, 12)
+                s701  = g(tsc_data_cc, 13)
+                s702  = g(tsc_data_cc, 14)
+                s703  = g(tsc_data_cc, 15)
+                s704  = g(tsc_data_cc, 16)
+
+                k700  = g(tsc_data_cc, 17)
+                k701  = g(tsc_data_cc, 18)
+                k710  = g(tsc_data_cc, 19)
+                k711  = g(tsc_data_cc, 20)
+                k708  = g(tsc_data_cc, 21)
+                k709  = g(tsc_data_cc, 21)
+                k731  = g(tsc_data_cc, 22)
+                k732  = g(tsc_data_cc, 23)
+                k740  = g(tsc_data_cc, 24)
+                k741  = g(tsc_data_cc, 25)
+
+                s25   = g(tsc_data_cc, 26)
+                s25_r = g(tsc_data_cc, 27)
+                k753  = g(tsc_data_cc, 28)
+
+                coach = self.cabcar(label, index, k801, k800, k802, k804,
+                                    s60, s60_r, s62, s62_r, s255, s255_r, s256, s256_r,
+                                    s8, s8_r, s6, s6_r, s10, k1, k80, k81, k82, k83,
+                                    sifa1_cond, sifa2_cond,
+                                    s700, s701, s702, s703, s704,
+                                    k700, k701, k710, k711, k708, k709, k731, k732, k740, k741,
+                                    s25, s25_r, k753, fr_riom_sc1, fr_riom_sc1r) 
+            else:
+                coach = self.normal_coach(label, index, k801, k800, k802, k804,
+                                        s60, s60_r, s62, s62_r, s256, s256_r,
+                                        self.pmr_pos, fr_riom_sc1, fr_riom_sc1r)
+
+            return coach, True
+
+    def save_as_png(self):
+
         filename, _ = QFileDialog.getSaveFileName(self.svg_widget, "Guardar como PNG", "", "Archivos PNG (*.png)")
         
         if filename:
@@ -1717,8 +1793,6 @@ class TSCGenerator(QSvgWidget):
             except Exception as e:
                 QMessageBox.critical(None, "Error", f"No se pudo guardar el archivo: {e}")
             
-            timer.start()
-
     def create_contact_svg(self, closed, x_offset=0, label=""):
         """
         Representa el estado de un contacto con una etiqueta.
@@ -1909,9 +1983,9 @@ class TSCGenerator(QSvgWidget):
         lower_path.append(self.create_contact_svg(k802_state, x_offset=40, label="K802"))  # Desplazado 40 unidades a la derecha
 
         #Determina si el comportamiento de las RIOMS es correcto
-        if int(fr_riom_sc1)>199:
+        if int(fr_riom_sc1)>240:
             SubElement(coach, "text", x="50", y="75",**{"text-anchor": "middle","font-style": "italic","font-size": "6.5", "fill": "red"}).text = "RIOM SC APAGADA"
-        elif int(fr_riom_sc1r)>199:
+        elif int(fr_riom_sc1r)>240:
             SubElement(coach, "text", x="50", y="75",**{"text-anchor": "middle","font-style": "italic","font-size": "6.5", "fill": "red"}).text = "RIOM SCr APAGADA"
         elif k800_state and k802_state and not k801_state:
             SubElement(coach, "text", x="50", y="75",**{"text-anchor": "middle","font-style": "italic","font-size": "6.5", "fill": "green"}).text = "CERRADO POR REDUNDANTE"
@@ -2067,9 +2141,9 @@ class TSCGenerator(QSvgWidget):
             k802_state=1
         
         #Determina si el comportamiento de las RIOMS es correcto
-        if int(fr_riom_sc1)>199:
+        if int(fr_riom_sc1)>240:
             SubElement(coach, "text", x="50", y="75",**{"text-anchor": "middle","font-style": "italic","font-size": "6.5", "fill": "red"}).text = "RIOM SC APAGADA"
-        elif int(fr_riom_sc1r)>199:
+        elif int(fr_riom_sc1r)>240:
             SubElement(coach, "text", x="50", y="75",**{"text-anchor": "middle","font-style": "italic","font-size": "6.5", "fill": "red"}).text = "RIOM SCr APAGADA"
         elif k800_state and k802_state and not k801_state:
             SubElement(coach, "text", x="50", y="75",**{"text-anchor": "middle","font-style": "italic","font-size": "6.5", "fill": "green"}).text = "CERRADO POR REDUNDANTE"
@@ -2304,9 +2378,9 @@ class TSCGenerator(QSvgWidget):
         lower_path.append(self.create_contact_svg(k802_state, x_offset=40, label="K802"))  # Desplazado 40 unidades a la derecha
 
         #Determina si el comportamiento de las RIOMS es correcto
-        if int(fr_riom_sc1)>199:
+        if int(fr_riom_sc1)>240:
             SubElement(coach, "text", x="200", y="75",**{"text-anchor": "middle","font-style": "italic","font-size": "6.5", "fill": "red"}).text = "RIOM SC APAGADA"     
-        elif int(fr_riom_sc1r)>199:
+        elif int(fr_riom_sc1r)>240:
             SubElement(coach, "text", x="200", y="75",**{"text-anchor": "middle","font-style": "italic","font-size": "6.5", "fill": "red"}).text = "RIOM SCr APAGADA"
         elif k800_state and k802_state and not k801_state:
             SubElement(coach, "text", x="200", y="75",**{"text-anchor": "middle","font-style": "italic","font-size": "6.5", "fill": "green"}).text = "CERRADO POR REDUNDANTE"
@@ -2654,9 +2728,9 @@ class TSCGenerator(QSvgWidget):
         lower_path.append(self.create_contact_svg(k802_state, x_offset=40, label="K802"))  # Desplazado 40 unidades a la derecha
 
         #Determina si el comportamiento de las RIOMS es correcto
-        if int(fr_riom_sc1)>199:
+        if int(fr_riom_sc1)>240:
             SubElement(coach, "text", x="50", y="75",**{"text-anchor": "middle","font-style": "italic","font-size": "6.5", "fill": "red"}).text = "RIOM SC APAGADA"     
-        elif int(fr_riom_sc1r)>199:
+        elif int(fr_riom_sc1r)>240:
             SubElement(coach, "text", x="50", y="75",**{"text-anchor": "middle","font-style": "italic","font-size": "6.5", "fill": "red"}).text = "RIOM SCr APAGADA"
         elif k800_state and k802_state and not k801_state:
             SubElement(coach, "text", x="50", y="75",**{"text-anchor": "middle","font-style": "italic","font-size": "6.5", "fill": "green"}).text = "CERRADO POR REDUNDANTE"
@@ -2814,7 +2888,7 @@ class TSCGenerator(QSvgWidget):
             
         return coach
 
-    def cabcar(self, coach_name, coach_pos, k801_state, k800_state, k802_state, k804_state, s60, s60_r, s62, s62_r, s255, s255_r, s256, s256_r, s8, s8_r, s6, s6_r, s10, k1, k80, k81, k82, k83, sifa1_cond, sifa2_cond, s700, s701, s702, s703, s704, k700, k701, k710, k711, k708, k709, k731, k732, k740, k741, s25, s25_r, k753):
+    def cabcar(self, coach_name, coach_pos, k801_state, k800_state, k802_state, k804_state, s60, s60_r, s62, s62_r, s255, s255_r, s256, s256_r, s8, s8_r, s6, s6_r, s10, k1, k80, k81, k82, k83, sifa1_cond, sifa2_cond, s700, s701, s702, s703, s704, k700, k701, k710, k711, k708, k709, k731, k732, k740, k741, s25, s25_r, k753, fr_riom_sc1, fr_riom_sc1r):
 
         coach = Element("g")
 
@@ -2887,9 +2961,13 @@ class TSCGenerator(QSvgWidget):
         lower_path.append(self.create_contact_svg(k802_state, x_offset=40, label="K802"))  # Desplazado 40 unidades a la derecha
 
         #Determina si el comportamiento de las RIOMS es correcto
-        if k800_state and k802_state and not k801_state:
+        if int(fr_riom_sc1)>240:
+            SubElement(coach, "text", x="50", y="75",**{"text-anchor": "middle","font-style": "italic","font-size": "6.5", "fill": "red"}).text = "RIOM SC APAGADA"
+        elif int(fr_riom_sc1r)>240:
+            SubElement(coach, "text", x="50", y="75",**{"text-anchor": "middle","font-style": "italic","font-size": "6.5", "fill": "red"}).text = "RIOM SCr APAGADA"
+        elif k800_state and k802_state and not k801_state:
             SubElement(coach, "text", x="50", y="75",**{"text-anchor": "middle","font-style": "italic","font-size": "6.5", "fill": "green"}).text = "CERRADO POR REDUNDANTE"
-        elif k801_state and not k800_state and k802_state:
+        elif k801_state and not k800_state:
             SubElement(coach, "text", x="50", y="75",**{"text-anchor": "middle","font-style": "italic","font-size": "6.5", "fill": "green"}).text = "CERRADO POR PRINCIPAL"
         elif k800_state and not k801_state and not k802_state:
             SubElement(coach, "text", x="50", y="75",**{"text-anchor": "middle","font-style": "italic","font-size": "6.5", "fill": "red"}).text = "ABIERTO"
@@ -3158,9 +3236,9 @@ class TSCGenerator(QSvgWidget):
         SubElement(coach, "text", x="233", y="160", text_anchor="middle", font_style="italic", font_size="8").text = "0V (110)"
 
         if int(k753) == 1:
-            bypass_color = "red"
-        elif int(k753) == 0:
             bypass_color = "green"
+        elif int(k753) == 0:
+            bypass_color = "red"
 
         SubElement(coach, "rect", x="100", y="95", width="650", height="100", fill=bypass_color, opacity="0.15")
 
@@ -3405,7 +3483,7 @@ class MainWindow(QMainWindow):
         
         self.export_TSC_action=QAction("Exportar imagen TSC", self)
         self.export_TSC_action.setEnabled(False)
-        self.export_TSC_action.triggered.connect(lambda: self.tsc.save_as_png(self.timer))
+        # self.export_TSC_action.triggered.connect(self.tsc.save_as_png)
         
         export_menu.addActions([self.export_TSC_action])
 
@@ -3832,7 +3910,7 @@ class MainWindow(QMainWindow):
                 vars_to_read = normal_vars
 
             th = QThread()
-            w = TSCWorker(client, vars_to_read=vars_to_read, period_s=0.5, wait_time=1.0)
+            w = TSCWorker(client, vars_to_read=vars_to_read, period_s=1.5, wait_time=1.0)
 
             w.moveToThread(th)
             th.started.connect(w.run)
@@ -3845,12 +3923,11 @@ class MainWindow(QMainWindow):
             th.start()
 
     def on_vars_snapshot(self, snapshot: dict):
+        
         # 1) tabla siempre
         self.update_table_from_snapshot(snapshot)
-
         # 2) svg solo si el diagnóstico está ON y el widget existe
         if self.check_TSC_action.isChecked() and hasattr(self, "tsc") and self.tsc is not None:
-            print("Actualizando SVG con snapshot:", snapshot)
             svg_snapshot = self.build_svg_snapshot(snapshot)
             self.tsc.set_snapshot(svg_snapshot)
 
@@ -3864,6 +3941,9 @@ class MainWindow(QMainWindow):
             c = coaches.get(eid, {"online": False, "values": {}})
             online = bool(c.get("online", False))
             values = c.get("values", {}) or {}
+
+            # if eid == "EP1":
+                # print(values.get(type_var, ""))
 
             # fila 0: color por online
             ip_item = self.table.item(0, col)
@@ -3886,7 +3966,6 @@ class MainWindow(QMainWindow):
                         type_item.setTextAlignment(Qt.AlignCenter)
                         self.table.setItem(1, col, type_item)
                     type_item.setText(txt)
-                continue
 
             raw = values.get(type_var, "")
             txt = str(raw)
@@ -3896,7 +3975,7 @@ class MainWindow(QMainWindow):
                     txt = self.TCMS_vars.COACH_TYPES_DSB.get(n, txt)
                 else:
                     txt = self.TCMS_vars.COACH_TYPES_DB.get(n, txt)
-
+                    
             type_item = self.table.item(1, col)
             if type_item is None:
                 type_item = QTableWidgetItem("")
@@ -3906,7 +3985,7 @@ class MainWindow(QMainWindow):
 
     def build_svg_snapshot(self, endpoint_snapshot: dict) -> dict:
 
-        print("Construyendo snapshot para SVG a partir de:", endpoint_snapshot)
+        # print("Construyendo snapshot para SVG a partir de:", endpoint_snapshot["coaches"]["EP1"])
         ep = endpoint_snapshot.get("coaches", {})
 
         # Si no es DB o no hay doble IP, no hacemos merge
@@ -4047,6 +4126,7 @@ class MainWindow(QMainWindow):
                 tsc_cc_vars=cc_vars
             )
             self.tsc_project = self.project
+            self.export_TSC_action.triggered.connect(self.tsc.save_as_png)
 
         self.scroll_tsc.setWidget(self.tsc)
 
