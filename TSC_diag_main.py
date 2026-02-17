@@ -3352,6 +3352,19 @@ class MainWindow(QMainWindow):
 
         self.TCMS_vars = TCMS_vars()
 
+        self.diag_dict = {
+            "TSC_DB": self.TCMS_vars.TSC_COACH_VARS_DB,
+            "TSC_DSB": self.TCMS_vars.TSC_COACH_VARS_DSB,
+            "TSC_DIAG_VARS": self.TCMS_vars.TSC_DIAG_VARS,
+            "BCU_DIAG_VARS": self.TCMS_vars.BCU_DIAGNOSIS,
+            "BCU_DIAG_VARS_CC": self.TCMS_vars.BCU_DIAGNOSIS_CC
+        }
+
+        self.active_diag = {
+            "TSC": False,
+            "DIAG_TSC": False,
+        }
+                    
         self.default_width = 800
         self.default_height = 434
 
@@ -4034,16 +4047,18 @@ class MainWindow(QMainWindow):
 
     def on_toggle_tsc(self, checked: bool):
         if checked:
+            self.active_diag["TSC"] = True
+            
             self.show_tsc_ui()
 
             # Guarda la posición actual del scroll (si hay contenido previo)
             h_scroll_position = self.scroll_tsc.horizontalScrollBar().value()
             v_scroll_position = self.scroll_tsc.verticalScrollBar().value()
 
-            # EXACTO como el antiguo: tamaño fijo
-            self.setMinimumSize(0, 0)
-            self.setMaximumSize(16777215, 16777215)
-            self.setFixedSize(int(self.table_width + 21), 515)
+            # # EXACTO como el antiguo: tamaño fijo
+            # self.setMinimumSize(0, 0)
+            # self.setMaximumSize(16777215, 16777215)
+            # self.setFixedSize(int(self.table_width + 21), 515)
 
             # Fuerza un render inmediato aunque no haya cambios (offline estable)
             if hasattr(self, "vars_warehouse") and self.vars_warehouse is not None and hasattr(self, "tsc") and self.tsc is not None:
