@@ -80,11 +80,6 @@ APP_VERSION = "1.0.3"
 GITHUB_OWNER = "Josemmrosa93"
 GITHUB_REPO = "Herramientas-PES"
 
-maintenance_mode = 0
-
-PREDEFINED_DSB = ['11', '3', '3', '5', '8', '9', '8', '9', '8', '9', '8', '9', '8', '9', '11']
-PREDEFINED_DB_13 = ['11', '9', '8', '10', '8', '9', '7', '6', '5', '4', '3', '3', '2', '2']
-
 CONFIG_FILE = "config.json"
 
 DEFAULT_CONFIG = {
@@ -1253,8 +1248,7 @@ class CoachClient:
     """
     Cliente por coche/coach basado en isagrafInterface (Ethernet).
     - 1 instancia por coach (reutilizable)
-    - health_check para la tabla (verde/rojo)
-    - read_vars para lecturas de TSC (con timestamp)
+    - read_vars para lecturas (con timestamp)
     """
 
     def __init__(self, coach_id: str, ip: str, health_vars: list[str] | None = None):
@@ -1264,9 +1258,6 @@ class CoachClient:
         # Instancia reutilizable (mantiene socket mientras funcione)
         self.iface = isagrafInterface(ip)
 
-        # Variables mínimas para comprobar “estoy vivo”
-        # (ideal: 1-3 variables que existan siempre en ese coach)
-        self.health_vars = health_vars or []
 
         # Último timestamp “bueno” (no Error!)
         self.last_ok_ts_ms: int = 0
@@ -1288,27 +1279,6 @@ class CoachClient:
         if not values:
             return True
         return all(v == isagrafInterface.READ_ERROR for v in values.values())
-
-    def health_check(self, wait_time: float = 2.0) -> tuple[bool, int, dict]:
-        """
-        Devuelve:
-          (online, ts_ms, values)
-
-        online = True si al menos una variable NO es "Error!"
-        online = False si todo es "Error!" (o no hay datos)
-        """
-        if not self.health_vars:
-            # Sin variables de health definidas no podemos comprobar conectividad real
-            return False, 0, {}
-
-        ts_map = self.iface.readValues(self.health_vars, wait_time=wait_time)
-        ts_ms, values = self._flatten_ts_map(ts_map)
-
-        online = not self._all_read_error(values)
-        if online:
-            self.last_ok_ts_ms = ts_ms
-
-        return online, ts_ms, values
 
     def read_vars(self, vars_list: list[str], wait_time: float = 1.0) -> tuple[bool, int, dict]:
         """
@@ -1333,52 +1303,156 @@ class CoachClient:
 
         return online, ts_ms, values
 
-class TSCWorker(QObject):
+class Worker(QObject):
+
     on_tsc_data = Signal(str, object, dict)    # endpoint_id, ts_ms, values
     on_tsc_diag_data = Signal(str, object, dict)    # endpoint_id, ts_ms, values
     status = Signal(str, bool, str, object)    # endpoint_id, online, msg, ts_ms
 
-    def __init__(self, endpoint_client: CoachClient, tsc_vars_to_read: list[str], tsc_diag_vars: list[str], period_s: float = 0.5, wait_time: float = 1.0):
+    def __init__(self, is_cc: bool, project: str, endpoint_client: CoachClient, vars_to_read: dict, diag_enabled: dict, period_s: float = 0.5, wait_time: float = 1.0):
         super().__init__()
+        self.is_cc = is_cc
+        self.project = project
         self.client = endpoint_client
         self.endpoint_id = endpoint_client.coach_id
 
-        self.tsc_vars_to_read = list(tsc_vars_to_read)
-        self.tsd_diag_vars = list(tsc_diag_vars)
         self.period_s = float(period_s)
         self.wait_time = float(wait_time)
 
         self._running = True
+        self._at_least_one_read = False
         self._last_ts = -1
+
+        self._timer = None
+        self._busy = False
+        
+        self._pending_config = None
+
+        # Desempaquetamos las variables a leer (para TSC, diagnósticos, etc.) según la configuración
+        self.coach_type_var = vars_to_read.get("COACH_TYPE")
+        self.tsc_coach_vars_db = vars_to_read.get("TSC_DB")
+        self.tsc_coach_vars_dsb = vars_to_read.get("TSC_DSB")
+        self.tsc_cc_vars = vars_to_read.get("TSC_CC_DB")
+        self.tsc_diag_vars = vars_to_read.get("TSC_DIAG_VARS")
+        self.bcu_diag_vars = vars_to_read.get("BCU_DIAG_VARS")
+        self.bcu_diag_vars_cc = vars_to_read.get("BCU_DIAG_VARS_CC")
+
+        # Desempaquetamos las opciones de diagnóstico habilitados según la configuración. Esto se modificará en función de lo que se quiera mostrar en la UI (checkboxes).
+        self.tsc_enabled = diag_enabled.get("TSC")
+        self.tsc_diag_enabled = diag_enabled.get("DIAG_TSC")
+
+
+        if self.project == "DSB":
+            self.tsc_normal_vars = list(self.tsc_coach_vars_dsb)
+            self.tsc_cc_vars = []
+            
+        elif self.project == "DB":
+            self.tsc_normal_vars = list(self.tsc_coach_vars_db)
+            self.tsc_cc_vars = list(self.tsc_cc_vars)
+
+        # Añadimos la variable de tipo de coche al final de la lista.
+        if isinstance(self.coach_type_var, list):
+            self.coach_type_var = self.coach_type_var[0] if self.coach_type_var else None
+        if self.coach_type_var:
+            self.tsc_normal_vars = [v for v in self.tsc_normal_vars if v != self.coach_type_var] + [self.coach_type_var]
+
+    def start(self):
+        if self._timer is None:
+            self._timer = QTimer(self)
+            self._timer.setInterval(max(1, int(self.period_s * 1000)))
+            self._timer.timeout.connect(self._tick)
+
+        self._running = True
+        self._timer.start()
 
     def stop(self):
         self._running = False
+        if self._timer is not None:
+            self._timer.stop()
 
-    def run(self):
-        while self._running:
-            t0 = time.time()
-            ts_ms = 0
+    def _tick(self):
+            if not self._running:
+                if self._timer:
+                    self._timer.stop()
+                return
+
+            # evita reentrancia si un tick tarda mucho
+            if self._busy:
+                return
+            self._busy = True
+
+            _t_0 = time.perf_counter()
+
             try:
-                online, ts_ms, tsc_values = self.client.read_vars(self.tsc_vars_to_read, wait_time=self.wait_time)
-                EP_tocheck = "EP1"
-                if not online:
-                    self.status.emit(self.endpoint_id, False, "offline (READ_ERROR)", ts_ms)
+                # aplicar config pendiente al inicio del tick
+                if self._pending_config is not None:
+                    cfg = self._pending_config
+                    self._pending_config = None
+
+                    self.tsc_enabled = cfg.get("TSC")
+                    self.tsc_diag_enabled = cfg.get("DIAG_TSC")
+                    
+
+                    # print(f"Updated Worker config: TSC_enabled={self.tsc_enabled}, DIAG_TSC_enabled={self.tsc_diag_enabled}")
+
+                # ################################# METEMOS UN DIAGNÓSTICO MÍNIMO PARA MANTENER VIVA LA TABLA ###############################
+
+                if self.tsc_enabled or self.tsc_diag_enabled:
+                    self._at_least_one_read = True
                 else:
-                    self.status.emit(self.endpoint_id, True, "ok", ts_ms)
+                    self._at_least_one_read = False
+
+                ts_ms = 0
+
+                # ################################ LECTURA DE TSC ################################
+
+                if self.tsc_enabled or not self._at_least_one_read:
+                    if not self.is_cc:
+                        # print("Reading normal TSC vars:", self.tsc_normal_vars)
+                        online, ts_ms, tsc_values = self.client.read_vars(self.tsc_normal_vars, wait_time=self.wait_time)
+                    else:
+                        # print("Reading CC TSC vars:", self.tsc_cc_vars)                        
+                        online, ts_ms, tsc_values = self.client.read_vars(self.tsc_cc_vars, wait_time=self.wait_time)
+
+
+                    if not online:
+                        self.status.emit(self.endpoint_id, False, "offline (READ_ERROR)", ts_ms)
+                    else:
+                        self.status.emit(self.endpoint_id, True, "ok", ts_ms)
+
+                        if ts_ms >= self._last_ts:
+                            self._last_ts = ts_ms
+                            reformat_tsc_values = {k: self._to_str_value(v) for k, v in (tsc_values or {}).items()}
+                            self.on_tsc_data.emit(self.endpoint_id, ts_ms, reformat_tsc_values)
+
+                # ################################ LECTURA DIAG_TSC ################################
+                
+                if self.tsc_diag_enabled:
+                    if self.is_cc:
+                        diag_vars_list = list(self.bcu_diag_vars_cc or [])
+                    else:
+                        diag_vars_list = list(self.tsc_diag_vars or []) + list(self.bcu_diag_vars or [])
+
+                    online, ts_ms, diag_values = self.client.read_vars(diag_vars_list, wait_time=self.wait_time)
+
+                    # Aquí NO suelo machacar status online/offline general si quieres separarlo,
+                    # pero puedes emitir status si te interesa.
+
                     if ts_ms >= self._last_ts:
-                        self._last_ts = ts_ms
-                        norm_tsc_values = {k: self._to_str_value(v) for k, v in (tsc_values or {}).items()}
-                        
-                        self.on_tsc_data.emit(self.endpoint_id, ts_ms, norm_tsc_values)
+                        reformat_diag_values = {k: self._to_str_value(v) for k, v in (diag_values or {}).items()}
+                        self.on_tsc_diag_data.emit(self.endpoint_id, ts_ms, reformat_diag_values)
+        
+
+                ##################################################################################
 
             except Exception as e:
-                self.status.emit(self.endpoint_id, False, f"excepción: {e}", ts_ms)
+                self.status.emit(self.endpoint_id, False, f"excepción: {e}", 0)
 
-            elapsed = time.time() - t0
-            sleep_s = self.period_s - elapsed
-            if sleep_s > 0:
-                time.sleep(sleep_s)
-
+            finally:
+                _elapsed_ms = (time.perf_counter() - _t_0) * 1000
+                # print(f"Worker {self.client.coach_id} is CC ({self.is_cc}) -> tick elapsed time: {_elapsed_ms:.2f} ms")
+                self._busy = False
+    
     def _to_str_value(self, v):
         
         try:
@@ -1415,13 +1489,19 @@ class TSCWorker(QObject):
             return str(int(v))
         except Exception:
             return isagrafInterface.READ_ERROR
-         
+
+    def _update_config(self, config):
+
+        # Guardamos y aplicamos en el siguiente tick (evita mezclar un ciclo a mitad)
+        self._pending_config = dict(config or {})
+
 class Vars_Warehouse(QObject):
     snapshotUpdated = Signal(dict)
 
     def __init__(self, endpoint_ids, render_hz=1):
         super().__init__()
         self.tsc_state = {eid: {"online": False, "values": {}} for eid in endpoint_ids}
+        self.tsc_diag_state = {eid: {"online": False, "values": {}} for eid in endpoint_ids}
         self._dirty = True
 
         hz = max(1.0, float(render_hz))
@@ -1463,6 +1543,14 @@ class Vars_Warehouse(QObject):
                 st["values"] = {}
             self._dirty = True
 
+    def on_tsc_diag_data(self, endpoint_id, ts_ms, values):
+        st = self.tsc_diag_state.get(endpoint_id)
+        if st is None:
+            return
+        st["online"] = True
+        st["values"] = values or {}
+        self._dirty = True
+
     def _tick(self):
         if not self._dirty:
             return
@@ -1471,6 +1559,10 @@ class Vars_Warehouse(QObject):
             "coaches": {
                 eid: {"online": bool(st["online"]), "values": dict(st["values"])}
                 for eid, st in self.tsc_state.items()
+            },
+            "tsc_diag": {
+                eid: {"online": bool(st["online"]), "values": dict(st["values"])}
+                for eid, st in self.tsc_diag_state.items()
             }
         }
         self._dirty = False
@@ -3318,10 +3410,52 @@ class TSCGenerator(QSvgWidget):
 
         return coach
 
+class DiagnosticWindow(QMainWindow):
+    closed = Signal()
+
+    def __init__(self, title: str, fixed_w: int, fixed_h: int, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle(title)
+        self.setFixedSize(int(fixed_w), int(fixed_h))
+
+    def closeEvent(self, event):
+        self.closed.emit()
+        super().closeEvent(event)
+
+class TSCWindow(DiagnosticWindow):
+    def __init__(self, *, project, endpoint_ids, tsc_vars, project_coach_types, tsc_cc_vars,
+                 fixed_w: int, fixed_h: int, parent=None): #El asterisco indica que los argumentos siguientes deben ser pasados como palabras clave, es decir (project = x, endpoint_ids = y, etc) y no como argumentos posicionales (x, y, etc)
+        super().__init__(title="TSC", fixed_w=fixed_w, fixed_h=fixed_h, parent=parent)
+
+        central = QWidget()
+        lay = QVBoxLayout(central)
+        lay.setContentsMargins(6, 6, 6, 6)
+
+        self.scroll = QScrollArea()
+        self.scroll.setWidgetResizable(True)
+        self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+
+        self.tsc = TSCGenerator(
+            project=project,
+            endpoint_ids=endpoint_ids,
+            tsc_vars=tsc_vars,
+            project_coach_types=project_coach_types,
+            tsc_cc_vars=tsc_cc_vars,
+        )
+
+        self.scroll.setWidget(self.tsc)
+        lay.addWidget(self.scroll)
+        self.setCentralWidget(central)
+
+    def set_snapshot(self, snapshot: dict):
+        self.tsc.set_snapshot(snapshot)
+
 class MainWindow(QMainWindow):
     
     scan_progress_signal = Signal(int)
     ping_result_signal = Signal(int, int, bool, int, int, int, int, int, int)  # row, col, ok, rtt, lost, sent, received, min, max
+    diagnosis_config_signal = Signal(dict)
 
     def __init__(self):
         super().__init__()
@@ -3353,14 +3487,16 @@ class MainWindow(QMainWindow):
         self.TCMS_vars = TCMS_vars()
 
         self.diag_dict = {
+            "COACH_TYPE": self.TCMS_vars.COACH_TYPE,
             "TSC_DB": self.TCMS_vars.TSC_COACH_VARS_DB,
             "TSC_DSB": self.TCMS_vars.TSC_COACH_VARS_DSB,
+            "TSC_CC_DB": self.TCMS_vars.TSC_CC_VARS_DB,
             "TSC_DIAG_VARS": self.TCMS_vars.TSC_DIAG_VARS,
             "BCU_DIAG_VARS": self.TCMS_vars.BCU_DIAGNOSIS,
             "BCU_DIAG_VARS_CC": self.TCMS_vars.BCU_DIAGNOSIS_CC
         }
 
-        self.active_diag = {
+        self.diag_enabled = {
             "TSC": False,
             "DIAG_TSC": False,
         }
@@ -3368,7 +3504,7 @@ class MainWindow(QMainWindow):
         self.default_width = 800
         self.default_height = 434
 
-        self.diag_windows = []
+        self.tsc_window = None
 
         self.setWindowTitle("Herramienta de diagnóstico PES")
         self.setFixedSize(self.default_width, self.default_height)
@@ -3820,7 +3956,7 @@ class MainWindow(QMainWindow):
                         
         self.project = project_value
     
-        self.max_initial_ips = 9 if self.project == "DB" else 15 if self.project == "DSB" else 1
+        self.max_initial_ips = 20 if self.project == "DB" else 15 if self.project == "DSB" else 1
         
         self.progress_title.setText(f"Escaneando composición: {self.project}")
         self.detected_label.setText(f"Coches detectados: {0 + self.max_initial_ips} de {len(self.ip_data[self.project])} posibles.")
@@ -3861,9 +3997,6 @@ class MainWindow(QMainWindow):
         # arrancar polling selectivo (opción 2)
         self.start_vars_polling_selective()
 
-        if self.check_TSC_action.isChecked():
-            self.show_tsc_ui()
-
     def stop_vars_polling(self):
         if hasattr(self, "vars_workers") and self.vars_workers:
             for w in self.vars_workers.values():
@@ -3901,44 +4034,24 @@ class MainWindow(QMainWindow):
         self.vars_threads = {}
         self.vars_workers = {}
 
-        # Listas selectivas
-        coach_type_var = self.TCMS_vars.COACH_TYPE[0]
-
-        if self.project == "DSB":
-            tsc_normal_vars = list(self.TCMS_vars.TSC_COACH_VARS_DSB)
-            tsc_cc_vars = []
-            
-        else:
-            tsc_normal_vars = list(self.TCMS_vars.TSC_COACH_VARS_DB)
-            tsc_cc_vars = list(self.TCMS_vars.TSC_CC_VARS_DB)
-
-        tsc_diagnostic_vars = list(self.TCMS_vars.TSC_DIAG_VARS)
-        bcu_diagnostic_vars = list(self.TCMS_vars.BCU_DIAGNOSIS)
-        bcu_cc_diagnostic_vars = list(self.TCMS_vars.BCU_DIAGNOSIS_CC)
-
-        # normal_vars + coach_type al final (tu regla)
-        tsc_normal_vars = [v for v in tsc_normal_vars if v != coach_type_var] + [coach_type_var]
-
-        # índices cabcar en DB: las 2 últimas IPs
+        # Obtenemos la posición del cabcar
         cabcar_ph_index = len(self.endpoint_ids) - 1 if (self.project == "DB" and len(self.endpoint_ids) >= 2) else None
 
         for idx, eid in enumerate(self.endpoint_ids):
             client = self.endpoint_clients[eid]
 
-            # Si es VCU_PH (última IP en DB) -> solo CC vars
             if cabcar_ph_index is not None and idx == cabcar_ph_index:
-                tsc_vars_to_read = tsc_cc_vars
-                tsc_diag_vars = bcu_cc_diagnostic_vars
+                is_cc = True
             else:
-                tsc_vars_to_read = tsc_normal_vars
-                tsc_diag_vars = tsc_diagnostic_vars + bcu_diagnostic_vars
+                is_cc = False
 
             th = QThread()
-            w = TSCWorker(client, tsc_vars_to_read=tsc_vars_to_read, tsc_diag_vars=tsc_diag_vars, period_s=1.5, wait_time=1.0)
+            w = Worker(is_cc=is_cc, project=self.project, endpoint_client=client, vars_to_read=self.diag_dict, diag_enabled=self.diag_enabled, period_s=0.5, wait_time=1.0)
 
             w.moveToThread(th)
-            th.started.connect(w.run)
+            th.started.connect(w.start)
 
+            self.diagnosis_config_signal.connect(w._update_config)
             w.on_tsc_data.connect(self.vars_warehouse.on_tsc_data)
             w.status.connect(self.vars_warehouse.on_status)
 
@@ -3947,13 +4060,13 @@ class MainWindow(QMainWindow):
             th.start()
 
     def on_vars_snapshot(self, snapshot: dict):
-        
         # 1) tabla siempre
         self.update_table_from_snapshot(snapshot)
-        # 2) svg solo si el diagnóstico está ON y el widget existe
-        if self.check_TSC_action.isChecked() and hasattr(self, "tsc") and self.tsc is not None:
+
+        # 2) si la ventana TSC existe, actualizamos
+        if self.check_TSC_action.isChecked() and self.tsc_window is not None:
             svg_snapshot = self.build_svg_snapshot(snapshot)
-            self.tsc.set_snapshot(svg_snapshot)
+            self.tsc_window.set_snapshot(svg_snapshot)
 
     def update_table_from_snapshot(self, snapshot: dict):
         coaches = snapshot.get("coaches", {})
@@ -4047,21 +4160,46 @@ class MainWindow(QMainWindow):
 
     def on_toggle_tsc(self, checked: bool):
         if checked:
-            self.active_diag["TSC"] = True
-            
-            self.show_tsc_ui()
+            self.diag_enabled["TSC"] = True
+            self.diagnosis_config_signal.emit(self.diag_enabled)
 
-            # Guarda la posición actual del scroll (si hay contenido previo)
-            h_scroll_position = self.scroll_tsc.horizontalScrollBar().value()
-            v_scroll_position = self.scroll_tsc.verticalScrollBar().value()
+            # Crear ventana si no existe (o si fue cerrada)
+            if self.tsc_window is None:
+                # tamaño fijo definido por ti:
+                FIX_W = 1300
+                FIX_H = 350
 
-            # # EXACTO como el antiguo: tamaño fijo
-            # self.setMinimumSize(0, 0)
-            # self.setMaximumSize(16777215, 16777215)
-            # self.setFixedSize(int(self.table_width + 21), 515)
+                # OJO: aquí usas las listas que ya estabas usando para generar el SVG
+                # (tsc_vars incluye COACH_TYPE al final)
+                if self.project == "DB":
+                    tsc_vars = self.TCMS_vars.TSC_COACH_VARS_DB + self.TCMS_vars.COACH_TYPE
+                    tsc_cc_vars = self.TCMS_vars.TSC_CC_VARS_DB
+                    coach_types = self.TCMS_vars.COACH_TYPES_DB
+                else:
+                    tsc_vars = self.TCMS_vars.TSC_COACH_VARS_DSB + self.TCMS_vars.COACH_TYPE
+                    tsc_cc_vars = []
+                    coach_types = self.TCMS_vars.COACH_TYPES_DSB
 
-            # Fuerza un render inmediato aunque no haya cambios (offline estable)
-            if hasattr(self, "vars_warehouse") and self.vars_warehouse is not None and hasattr(self, "tsc") and self.tsc is not None:
+                self.tsc_window = TSCWindow(
+                    project=self.project,
+                    endpoint_ids=self.endpoint_ids,
+                    tsc_vars=tsc_vars,
+                    project_coach_types=coach_types,
+                    tsc_cc_vars=tsc_cc_vars,
+                    fixed_w=FIX_W,
+                    fixed_h=FIX_H,
+                    parent=self,
+                )
+
+                # Si el usuario cierra la ventana -> equivale a desmarcar el check
+                self.tsc_window.closed.connect(lambda: self.check_TSC_action.setChecked(False))
+
+            self.tsc_window.show()
+            self.tsc_window.raise_()
+            self.tsc_window.activateWindow()
+
+            # Render inmediato (sin esperar al siguiente snapshot)
+            if self.vars_warehouse is not None:
                 snapshot = {
                     "coaches": {
                         eid: {"online": bool(st.get("online", False)), "values": dict(st.get("values", {}) or {})}
@@ -4069,184 +4207,25 @@ class MainWindow(QMainWindow):
                     }
                 }
                 svg_snapshot = self.build_svg_snapshot(snapshot)
-                self.tsc.set_snapshot(svg_snapshot)
+                self.tsc_window.set_snapshot(svg_snapshot)
 
-            # Restaura scroll
-            self.scroll_tsc.horizontalScrollBar().setValue(h_scroll_position)
-            self.scroll_tsc.verticalScrollBar().setValue(v_scroll_position)
-
-            # Export habilitado
             if hasattr(self, "export_TSC_action") and self.export_TSC_action is not None:
                 self.export_TSC_action.setEnabled(True)
 
         else:
-            self.hide_tsc_ui()
+            self.diag_enabled["TSC"] = False
+            self.diagnosis_config_signal.emit(self.diag_enabled)
 
-            # Volver EXACTO al tamaño de tabla (como create_table)
-            try:
-                table_height = sum(self.table.rowHeight(row) for row in range(2)) + self.table.horizontalHeader().height()
-                self.setMinimumSize(0, 0)
-                self.setMaximumSize(16777215, 16777215)
-                self.setFixedSize(int(self.table_width + 21), int(table_height + 42))
-            except Exception:
-                # fallback razonable
-                self.setFixedSize(int(self.default_width), int(self.default_height))
+            # Cerrar ventana si está abierta
+            if self.tsc_window is not None:
+                try:
+                    self.tsc_window.close()
+                except Exception:
+                    pass
+                self.tsc_window = None
 
             if hasattr(self, "export_TSC_action") and self.export_TSC_action is not None:
                 self.export_TSC_action.setEnabled(False)
-
-    def show_tsc_ui(self):
-        # Separador horizontal
-        if not hasattr(self, "splitter"):
-            self.splitter = QFrame()
-            self.splitter.setFrameShape(QFrame.HLine)
-            self.splitter.setFrameShadow(QFrame.Sunken)
-            self.layout.addWidget(self.splitter)
-
-        # Scroll area para el SVG
-        if not hasattr(self, "scroll_tsc"):
-            self.scroll_tsc = QScrollArea()
-            self.scroll_tsc.setWidgetResizable(True)
-            self.scroll_tsc.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-            self.scroll_tsc.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-            self.layout.addWidget(self.scroll_tsc)
-
-        # ======= (IMPORTANTE) Esto existía en el antiguo y “rellena” el alto 520 =======
-        if not hasattr(self, "splitter_2"):
-            self.splitter_2 = QFrame()
-            self.splitter_2.setFrameShape(QFrame.HLine)
-            self.splitter_2.setFrameShadow(QFrame.Sunken)
-            self.layout.addWidget(self.splitter_2)
-
-        if not hasattr(self, "trainset_failures_scan"):
-            self.trainset_failures_scan = QPushButton("Escanear fallos de composición completa")
-            self.layout.addWidget(self.trainset_failures_scan)
-            # self.trainset_failures_scan.clicked.connect(self.trainset_tsc_failures)
-
-        if not hasattr(self, "reset_failures"):
-            self.reset_failures = QPushButton("Reestablecer fallos a composición")
-            self.layout.addWidget(self.reset_failures)
-            # self.reset_failures.clicked.connect(self.reset_TAR_TEMP_failures)
-        # ============================================================================
-
-        # ---- Vars exactamente como polling (tu versión nueva ya lo tenía así)
-        coach_type_var = self.TCMS_vars.COACH_TYPE[0]
-
-        if self.project == "DSB":
-            coach_types_map = self.TCMS_vars.COACH_TYPES_DSB
-            normal_vars = list(self.TCMS_vars.TSC_COACH_VARS_DSB)
-            cc_vars = []
-        else:
-            coach_types_map = self.TCMS_vars.COACH_TYPES_DB
-            normal_vars = list(self.TCMS_vars.TSC_COACH_VARS_DB)
-            cc_vars = list(self.TCMS_vars.TSC_CC_VARS_DB)
-
-        normal_vars = [v for v in normal_vars if v != coach_type_var] + [coach_type_var]
-
-        if not hasattr(self, "tsc") or self.tsc is None or getattr(self, "tsc_project", None) != self.project:
-            self.tsc = TSCGenerator(
-                project=self.project,
-                endpoint_ids=self.endpoint_ids,
-                tsc_vars=normal_vars,
-                project_coach_types=coach_types_map,
-                tsc_cc_vars=cc_vars
-            )
-            self.tsc_project = self.project
-            self.export_TSC_action.triggered.connect(self.tsc.save_as_png)
-
-        self.scroll_tsc.setWidget(self.tsc)
-
-        # Igual que el antiguo: altura del scroll según contenido
-        try:
-            self.scroll_tsc.setMinimumHeight(320)
-        except Exception:
-            pass
-
-    def hide_tsc_ui(self):
-        # Quita el widget del scroll
-        if hasattr(self, "scroll_tsc"):
-            try:
-                self.scroll_tsc.takeWidget()
-            except Exception:
-                pass
-            self.scroll_tsc.deleteLater()
-            delattr(self, "scroll_tsc")
-
-        # Quita separadores
-        if hasattr(self, "splitter"):
-            self.splitter.deleteLater()
-            delattr(self, "splitter")
-
-        if hasattr(self, "splitter_2"):
-            self.splitter_2.deleteLater()
-            delattr(self, "splitter_2")
-
-        # Quita botones (como el antiguo, que los creaba solo para diagnóstico)
-        if hasattr(self, "trainset_failures_scan"):
-            self.trainset_failures_scan.deleteLater()
-            delattr(self, "trainset_failures_scan")
-
-        if hasattr(self, "reset_failures"):
-            self.reset_failures.deleteLater()
-            delattr(self, "reset_failures")
-
-        # (Opcional) destruye el widget TSC
-        if hasattr(self, "tsc") and self.tsc is not None:
-            try:
-                self.tsc.deleteLater()
-            except Exception:
-                pass
-            self.tsc = None
-
-    def on_connection_status_updated(self, ip, status, coach_type):
-
-        try:
-
-            col=self.valid_ips.index(ip) # Obtener la columna correspondiente a la IP
-            ip_item=self.table.item(0,col) # Obtener el item de la IP en la tabla
-
-            if maintenance_mode == 1: #Si está en modo mantenimiento, pisar el tipo de coche por el predefinido
-                
-                if self.project == "DSB":
-                    coach_type = PREDEFINED_DSB[col]
-                    self.trainset_coaches[col].coach_type = coach_type
-                elif self.project == "DB":
-                    coach_type = PREDEFINED_DB_13[col]
-                    self.trainset_coaches[col].coach_type = coach_type                     
-
-            if str(coach_type).isdigit() and int(coach_type)>0: #Si es un tipo de coche válido, asignar el nombre correspondiente
-
-                if self.project == "DSB":
-                    coach_type_item = QTableWidgetItem(self.TCMS_vars.COACH_TYPES_DSB[int(coach_type)])
-                elif self.project == "DB":
-                    coach_type_item = QTableWidgetItem(self.TCMS_vars.COACH_TYPES_DB[int(coach_type)])
-                elif self.project == "LOK":
-                    coach_type_item = QTableWidgetItem("L9215")
-            
-            else: 
-                coach_type_item = QTableWidgetItem("Not SSH")
-
-            # print(f"Coche: {col+1}, IP: {ip}, Estado: {status}, Tipo de coche: {coach_type}")
-
-            # Asignar color de fondo según el estado de la conexión
-            if status == "success":
-                ip_item.setBackground(QColor(175, 242, 175))
-            elif status == "ping_only":
-                ip_item.setBackground(QColor(214, 163, 0))
-            elif status == "failure":
-                ip_item.setBackground(QColor(255, 131, 131))
-
-            coach_type_item.setTextAlignment(Qt.AlignCenter)
-            
-            # Evitar sobrescribir celda fusionada si es el último coche en proyecto DB
-            if self.project == "DB" and col == len(self.valid_ips) - 1:
-                # Saltar la última IP (VCU_PH), ya está cubierta por la fusión con la anterior
-                pass
-            else:
-                self.table.setItem(1, col, coach_type_item)
-            
-        except Exception:
-            pass
 
     def create_table(self):
         
@@ -4378,158 +4357,6 @@ class MainWindow(QMainWindow):
         ejecutar_comandos([1,1,1,1])
         ejecutar_comandos([0,0,0,0])
         # QTimer.singleShot(RESET_PAUSE, ejecutar_comandos([0,0,0,0]))
-
-    def draw_tsc(self):
-
-        # Crea el separador si no existe
-        if not hasattr(self, 'splitter'):
-            self.splitter = QFrame()
-            self.splitter.setFrameShape(QFrame.HLine)
-            self.splitter.setFrameShadow(QFrame.Sunken)
-            self.layout.addWidget(self.splitter)
-
-        # Inicializa el área de scroll si no existe
-        if not hasattr(self, 'scroll_tsc'):
-            self.scroll_tsc = QScrollArea()
-            self.scroll_tsc.setWidgetResizable(True)
-            self.scroll_tsc.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-            self.scroll_tsc.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-            self.layout.addWidget(self.scroll_tsc)
-
-        # Crea el separador si no existe
-        if not hasattr(self, 'splitter_2'):
-            self.splitter_2 = QFrame()
-            self.splitter_2.setFrameShape(QFrame.HLine)
-            self.splitter_2.setFrameShadow(QFrame.Sunken)
-            self.layout.addWidget(self.splitter_2)
-        
-        if not hasattr(self, 'trainset_failures_scan'):
-            self.trainset_failures_scan = QPushButton("Escanear fallos de composición completa")
-            self.layout.addWidget(self.trainset_failures_scan)
-            self.trainset_failures_scan.clicked.connect(self.trainset_tsc_failures)
-
-        if not hasattr(self, 'reset_failures'):
-            self.reset_failures = QPushButton("Reestablecer fallos a composición")
-            self.layout.addWidget(self.reset_failures)
-            self.reset_failures.clicked.connect(self.reset_TAR_TEMP_failures)
-    
-        # Guarda la posición actual del scroll (si hay contenido previo)
-        h_scroll_position = self.scroll_tsc.horizontalScrollBar().value()
-        v_scroll_position = self.scroll_tsc.verticalScrollBar().value()
-
-        # Ajusta el tamaño de la ventana principal
-        self.setMinimumSize(0, 0)
-        self.setMaximumSize(16777215, 16777215)
-        self.setFixedSize(self.table_width + 21, 520)
-
-        # Regenera el TSCGenerator si el proyecto ha cambiado
-        if not hasattr(self, 'tsc') or self.project != getattr(self, 'tsc_project', None):
-            if self.project == "DSB":
-                self.tsc = TSCGenerator(self.project, self.trainset_coaches, self.TCMS_vars.TSC_COACH_VARS_DSB, self.TCMS_vars.COACH_TYPES_DSB, self.TCMS_vars.TSC_CC_VARS_DB)
-            elif self.project == "DB":
-                self.tsc = TSCGenerator(self.project, self.trainset_coaches, self.TCMS_vars.TSC_COACH_VARS_DB, self.TCMS_vars.COACH_TYPES_DB, self.TCMS_vars.TSC_CC_VARS_DB)
-            self.tsc_project = self.project  # Guarda el proyecto actual
-
-        # Regenera siempre el SVG para reflejar cambios en los datos
-        self.tsc_widget = self.tsc.generate_svg(self.project)
-
-        self.tsc.coach_connection_status.connect(self.on_connection_status_updated)
-
-        # Conecta eventos para el clic y el menú contextual
-        # self.tsc_widget.mousePressEvent = self.on_mouse_click
-
-        # Actualiza el contenido del área de scroll
-        self.scroll_tsc.setWidget(self.tsc_widget)
-
-        # Ajusta la altura del área de scroll según el contenido
-        self.scroll_tsc.setMinimumHeight(self.tsc_widget.sizeHint().height() + 20)
-
-        # Restaura la posición del scroll
-        self.scroll_tsc.horizontalScrollBar().setValue(h_scroll_position)
-        self.scroll_tsc.verticalScrollBar().setValue(v_scroll_position)
-
-        # Habilita la acción de exportación
-        self.export_TSC_action.setEnabled(True)
-        
-    def diagnose_vcu(self, vcu):
-                
-                ip = vcu.ip
-
-                if ip == self.trainset_coaches[-1].ip and self.project == "DB": #La diagnosis para el cabcar es distinta, de ahí este IF.
-                    parts = array_split(self.TCMS_vars.BCU_DIAGNOSIS_CC, 10)  # Divide las variables en 10 partes    
-                    BCU_results_cc = []
-                    for part in parts:
-                        result = vcu.SSH_read(part)  # Ejecuta el diagnóstico
-                        BCU_results_cc.extend(result)
-
-                    if maintenance_mode == 1: 
-                        BCU_results_cc = []
-                        BCU_results_cc=list(map(str,random.choices([0, 1], k=len(self.TCMS_vars.BCU_DIAGNOSIS_CC)))) # Crea una lista de valores aleatorios en formato str
-
-                    # print(BCU_results_cc)
-
-                                        # Identificar errores activos en BCU
-                    active_errors = []
-                    for index, value in enumerate(BCU_results_cc):
-                        if value == '1':  # Error activo
-                            var_name = self.TCMS_vars.BCU_DIAGNOSIS_CC[index]
-                            error_info = self.TCMS_vars.BCU_DIAGNOSIS_DICT.get(var_name.split('.')[-1], {})
-                            error_code = error_info.get("Error Code", "Código no disponible")
-                            description = error_info.get("Description", "Descripción no disponible")
-                            active_errors.append((ip, error_code, description))
-
-                            
-                else: #Para el resto de coches normales
-
-                    TAR_TEMP_results=[]
-                    TAR_TEMP_parts = array_split(self.TCMS_vars.TSC_DIAG_VARS,2)
-                    for TAR_TEMP_part in TAR_TEMP_parts:
-                        TAR_TEMP_result = vcu.SSH_read(TAR_TEMP_part)
-                        TAR_TEMP_results.extend(TAR_TEMP_result)
-
-                    # Seleccionar solo los índices relevantes
-                    relevant_indices = list(range(20, 24)) + list(range(25, 29)) + list(range(31, 55))
-                    filtered_TAR_TEMP_results = [TAR_TEMP_results[i] for i in relevant_indices]
-                    filtered_TSC_DIAG_VARS = [self.TCMS_vars.TSC_DIAG_VARS[i] for i in relevant_indices]
-
-                    parts = array_split(self.TCMS_vars.BCU_DIAGNOSIS, 10)  # Divide las variables en 5 partes
-                    
-                    BCU_results = []
-                    for part in parts:
-                        result = vcu.SSH_read(part)  # Ejecuta el diagnóstico
-                        # print(result)
-                        BCU_results.extend(result)
-                        # print(BCU_results)
-
-                    if maintenance_mode == 1: 
-                        BCU_results = []
-                        TAR_TEMP_results = []
-                        filtered_TAR_TEMP_results = list(map(str,random.choices([0, 1], k=len(filtered_TSC_DIAG_VARS)))) # Crea una lista de valores aleatorios en formato str
-                        BCU_results=list(map(str,random.choices([0, 1], k=len(self.TCMS_vars.BCU_DIAGNOSIS)))) # Crea una lista de valores aleatorios en formato str
-                    
-                    # Identificar errores activos en BCU
-                    active_errors = []
-                    for index, value in enumerate(BCU_results):
-                        if value == '1':  # Error activo
-                            var_name = self.TCMS_vars.BCU_DIAGNOSIS[index]
-                            error_info = self.TCMS_vars.BCU_DIAGNOSIS_DICT.get(var_name.split('.')[-1], {})
-                            error_code = error_info.get("Error Code", "Código no disponible")
-                            description = error_info.get("Description", "Descripción no disponible")
-                            active_errors.append((ip, error_code, description))
-
-                    # Identificar errores activos en TAR_TEMP
-                    for index, value in enumerate(filtered_TAR_TEMP_results):
-                        if value == '1':  # Error activo
-                            var_name = filtered_TSC_DIAG_VARS[index]
-                            active_errors.append((ip, var_name, self.TCMS_vars.filtered_TSC_DIAG_NAMES[index]))
-
-                # Guardar en el diccionario solo si hay errores
-                if active_errors:
-                    self.results_dict[ip] = active_errors
-                else:
-                    self.results_dict[ip] = [("Sin errores activos", "", "")]  # Formato para la tabla
-
-                return ip
 
     def export_to_excel(self, table):
         """Exportar los datos de la tabla a un archivo Excel incluyendo número y tipo de coche.
@@ -4693,132 +4520,6 @@ class MainWindow(QMainWindow):
         except Exception:
             pass
 
-    def trainset_tsc_failures(self):
-
-        # self.timer.stop()
-        self.stop_timer()
-
-        self.results_dict={}
-
-        self.progress_dialog = QDialog()
-        self.progress_dialog.setWindowTitle("Escaneo de errores en progreso")
-        self.progress_dialog.setGeometry(300, 300, 400, 200)
-
-        dialog_layout = QVBoxLayout()
-        self.progress_label = QTextEdit()
-        self.progress_label.setReadOnly(True)   
-        self.progress_label.append("Escaneando fallos a composición, por favor espere...")
-        dialog_layout.addWidget(self.progress_label)
-        self.progress_dialog.setLayout(dialog_layout)
-        self.progress_dialog.show()
-        
-        antes = time.time()
-        # Ejecutar diagnóstico en paralelo con ThreadPoolExecutor
-        with ThreadPoolExecutor(max_workers=len(self.trainset_coaches)) as executor:
-            checked_coaches = 0
-            total = len(self.trainset_coaches)
-            futures = {executor.submit(self.diagnose_vcu, vcu): vcu for vcu in self.trainset_coaches}
-            for future in as_completed(futures):
-                ip = future.result()  # Esperar a que todas las tareas terminen
-                checked_coaches+=1 
-                self.progress_label.append(f"Escaneando.. ({checked_coaches}/{total}) \nCompletado: {ip}")
-                app.processEvents()
-
-        # time.sleep(2)
-
-        despues = time.time()
-
-        delay = despues - antes 
-
-        print("Tarda en leer fallos: ", {delay})
-        self.progress_dialog.accept()
-
-        self.trainset_failures_window = QWidget()
-        self.trainset_failures_window.setWindowTitle("Comprobación de errores de TSC a composición")
-
-        table_layout = QVBoxLayout()
-
-        table = QTableWidget()
-        table.setColumnCount(3)
-        table.setHorizontalHeaderLabels(["IP", "Código de Error", "Descripción"])
-
-        # Crear barra de menú
-        menu_bar = QMenuBar(self.trainset_failures_window)
-        file_menu = QMenu("Archivo", self.trainset_failures_window)
-        export_action = QAction("Exportar a Excel", self.trainset_failures_window)
-        file_menu.addAction(export_action)
-        menu_bar.addMenu(file_menu)
-        export_action.triggered.connect(lambda: self.export_to_excel(table))  # Conectar evento
-
-        # Convertir resultados_dict en una lista de filas para la tabla
-        # Construir table_data en el mismo orden que self.trainset_coaches (orden por coche)
-        table_data = []
-        for coach in self.trainset_coaches:
-            ip = coach.ip
-            # Si no hay entradas para la IP, mostramos "Sin errores activos"
-            errors = self.results_dict.get(ip, [("Sin errores activos", "", "")])
-            table_data.append((ip, None, None))  # Indicador de fila combinada (encabezado por coche/IP)
-            for error in errors:
-                table_data.append(error)
-
-        table.setRowCount(len(table_data))
-        for row_idx, (ip, error_code, description) in enumerate(table_data):
-            if error_code is None and description is None:  # Si la fila es una fila combinada
-                coach_index = next((i for i, coach in enumerate(self.trainset_coaches) if coach.ip == ip), -1)
-
-                # Caso especial para proyecto DB: últimas 2 IPs son el mismo coche
-                if self.project == "DB":
-                    last_idx = len(self.trainset_coaches) - 1
-                    penult_idx = last_idx - 1
-
-                    if coach_index == penult_idx:
-                        label = f"COCHE {coach_index + 1} (VCU_CH) IP: {ip}"
-                    elif coach_index == last_idx:
-                        label = f"COCHE {coach_index} (VCU_PH) IP: {ip}"  # mismo índice que CH
-                    else:
-                        label = f"COCHE {coach_index + 1} (IP: {ip})"
-                else:
-                    label = f"COCHE {coach_index + 1} (IP: {ip})"
-
-                item = QTableWidgetItem(label)
-                item.setTextAlignment(Qt.AlignCenter)
-                item.setBackground(QBrush(QColor(100, 100, 100)))  # Gris oscuro
-                item.setForeground(QBrush(QColor(255, 255, 255)))  # Texto blanco
-                table.setItem(row_idx, 0, item)
-                table.setSpan(row_idx, 0, 1, 3)  # Fusionar las tres columnas
-
-            else:
-                table.setItem(row_idx, 0, QTableWidgetItem(ip))
-                table.setItem(row_idx, 1, QTableWidgetItem(error_code))
-                table.setItem(row_idx, 2, QTableWidgetItem(description))
-
-        # Ajustar el ancho de las columnas al contenido
-        table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
-
-        # Ajustar la altura de las filas al contenido
-        table.resizeRowsToContents()
-
-        # Calcular el ancho total de la tabla
-        total_width = table.verticalHeader().width()  # Ancho del header vertical
-        total_width += table.frameWidth() * 2  # Bordes de la tabla
-
-        for col in range(self.table.columnCount()):
-            total_width += table.columnWidth(col)  # Sumar ancho de cada columna
-
-        if self.table.verticalScrollBar().isVisible():  # Si hay scrollbar, sumarlo
-            total_width += table.verticalScrollBar().width()
-
-        # Ajustar el tamaño de la ventana al ancho total de la tabla
-        self.trainset_failures_window.resize(total_width + 50, 800)  # Altura fija, pero podrías ajustarla también
-
-        table_layout.addWidget(menu_bar)
-        table_layout.addWidget(table)
-       
-        self.trainset_failures_window.setLayout(table_layout)
-        self.trainset_failures_window.show()
-
-        self.timer.start()
- 
     def massive_ping(self):
 
         self.msg = QMessageBox(self)
