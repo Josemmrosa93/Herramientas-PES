@@ -1452,7 +1452,7 @@ class Vars_Warehouse(QObject):
         self._dirty = True
 
     def on_status(self, endpoint_id, online, msg, ts_ms):
-        st = self.state.get(endpoint_id)
+        st = self.tsc_state.get(endpoint_id)
         if st is None:
             return
 
@@ -4050,7 +4050,7 @@ class MainWindow(QMainWindow):
                 snapshot = {
                     "coaches": {
                         eid: {"online": bool(st.get("online", False)), "values": dict(st.get("values", {}) or {})}
-                        for eid, st in self.vars_warehouse.state.items()
+                        for eid, st in self.vars_warehouse.tsc_state.items()
                     }
                 }
                 svg_snapshot = self.build_svg_snapshot(snapshot)
