@@ -1595,7 +1595,7 @@ class ScanThread(QThread):
                 else:
                     cmd = ["ping", "-c", "1", "-W", "1", host]
                 r = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                print(ip, r.returncode == 0)
+                # print(ip, r.returncode == 0)
                 return r.returncode == 0
             except Exception:
                 return False
@@ -1606,10 +1606,12 @@ class ScanThread(QThread):
         total = max(1, len(scan_list))
 
         for i, ip in enumerate(scan_list):
-            if ping(ip):
-                valid_ips.append(ip)
-            if ping(scan_list_vcuch_cc[i]):
+            vcu_norm_ping = ping(ip)
+            vcu_cc_ping = ping(scan_list_vcuch_cc[i])
+            if vcu_norm_ping and vcu_cc_ping:
                 valid_ips.append(scan_list_vcuch_cc[i])
+            elif vcu_norm_ping:
+                valid_ips.append(ip)
 
             progress = ((i + 1) * 100) // total
             coach_number = len(valid_ips)
@@ -1630,7 +1632,7 @@ class TSCGenerator(QSvgWidget):
     - Mantiene los mismos dibujos reutilizando tus helpers actuales.
     """
 
-    def __init__(self, project, endpoint_ids, tsc_vars, project_coach_types, tsc_cc_vars):
+    def __init__(self, project, endpoint_ids, tsc_vars, project_coach_types, tsc_cc_vars, scale_factor = 1.5):
         super().__init__()
 
         self.project = project
@@ -1650,9 +1652,10 @@ class TSCGenerator(QSvgWidget):
         # snapshot actual (lo alimenta vars_warehouse -> build_svg_snapshot)
         self.snapshot = {"coaches": {}}
 
-        # tamaño mínimo inicial
-        self.setMinimumSize(800, 300)
-
+        self.scale_factor = float(scale_factor)
+        self.scaled_tsc_width = int(800 * self.scale_factor)
+        self.scaled_tsc_height = int(300 * self.scale_factor)
+      
     def set_snapshot(self, snapshot: dict):
         self.snapshot = snapshot or {"coaches": {}}
         self.render_from_snapshot()
@@ -1704,15 +1707,18 @@ class TSCGenerator(QSvgWidget):
         if self.cab_pos is not None and cab_online:
             corrected_svg_width += cab_extra
 
-        # Ajusta el mínimo del widget para que el scroll area lo respete
-        self.setMinimumSize(max(800, corrected_svg_width), 300)
-
         svg_root = Element(
             "svg",
             xmlns="http://www.w3.org/2000/svg",
             width=str(corrected_svg_width),
-            height="300"
+            height="300",
+            viewBox = f"0 0 {corrected_svg_width} 300"
         )
+
+        self.setFixedSize(int(corrected_svg_width * self.scale_factor), int(300 * self.scale_factor))
+        self.scaled_tsc_width = int(corrected_svg_width * self.scale_factor)
+        self.scaled_tsc_height = int(300 * self.scale_factor)
+        # print(f"Adjusted SVG width: {corrected_svg_width}, scaled size: {self.scaled_tsc_width}x{self.scaled_tsc_height}")
 
         # Genera cada coche (grupo <g>) y lo traslada en X
         for idx, eid in enumerate(coach_ids):
@@ -3413,10 +3419,14 @@ class TSCGenerator(QSvgWidget):
 class DiagnosticWindow(QMainWindow):
     closed = Signal()
 
-    def __init__(self, title: str, fixed_w: int, fixed_h: int, parent=None):
+    def __init__(self, title: str, fixed_w: int, fixed_h: int, parent=None, scale_factor = 1.0):
         super().__init__(parent)
         self.setWindowTitle(title)
-        self.setFixedSize(int(fixed_w), int(fixed_h))
+        screen = QApplication.primaryScreen()
+        size = screen.size()
+        print(size.width(), size.height())
+        self.setFixedSize(int(min(fixed_w * scale_factor, size.width())), int(fixed_h * scale_factor))
+        # self.setFixedSize(int(fixed_w * scale_factor), int(fixed_h * scale_factor))
 
     def closeEvent(self, event):
         self.closed.emit()
@@ -3425,6 +3435,7 @@ class DiagnosticWindow(QMainWindow):
 class TSCWindow(DiagnosticWindow):
     def __init__(self, *, project, endpoint_ids, tsc_vars, project_coach_types, tsc_cc_vars,
                  fixed_w: int, fixed_h: int, parent=None): #El asterisco indica que los argumentos siguientes deben ser pasados como palabras clave, es decir (project = x, endpoint_ids = y, etc) y no como argumentos posicionales (x, y, etc)
+        
         super().__init__(title="TSC", fixed_w=fixed_w, fixed_h=fixed_h, parent=parent)
 
         central = QWidget()
@@ -3432,9 +3443,9 @@ class TSCWindow(DiagnosticWindow):
         lay.setContentsMargins(6, 6, 6, 6)
 
         self.scroll = QScrollArea()
-        self.scroll.setWidgetResizable(True)
+        self.scroll.setWidgetResizable(False)
         self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-        self.scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
 
         self.tsc = TSCGenerator(
             project=project,
@@ -3448,8 +3459,20 @@ class TSCWindow(DiagnosticWindow):
         lay.addWidget(self.scroll)
         self.setCentralWidget(central)
 
+        screen = QApplication.primaryScreen()
+        self.max_width = screen.availableGeometry().width() - 10  # Deja un margen de 100 píxeles
+        self.max_height = screen.availableGeometry().height() - 50  # Deja un margen de 100 píxeles
+
     def set_snapshot(self, snapshot: dict):
         self.tsc.set_snapshot(snapshot)
+        # print(self.tsc.scaled_tsc_width, self.tsc.scaled_tsc_height)
+        self.setFixedSize(min(self.tsc.scaled_tsc_width, self.max_width), min(self.tsc.scaled_tsc_height + 28, self.max_height))
+
+        screen = QApplication.primaryScreen()
+        max_width = screen.availableGeometry().width()  
+        max_height = screen.availableGeometry().height() 
+    
+        self.move(int((max_width - min(self.tsc.scaled_tsc_width, self.max_width))/2),int((max_height - min(self.tsc.scaled_tsc_height, self.max_height))/2))
 
 class MainWindow(QMainWindow):
     
@@ -3546,6 +3569,10 @@ class MainWindow(QMainWindow):
         self.ping_result_signal.connect(self.update_ping_cell)
 
         self.config = self.load_config()
+
+        # screens = QApplication.screens()
+        # for s in screens:
+        #     print(f"Screen {s.name()}: {s.size().width()}x{s.size().height()}")
 
     def resource_path(self, relative_path):
         base_path = getattr(sys, '_MEIPASS', os.path.dirname(__file__))
@@ -3956,7 +3983,7 @@ class MainWindow(QMainWindow):
                         
         self.project = project_value
     
-        self.max_initial_ips = 20 if self.project == "DB" else 15 if self.project == "DSB" else 1
+        self.max_initial_ips = 9 if self.project == "DB" else 15 if self.project == "DSB" else 1
         
         self.progress_title.setText(f"Escaneando composición: {self.project}")
         self.detected_label.setText(f"Coches detectados: {0 + self.max_initial_ips} de {len(self.ip_data[self.project])} posibles.")
@@ -5094,7 +5121,15 @@ if __name__ == "__main__":
         app.setStyle(QStyleFactory.create("Fusion"))
     else:
         app = QApplication.instance()
+
     window = MainWindow()
+
+    screen = QApplication.primaryScreen()
+    max_width = screen.availableGeometry().width()  
+    max_height = screen.availableGeometry().height() 
+    
+    window.move(int((max_width - window.default_width)/2),int((max_height - window.default_height)/2))
     window.show()
+
     sys.exit(app.exec())
     
