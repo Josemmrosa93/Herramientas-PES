@@ -1262,15 +1262,16 @@ class CoachClient:
         # Último timestamp “bueno” (no Error!)
         self.last_ok_ts_ms: int = 0
 
-    def _flatten_ts_map(self, ts_map: dict) -> tuple[int, dict]: #El guion bajo en el nombre del método es para indicar que es “privado” (convención, no restricción real), es decir, que se usa sólo dentro del método, no es público
-        """
-        readValues devuelve {ts_ms: {var: value}}
-        Nos quedamos con el ts más reciente para devolver (ts_ms, values_dict).
-        """
+    def _flatten_ts_map(self, ts_map: dict) -> tuple[int, dict]:
         if not ts_map:
             return 0, {}
+
         ts_ms = max(ts_map.keys())
-        return ts_ms, ts_map[ts_ms] or {}
+        merged = {}
+        for t in sorted(ts_map.keys()):
+            merged.update(ts_map[t] or {})
+
+        return ts_ms, merged
 
     def _all_read_error(self, values: dict) -> bool: #El guion bajo en el nombre del método es para indicar que es “privado” (convención, no restricción real), es decir, que se usa sólo dentro del método, no es público
         """
@@ -1339,8 +1340,6 @@ class Worker(QObject):
 
         # Desempaquetamos las opciones de diagnóstico habilitados según la configuración. Esto se modificará en función de lo que se quiera mostrar en la UI (checkboxes).
         self.tsc_enabled = diag_enabled.get("TSC")
-        self.tsc_diag_enabled = diag_enabled.get("DIAG_TSC")
-
 
         if self.project == "DSB":
             self.tsc_normal_vars = list(self.tsc_coach_vars_dsb)
@@ -1390,14 +1389,12 @@ class Worker(QObject):
                     self._pending_config = None
 
                     self.tsc_enabled = cfg.get("TSC")
-                    self.tsc_diag_enabled = cfg.get("DIAG_TSC")
                     
-
-                    # print(f"Updated Worker config: TSC_enabled={self.tsc_enabled}, DIAG_TSC_enabled={self.tsc_diag_enabled}")
+                    print(f"Updated Worker config: TSC_enabled={self.tsc_enabled}")
 
                 # ################################# METEMOS UN DIAGNÓSTICO MÍNIMO PARA MANTENER VIVA LA TABLA ###############################
 
-                if self.tsc_enabled or self.tsc_diag_enabled:
+                if self.tsc_enabled:
                     self._at_least_one_read = True
                 else:
                     self._at_least_one_read = False
@@ -1410,9 +1407,12 @@ class Worker(QObject):
                     if not self.is_cc:
                         # print("Reading normal TSC vars:", self.tsc_normal_vars)
                         online, ts_ms, tsc_values = self.client.read_vars(self.tsc_normal_vars, wait_time=self.wait_time)
+                        online, ts_ms, tsc_diag_values = self.client.read_vars(self.tsc_diag_vars + self.bcu_diag_vars, wait_time=self.wait_time) 
+                                                
                     else:
                         # print("Reading CC TSC vars:", self.tsc_cc_vars)                        
                         online, ts_ms, tsc_values = self.client.read_vars(self.tsc_cc_vars, wait_time=self.wait_time)
+                        online, ts_ms, tsc_diag_values = self.client.read_vars(self.bcu_diag_vars_cc, wait_time=self.wait_time) 
 
 
                     if not online:
@@ -1427,30 +1427,31 @@ class Worker(QObject):
 
                 # ################################ LECTURA DIAG_TSC ################################
                 
-                if self.tsc_diag_enabled:
-                    if self.is_cc:
-                        diag_vars_list = list(self.bcu_diag_vars_cc or [])
-                    else:
-                        diag_vars_list = list(self.tsc_diag_vars or []) + list(self.bcu_diag_vars or [])
+                # if self.tsc_diag_enabled:
+                #     if self.is_cc:
+                #         diag_vars_list = list(self.bcu_diag_vars_cc or [])
+                #     else:
+                #         diag_vars_list = list(self.tsc_diag_vars or []) + list(self.bcu_diag_vars or [])
 
-                    online, ts_ms, diag_values = self.client.read_vars(diag_vars_list, wait_time=self.wait_time)
+                #     online, ts_ms, diag_values = self.client.read_vars(diag_vars_list, wait_time=self.wait_time)
 
-                    # Aquí NO suelo machacar status online/offline general si quieres separarlo,
-                    # pero puedes emitir status si te interesa.
+                #     # Aquí NO suelo machacar status online/offline general si quieres separarlo,
+                #     # pero puedes emitir status si te interesa.
 
-                    if ts_ms >= self._last_ts:
-                        reformat_diag_values = {k: self._to_str_value(v) for k, v in (diag_values or {}).items()}
-                        self.on_tsc_diag_data.emit(self.endpoint_id, ts_ms, reformat_diag_values)
+                #     if ts_ms >= self._last_ts:
+                #         reformat_diag_values = {k: self._to_str_value(v) for k, v in (diag_values or {}).items()}
+                #         self.on_tsc_diag_data.emit(self.endpoint_id, ts_ms, reformat_diag_values)
         
 
                 ##################################################################################
 
             except Exception as e:
+                print(f"Error: {e}")
                 self.status.emit(self.endpoint_id, False, f"excepción: {e}", 0)
 
             finally:
                 _elapsed_ms = (time.perf_counter() - _t_0) * 1000
-                # print(f"Worker {self.client.coach_id} is CC ({self.is_cc}) -> tick elapsed time: {_elapsed_ms:.2f} ms")
+                print(f"Worker {self.client.coach_id} is CC ({self.is_cc}) -> tick elapsed time: {_elapsed_ms:.2f} ms")
                 self._busy = False
     
     def _to_str_value(self, v):
@@ -3434,8 +3435,6 @@ class DiagnosticWindow(QMainWindow):
 
 class TSCWindow(DiagnosticWindow):
 
-    diag_tsc_toggled = Signal(bool)
-
     def __init__(self, *, project, endpoint_ids, tsc_vars, project_coach_types, tsc_cc_vars,
                  fixed_w: int, fixed_h: int, parent=None): #El asterisco indica que los argumentos siguientes deben ser pasados como palabras clave, es decir (project = x, endpoint_ids = y, etc) y no como argumentos posicionales (x, y, etc)
         
@@ -3462,7 +3461,7 @@ class TSCWindow(DiagnosticWindow):
 
         self.btn_diag = QPushButton("Mostrar causas de apertura del lazo")
         self.btn_diag.setCheckable(True)
-        self.btn_diag.toggled.connect(self.diag_tsc_toggled.emit)
+
         
         lay.addWidget(self.scroll)
         lay.addWidget(self.btn_diag)
@@ -3530,16 +3529,14 @@ class MainWindow(QMainWindow):
         }
 
         self.diag_enabled = {
-            "TSC": False,
-            "DIAG_TSC": False,
+            "TSC": False
         }
                     
         self.default_width = 800
         self.default_height = 434
 
         self.tsc_window = None
-        self.tsc_diag_window = None
-
+        
         self.setWindowTitle("Herramienta de diagnóstico PES")
         self.setFixedSize(self.default_width, self.default_height)
 
@@ -3994,7 +3991,7 @@ class MainWindow(QMainWindow):
                         
         self.project = project_value
     
-        self.max_initial_ips = 9 if self.project == "DB" else 15 if self.project == "DSB" else 1
+        self.max_initial_ips = 21 if self.project == "DB" else 15 if self.project == "DSB" else 1
         
         self.progress_title.setText(f"Escaneando composición: {self.project}")
         self.detected_label.setText(f"Coches detectados: {0 + self.max_initial_ips} de {len(self.ip_data[self.project])} posibles.")
