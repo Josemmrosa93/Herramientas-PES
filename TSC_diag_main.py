@@ -1556,7 +1556,7 @@ class Vars_Warehouse(QObject):
             return
 
         snapshot = {
-            "coaches": {
+            "tsc": {
                 eid: {"online": bool(st["online"]), "values": dict(st["values"])}
                 for eid, st in self.tsc_state.items()
             },
@@ -1650,14 +1650,14 @@ class TSCGenerator(QSvgWidget):
         self.coach_type_var = self.tsc_vars[-1] if self.tsc_vars else None
 
         # snapshot actual (lo alimenta vars_warehouse -> build_svg_snapshot)
-        self.snapshot = {"coaches": {}}
+        self.snapshot = {"tsc": {}}
 
         self.scale_factor = float(scale_factor)
         self.scaled_tsc_width = int(800 * self.scale_factor)
         self.scaled_tsc_height = int(300 * self.scale_factor)
       
     def set_snapshot(self, snapshot: dict):
-        self.snapshot = snapshot or {"coaches": {}}
+        self.snapshot = snapshot or {"tsc": {}}
         self.render_from_snapshot()
 
     def render_from_snapshot(self):
@@ -1666,7 +1666,7 @@ class TSCGenerator(QSvgWidget):
   
     def generate_svg_from_snapshot(self) -> str:
 
-        coaches_dict = (self.snapshot or {}).get("coaches", {}) or {}
+        coaches_dict = (self.snapshot or {}).get("tsc", {}) or {}
 
         # Orden estable: el orden de endpoint_ids, pero solo los que existan en snapshot
         coach_ids = [eid for eid in self.endpoint_ids if eid in coaches_dict]
@@ -3433,6 +3433,9 @@ class DiagnosticWindow(QMainWindow):
         super().closeEvent(event)
 
 class TSCWindow(DiagnosticWindow):
+
+    diag_tsc_toggled = Signal(bool)
+
     def __init__(self, *, project, endpoint_ids, tsc_vars, project_coach_types, tsc_cc_vars,
                  fixed_w: int, fixed_h: int, parent=None): #El asterisco indica que los argumentos siguientes deben ser pasados como palabras clave, es decir (project = x, endpoint_ids = y, etc) y no como argumentos posicionales (x, y, etc)
         
@@ -3456,7 +3459,14 @@ class TSCWindow(DiagnosticWindow):
         )
 
         self.scroll.setWidget(self.tsc)
+
+        self.btn_diag = QPushButton("Mostrar causas de apertura del lazo")
+        self.btn_diag.setCheckable(True)
+        self.btn_diag.toggled.connect(self.diag_tsc_toggled.emit)
+        
         lay.addWidget(self.scroll)
+        lay.addWidget(self.btn_diag)
+
         self.setCentralWidget(central)
 
         screen = QApplication.primaryScreen()
@@ -3466,7 +3476,7 @@ class TSCWindow(DiagnosticWindow):
     def set_snapshot(self, snapshot: dict):
         self.tsc.set_snapshot(snapshot)
         # print(self.tsc.scaled_tsc_width, self.tsc.scaled_tsc_height)
-        self.setFixedSize(min(self.tsc.scaled_tsc_width, self.max_width), min(self.tsc.scaled_tsc_height + 28, self.max_height))
+        self.setFixedSize(min(self.tsc.scaled_tsc_width, self.max_width), min(self.tsc.scaled_tsc_height + 58, self.max_height))
 
         screen = QApplication.primaryScreen()
         max_width = screen.availableGeometry().width()  
@@ -3528,6 +3538,7 @@ class MainWindow(QMainWindow):
         self.default_height = 434
 
         self.tsc_window = None
+        self.tsc_diag_window = None
 
         self.setWindowTitle("Herramienta de diagnóstico PES")
         self.setFixedSize(self.default_width, self.default_height)
@@ -4096,7 +4107,7 @@ class MainWindow(QMainWindow):
             self.tsc_window.set_snapshot(svg_snapshot)
 
     def update_table_from_snapshot(self, snapshot: dict):
-        coaches = snapshot.get("coaches", {})
+        coaches = snapshot.get("tsc", {})
         type_var = self.TCMS_vars.COACH_TYPE[0]  # incluido en tsc_vars
 
         cab_main_col = len(self.endpoint_ids) - 2 if (self.project == "DB" and len(self.endpoint_ids) >= 2) else None
@@ -4150,11 +4161,11 @@ class MainWindow(QMainWindow):
     def build_svg_snapshot(self, endpoint_snapshot: dict) -> dict:
 
         # print("Construyendo snapshot para SVG a partir de:", endpoint_snapshot["coaches"]["EP1"])
-        ep = endpoint_snapshot.get("coaches", {})
+        ep = endpoint_snapshot.get("tsc", {})
 
         # Si no es DB o no hay doble IP, no hacemos merge
         if self.project != "DB" or len(self.endpoint_ids) < 2:
-            return {"coaches": ep}
+            return {"tsc": ep}
 
         cab_main_col = len(self.endpoint_ids) - 2
         cab_cc_col   = len(self.endpoint_ids) - 1
@@ -4183,7 +4194,7 @@ class MainWindow(QMainWindow):
         merged_online = bool(main.get("online", False)) and bool(cc.get("online", False))
 
         out[eid_main] = {"online": merged_online, "values": merged}
-        return {"coaches": out}
+        return {"tsc": out}
 
     def on_toggle_tsc(self, checked: bool):
         if checked:
@@ -4228,7 +4239,7 @@ class MainWindow(QMainWindow):
             # Render inmediato (sin esperar al siguiente snapshot)
             if self.vars_warehouse is not None:
                 snapshot = {
-                    "coaches": {
+                    "tsc": {
                         eid: {"online": bool(st.get("online", False)), "values": dict(st.get("values", {}) or {})}
                         for eid, st in self.vars_warehouse.tsc_state.items()
                     }
