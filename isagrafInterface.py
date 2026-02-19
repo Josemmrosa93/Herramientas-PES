@@ -593,6 +593,12 @@ class isagrafInterface():
                 variableMap = []
 
             batch_result = self.__readFromInterface(req_batch, wait_time)
+
+            if not self.__connected and len(variableMap) > 0:
+                for var in variableMap:
+                    batch_result[var] = isagrafInterface.READ_ERROR
+                variableMap = []
+
             update_time = int(time.time_ns() / 1000000)
             if batch_result:
                 if update_time not in results:

@@ -12,15 +12,12 @@ from PySide6.QtWidgets import (
     QFileDialog,
     QMessageBox,
     QScrollArea,
-    QFrame,
     QFormLayout,
     QPushButton,
     QDialog,
     QTextEdit,
-    QMenuBar,
     QMenu,
     QStyleFactory,
-    QInputDialog,
     QSplitter,
     QListWidget, 
     QStackedWidget,
@@ -28,6 +25,8 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QCheckBox,
     QSpinBox,
+    QAbstractItemView,
+    QHeaderView
 )
 from PySide6.QtGui import (
     QAction,
@@ -238,6 +237,40 @@ class TCMS_vars:
         ]
         #VARIABLES PARA LA DIAGNÓSIS DE APERTURA (TEMPERATURA DE RODAMIENTOS, TAR Y DIAGNÓSIS DE FRENO)
         self.TSC_DIAG_VARS = [
+        'RIOMSC1_MVB1_DS_2E8.InstabUnavail', #INDISPONIBILIDAD DE TAR
+        'RIOMSC1r_MVB2_DS_2E8.InstabUnavail',
+        'RIOMSC2_MVB1_DS_2FC.InstabUnavail',
+        'RIOMSC2r_MVB2_DS_2FC.InstabUnavail',
+        'RIOMSC1_MVB1_DS_2E8.SpeedUnav', #INDISPONIBILIDAD DE SENSORES DE RUEDA
+        'RIOMSC1r_MVB2_DS_2E8.SpeedUnav',
+        'RIOMSC2_MVB1_DS_2FC.SpeedUnav',
+        'RIOMSC2r_MVB2_DS_2FC.SpeedUnav',
+        'RIOMSC1_MVB1_DS_2E8.TempUnavailBear1', #INDISPONIBILIDAD DE TEMPERATURA DE RODAMIENTOS
+        'RIOMSC1r_MVB2_DS_2E8.TempUnavailBear1',
+        'RIOMSC1_MVB1_DS_2E8.TempUnavailBear2',
+        'RIOMSC1r_MVB2_DS_2E8.TempUnavailBear2',
+        'RIOMSC1_MVB1_DS_2E8.TempUnavailBear3',
+        'RIOMSC1r_MVB2_DS_2E8.TempUnavailBear3',
+        'RIOMSC1_MVB1_DS_2E8.TempUnavailBear4',
+        'RIOMSC1r_MVB2_DS_2E8.TempUnavailBear4',
+        'RIOMSC2_MVB1_DS_2FC.TempUnavailBear1',
+        'RIOMSC2r_MVB2_DS_2FC.TempUnavailBear1',
+        'RIOMSC2_MVB1_DS_2FC.TempUnavailBear2',
+        'RIOMSC2r_MVB2_DS_2FC.TempUnavailBear2',
+        'RIOMSC2_MVB1_DS_2FC.TempUnavailBear3',
+        'RIOMSC2r_MVB2_DS_2FC.TempUnavailBear3',
+        'RIOMSC2_MVB1_DS_2FC.TempUnavailBear4',
+        'RIOMSC2r_MVB2_DS_2FC.TempUnavailBear4',
+        'RIOMSC1_MVB1_DS_2E8.RiomFailureHSA1', #FALLA TARJETA HSA RIOM 1
+        'RIOMSC1r_MVB2_DS_2E8.RiomFailureHSA1', #FALLA TARJETA HSA RIOM 1r
+        'RIOMSC2_MVB1_DS_2FC.RiomFailureHSA1', #FALLA TARJETA HSA RIOM 2
+        'RIOMSC2r_MVB2_DS_2FC.RiomFailureHSA1', #FALLA TARJETA HSA RIOM 2r
+        'RIOMSC1_MVB1_DS_2E9.RiomFailureDIO', #FALLA TARJETA DIO RIOM 1
+        'RIOMSC1r_MVB2_DS_2E9.RiomFailureDIO', #FALLA TARJETA DIO RIOM 1r
+        'RIOMSC2_MVB1_DS_2FD.RiomFailureDIO', #FALLA TARJETA DIO RIOM 2
+        'RIOMSC2r_MVB2_DS_2FD.RiomFailureDIO', #FALLA TARJETA DIO RIOM 2r
+        ]
+        self.TSC_DIAG_VARS_OLD = [
         'RIOMSC1_MVB1_DS_2E8.AvTempBear1', #TEMPERATURA 1
         'RIOMSC1r_MVB2_DS_2E8.AvTempBear1',
         'RIOMSC1_MVB1_DS_2E8.AvTempBear2',
@@ -1390,7 +1423,7 @@ class Worker(QObject):
 
                     self.tsc_enabled = cfg.get("TSC")
                     
-                    print(f"Updated Worker config: TSC_enabled={self.tsc_enabled}")
+                    # print(f"Updated Worker config: TSC_enabled={self.tsc_enabled}")
 
                 # ################################# METEMOS UN DIAGNÓSTICO MÍNIMO PARA MANTENER VIVA LA TABLA ###############################
 
@@ -1424,24 +1457,8 @@ class Worker(QObject):
                             self._last_ts = ts_ms
                             reformat_tsc_values = {k: self._to_str_value(v) for k, v in (tsc_values or {}).items()}
                             self.on_tsc_data.emit(self.endpoint_id, ts_ms, reformat_tsc_values)
-
-                # ################################ LECTURA DIAG_TSC ################################
-                
-                # if self.tsc_diag_enabled:
-                #     if self.is_cc:
-                #         diag_vars_list = list(self.bcu_diag_vars_cc or [])
-                #     else:
-                #         diag_vars_list = list(self.tsc_diag_vars or []) + list(self.bcu_diag_vars or [])
-
-                #     online, ts_ms, diag_values = self.client.read_vars(diag_vars_list, wait_time=self.wait_time)
-
-                #     # Aquí NO suelo machacar status online/offline general si quieres separarlo,
-                #     # pero puedes emitir status si te interesa.
-
-                #     if ts_ms >= self._last_ts:
-                #         reformat_diag_values = {k: self._to_str_value(v) for k, v in (diag_values or {}).items()}
-                #         self.on_tsc_diag_data.emit(self.endpoint_id, ts_ms, reformat_diag_values)
-        
+                            reformat_diag_values = {k: self._to_str_value(v) for k, v in (tsc_diag_values or {}).items()}
+                            self.on_tsc_diag_data.emit(self.endpoint_id, ts_ms, reformat_diag_values)
 
                 ##################################################################################
 
@@ -1566,6 +1583,7 @@ class Vars_Warehouse(QObject):
                 for eid, st in self.tsc_diag_state.items()
             }
         }
+        
         self._dirty = False
         self.snapshotUpdated.emit(snapshot)
 
@@ -1858,10 +1876,9 @@ class TSCGenerator(QSvgWidget):
                                     s700, s701, s702, s703, s704,
                                     k700, k701, k710, k711, k708, k709, k731, k732, k740, k741,
                                     s25, s25_r, k753, fr_riom_sc1, fr_riom_sc1r) 
+            
             else:
-                coach = self.normal_coach(label, index, k801, k800, k802, k804,
-                                        s60, s60_r, s62, s62_r, s256, s256_r,
-                                        self.pmr_pos, fr_riom_sc1, fr_riom_sc1r)
+                return self.offline_coach(coach_id, index), False
 
             return coach, True
 
@@ -3425,9 +3442,7 @@ class DiagnosticWindow(QMainWindow):
         self.setWindowTitle(title)
         screen = QApplication.primaryScreen()
         size = screen.size()
-        print(size.width(), size.height())
         self.setFixedSize(int(min(fixed_w * scale_factor, size.width())), int(fixed_h * scale_factor))
-        # self.setFixedSize(int(fixed_w * scale_factor), int(fixed_h * scale_factor))
 
     def closeEvent(self, event):
         self.closed.emit()
@@ -3457,12 +3472,14 @@ class TSCWindow(DiagnosticWindow):
             tsc_cc_vars=tsc_cc_vars,
         )
 
+        self.TSC_Diag_window = TSC_Diag_Window(project=project, endpoint_ids=endpoint_ids, project_coach_types=project_coach_types,fixed_w=800, fixed_h=400)
+
         self.scroll.setWidget(self.tsc)
 
         self.btn_diag = QPushButton("Mostrar causas de apertura del lazo")
         self.btn_diag.setCheckable(True)
+        self.btn_diag.toggled.connect(self.TSC_Diag_window._on_toggled)
 
-        
         lay.addWidget(self.scroll)
         lay.addWidget(self.btn_diag)
 
@@ -3474,14 +3491,161 @@ class TSCWindow(DiagnosticWindow):
 
     def set_snapshot(self, snapshot: dict):
         self.tsc.set_snapshot(snapshot)
-        # print(self.tsc.scaled_tsc_width, self.tsc.scaled_tsc_height)
         self.setFixedSize(min(self.tsc.scaled_tsc_width, self.max_width), min(self.tsc.scaled_tsc_height + 58, self.max_height))
 
-        screen = QApplication.primaryScreen()
-        max_width = screen.availableGeometry().width()  
-        max_height = screen.availableGeometry().height() 
-    
-        self.move(int((max_width - min(self.tsc.scaled_tsc_width, self.max_width))/2),int((max_height - min(self.tsc.scaled_tsc_height, self.max_height))/2))
+class TSC_Diag_Window(DiagnosticWindow):
+
+    def __init__(self, *, project, endpoint_ids, project_coach_types,
+                 fixed_w: int, fixed_h: int, parent=None):
+
+        self.project = project
+        self.endpoint_ids = endpoint_ids
+        self.project_coach_types = project_coach_types
+
+        super().__init__(
+            title="Causas de apertura de lazo de emergencia",
+            fixed_w=fixed_w,
+            fixed_h=fixed_h,
+            parent=parent
+        )
+
+        # ---- TCMS Vars / diccionarios ----
+        self._tcms = TCMS_vars()
+
+        # TSC_DIAG_VARS contiene SOLO las 32 flags
+        # y coinciden en orden con filtered_TSC_DIAG_NAMES
+        self._tsc_var_to_desc = dict(zip(
+            self._tcms.TSC_DIAG_VARS,
+            self._tcms.filtered_TSC_DIAG_NAMES
+        ))
+
+        # Dict BCU: keys SOLO desde el '.' en adelante
+        self._bcu_diag_dict = getattr(self._tcms, "BCU_DIAGNOSIS_DICT", {})
+
+        # ---- UI tabla ----
+        self.table = QTableWidget(80, 4, self)
+        self.table.setHorizontalHeaderLabels([
+            "Coche",
+            "IP",
+            "Código de error",
+            "Descripción"
+        ])
+
+        central = QWidget()
+        self.layout = QVBoxLayout(central)
+        self.layout.setContentsMargins(10, 10, 10, 10)
+        self.layout.setSpacing(8)
+
+        self.table.setAlternatingRowColors(True)
+        self.table.setSortingEnabled(True)
+        self.table.setShowGrid(True)
+        self.table.setWordWrap(False)
+        self.table.verticalHeader().setVisible(False)
+        self.table.setFocusPolicy(Qt.StrongFocus)
+
+        vh = self.table.verticalHeader()
+        vh.setDefaultSectionSize(26)
+
+        hh = self.table.horizontalHeader()
+        hh.setStretchLastSection(False)
+        hh.setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        hh.setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        hh.setSectionResizeMode(1, QHeaderView.ResizeToContents)
+        hh.setSectionResizeMode(2, QHeaderView.ResizeToContents)
+        hh.setSectionResizeMode(3, QHeaderView.Stretch)
+
+        self.layout.addWidget(self.table)
+        self.setCentralWidget(central)
+
+    def _on_toggled(self, checked):
+        
+        if checked:
+            self.show()
+            self.raise_()
+            self.activateWindow()
+            screen = QApplication.primaryScreen()
+            max_width = screen.availableGeometry().width()  
+            max_height = screen.availableGeometry().height() 
+            self.move(int((max_width - min(self.size().width(), max_width))/2),int((max_height - min(self.size().height(), max_height))/2))
+        else:
+            self.close()
+
+    def set_snapshot(self, snapshot: dict):
+
+            coach_types_by_endpoint = {}
+            for endpoint_id, data in snapshot.get("tsc", {}).items():
+                vals = (data or {}).get("values") or {}
+                coach_types_by_endpoint[endpoint_id] = vals.get(
+                    "oVCUCH_TRDP_DS_A000.COM_Vehicle_Type"
+                )
+
+            if self.project == "DB" and len(self.endpoint_ids) >= 2:
+                last = self.endpoint_ids[-1]
+                prev = self.endpoint_ids[-2]
+                coach_types_by_endpoint[last] = coach_types_by_endpoint.get(prev)
+
+            rows = []
+
+            for endpoint_id, data in snapshot.get("tsc_diag", {}).items():
+                diag_vals = (data or {}).get("values") or {}
+
+                try:
+                    coach_idx = self.endpoint_ids.index(endpoint_id) + 1
+                except ValueError:
+                    coach_idx = "?"
+
+                coach_type = coach_types_by_endpoint.get(endpoint_id)
+                coach_type_str = ""
+                try:
+                    if coach_type is not None:
+                        coach_type_str = self.project_coach_types.get(
+                            int(float(coach_type)), str(coach_type)
+                        )
+                except Exception:
+                    coach_type_str = str(coach_type) if coach_type is not None else ""
+
+                coach_label = f"{coach_idx}"
+                if coach_type_str:
+                    coach_label += f" ({coach_type_str})"
+
+                for var_full, value in diag_vals.items():
+                    if value != "1":
+                        continue
+
+                    var_short = var_full.split(".")[-1]
+
+                    bcu_hit = self._bcu_diag_dict.get(var_short)
+                    if bcu_hit:
+                        code = bcu_hit.get("Error Code", var_short)
+                        desc = bcu_hit.get("Description", "")
+                        rows.append((coach_label, endpoint_id, code, desc))
+                        continue
+
+                    if var_full in self._tsc_var_to_desc:
+                        code = var_short
+                        desc = self._tsc_var_to_desc[var_full]
+                        rows.append((coach_label, endpoint_id, code, desc))
+
+            self.table.setSortingEnabled(False)
+            self.table.clearContents()
+
+            if not rows:
+                self.table.setRowCount(1)
+                self.table.setItem(0, 0, QTableWidgetItem("-"))
+                self.table.setItem(0, 1, QTableWidgetItem("-"))
+                self.table.setItem(0, 2, QTableWidgetItem("-"))
+                self.table.setItem(0, 3, QTableWidgetItem(
+                    "Sin causas activas (ningún diagnóstico = 1)"
+                ))
+            else:
+                self.table.setRowCount(len(rows))
+                for r, (coach_label, ip, code, desc) in enumerate(rows):
+                    self.table.setItem(r, 0, QTableWidgetItem(str(coach_label)))
+                    self.table.setItem(r, 1, QTableWidgetItem(str(ip)))
+                    self.table.setItem(r, 2, QTableWidgetItem(str(code)))
+                    self.table.setItem(r, 3, QTableWidgetItem(str(desc)))
+
+            self.table.setSortingEnabled(True)
 
 class MainWindow(QMainWindow):
     
@@ -4029,6 +4193,16 @@ class MainWindow(QMainWindow):
         self.check_TSC_action.setEnabled(True)
         self.massive_ping_action.setEnabled(True)
 
+        screen = QApplication.primaryScreen()
+        
+        max_width = screen.availableGeometry().width()  
+        max_height = screen.availableGeometry().height() 
+
+        window_width = window.size().width()
+        window_height = window.size().height()
+    
+        self.move(int((max_width - min(window_width, max_width))/2),200)
+
         # arrancar polling selectivo (opción 2)
         self.start_vars_polling_selective()
 
@@ -4088,6 +4262,7 @@ class MainWindow(QMainWindow):
 
             self.diagnosis_config_signal.connect(w._update_config)
             w.on_tsc_data.connect(self.vars_warehouse.on_tsc_data)
+            w.on_tsc_diag_data.connect(self.vars_warehouse.on_tsc_diag_data)
             w.status.connect(self.vars_warehouse.on_status)
 
             self.vars_threads[eid] = th
@@ -4102,6 +4277,7 @@ class MainWindow(QMainWindow):
         if self.check_TSC_action.isChecked() and self.tsc_window is not None:
             svg_snapshot = self.build_svg_snapshot(snapshot)
             self.tsc_window.set_snapshot(svg_snapshot)
+            self.tsc_window.TSC_Diag_window.set_snapshot(svg_snapshot)
 
     def update_table_from_snapshot(self, snapshot: dict):
         coaches = snapshot.get("tsc", {})
@@ -4144,9 +4320,9 @@ class MainWindow(QMainWindow):
             if txt.isdigit():
                 n = int(txt)
                 if self.project == "DSB":
-                    txt = self.TCMS_vars.COACH_TYPES_DSB.get(n, txt)
+                    txt = self.TCMS_vars.COACH_TYPES_DSB.get(n, "Not Valid")
                 else:
-                    txt = self.TCMS_vars.COACH_TYPES_DB.get(n, txt)
+                    txt = self.TCMS_vars.COACH_TYPES_DB.get(n, "Not Valid")
                     
             type_item = self.table.item(1, col)
             if type_item is None:
@@ -4244,8 +4420,15 @@ class MainWindow(QMainWindow):
                 svg_snapshot = self.build_svg_snapshot(snapshot)
                 self.tsc_window.set_snapshot(svg_snapshot)
 
-            if hasattr(self, "export_TSC_action") and self.export_TSC_action is not None:
-                self.export_TSC_action.setEnabled(True)
+            screen = QApplication.primaryScreen()
+            max_width = screen.availableGeometry().width()  
+            max_height = screen.availableGeometry().height() 
+
+            window_size = self.tsc_window.size()
+            self.tsc_window.move(int((max_width - min(window_size.width(), max_width))/2),int((max_height - min(window_size.height(), max_height))/2))
+
+            # if hasattr(self, "export_TSC_action") and self.export_TSC_action is not None:
+            #     self.export_TSC_action.setEnabled(True)
 
         else:
             self.diag_enabled["TSC"] = False
