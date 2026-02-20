@@ -736,8 +736,8 @@ class TCMS_vars:
         'BCUCH2_MVB1_DS_311.sDiagnosis23_b2',
         'BCUCH1_MVB2_DS_30F.bDIMGA_S0',
         'BCUCH2_MVB1_DS_30F.bDIMGA_S0',
-        'BCUCH1_MVB2_DS_30F.bDIBA_S2_NOK',
-        'BCUCH2_MVB1_DS_30F.bDIBA_S2_NOK'
+        'BCUCH1_MVB2_DS_30F.bDIBA_Train_S2_NOK',
+        'BCUCH2_MVB1_DS_30F.bDIBA_Train_S2_NOK'
         ]
         self.BCU_DIAGNOSIS_CC = [
         'BCUB90_MVB1_DS_614.sDiagnosis01_b1',
@@ -936,6 +936,24 @@ class TCMS_vars:
         'BCUB95_MVB2_DS_614.sDiagnosis23_b2',
         'BCUB90_MVB1_DS_612.bDIBA_S2_NOK',
         'BCUB95_MVB2_DS_612.bDIBA_S2_NOK',
+        'BCU_MVB2_DS_30D.bDIBA_Train_S2',
+        'BCU_MVB2_DS_30D.bDIMGA_Train_S2',
+        'BCU_MVB2_DS_30D.bDNRA_Notlocked',
+        'BCU_MVB2_DS_30D.bDIMGA',
+        'BCU_MVB2_DS_30D.bPBA_Speed',
+        'BCUCH2_MVB1_DS_30F.bDIMGA_NOK',
+        'BCUCH2_MVB1_DS_30F.bPBA_Speed_NOK',
+        'BCUCH2_MVB1_DS_30F.bDIBA_Train_S2_NOK',
+        'BCUCH1_MVB2_DS_30F.bDIBA_Train_S2_NOK',
+        'BCUCH1_MVB2_DS_30F.bPBA_Speed_NOK',
+        'BCUCH1_MVB2_DS_30F.bDIMGA_NOK',
+        'BCU_MVB1_DS_06E.bDIBA_Train_S2',
+        'BCU_MVB1_DS_06E.bDIMGA_Train_S2',
+        'BCU_MVB1_DS_06E.bDNRA_Notlocked',
+        'BCUCH1_MVB2_DS_310.bDNRA_OK',
+        'BCUCH2_MVB1_DS_310.bDNRA_OK',
+        'BCU_MVB1_DS_06E.bDIMGA',
+        'BCU_MVB1_DS_06E.bPBA_Speed',
     ]
         #DICCIONARIO PARA INTERPRETAR LA DIAGNÓSIS
         self.BCU_DIAGNOSIS_DICT = {
@@ -1111,6 +1129,16 @@ class TCMS_vars:
         'sDiagnosis23_b0': {'Error Code': 'DIA_ContEBO_SigON', 'Description': 'Error while activating the continous EBO signal'},
         'sDiagnosis23_b1': {'Error Code': 'DIA_ContEBO_SigOFF', 'Description': 'Error while deactivating the continous EBO signal'},
         'sDiagnosis23_b2': {'Error Code': 'DIA_ContEBO_Train_OFF', 'Description': 'EBO according UIC 541-6 disabled but a signal has been detected on the EBO train line'},
+        'bDIBA_S2_NOK': {'Error Code': 'DIBA_S2_NOK', 'Description': 'Function DIBA_Train not available.'},
+        'bDIBA_Train_S2': {'Error Code': 'DIBA_Train_S2', 'Description': 'Improperly Brake Applied detected in any train wheelsets (only in Loco and extreme cars)'},
+        'bDIMGA_Train_S2': {'Error Code': 'DIMGA_Train_S2', 'Description': 'Improperly MG brake Applied detected in any train car (only Loco and extreme cars)'},
+        'bDNRA_Notlocked': {'Error Code': 'DNRA_Notlocked', 'Description': 'NRA detected (locked) in any wheelset in loco/car (Loco and all cars except PMR)'},
+        'bDIMGA': {'Error Code': 'DIMGA', 'Description': 'Improperly MTB applied'},
+        'bPBA_Speed': {'Error Code': 'PBA_Speed', 'Description': 'Parking Applied with Speed > 5 kmh'},
+        'bDIMGA_NOK': {'Error Code': 'DIMGA_NOK', 'Description': 'Function DIMGA not available'},
+        'bPBA_Speed_NOK': {'Error Code': 'PBA_Speed_NOK', 'Description': 'Function PBA_Speed not available'},
+        'bDIBA_Train_S2_NOK': {'Error Code': 'DIBA_Train_S2_NOK', 'Description': 'Function DIBA_Train not available'},
+        'bDNRA_OK': {'Error Code': 'DNRA_OK', 'Description': 'Function DNRA available'},
         'DIA_BOARD_EB02B_07': {'Variable': 'sDiagnosis01_b0', 'Description': 'Malfunction Board EB02B Node 07 in BCU B9x '},
         'DIA_BOARDCODING_EB02B_07': {'Variable': 'sDiagnosis01_b1', 'Description': 'The board coding is not correct: either the mode or the node information coded does not comply with the expected codification for the board'},
         'DIA_CAN_COMM_EB02B_07': {'Variable': 'sDiagnosis01_b2', 'Description': 'Internal CAN Communications error'},
@@ -1468,7 +1496,7 @@ class Worker(QObject):
 
             finally:
                 _elapsed_ms = (time.perf_counter() - _t_0) * 1000
-                print(f"Worker {self.client.coach_id} is CC ({self.is_cc}) -> tick elapsed time: {_elapsed_ms:.2f} ms")
+                # print(f"Worker {self.client.coach_id} is CC ({self.is_cc}) -> tick elapsed time: {_elapsed_ms:.2f} ms")
                 self._busy = False
     
     def _to_str_value(self, v):
@@ -1583,7 +1611,7 @@ class Vars_Warehouse(QObject):
                 for eid, st in self.tsc_diag_state.items()
             }
         }
-        
+        # print(f"EP9: {snapshot.get("tsc").get("EP9")}")
         self._dirty = False
         self.snapshotUpdated.emit(snapshot)
 
@@ -1651,7 +1679,7 @@ class TSCGenerator(QSvgWidget):
     - Mantiene los mismos dibujos reutilizando tus helpers actuales.
     """
 
-    def __init__(self, project, endpoint_ids, tsc_vars, project_coach_types, tsc_cc_vars, scale_factor = 1.5):
+    def __init__(self, project, endpoint_ids, tsc_vars, project_coach_types, tsc_cc_vars, scale_factor = 1.25):
         super().__init__()
 
         self.project = project
@@ -1809,12 +1837,12 @@ class TSCGenerator(QSvgWidget):
             fr_riom_sc2  = g(tsc_data, 18)
             fr_riom_sc2r = g(tsc_data, 19)
 
-            s60_b1    = g(tsc_data, 25)
-            s60_r_b1  = g(tsc_data, 26)
-            s62_b1    = g(tsc_data, 27)
-            s62_r_b1  = g(tsc_data, 28)
-            s256_b1   = g(tsc_data, 29)
-            s256_r_b1 = g(tsc_data, 30)
+            s60_b1    = g(tsc_data, 20)
+            s60_r_b1  = g(tsc_data, 21)
+            s62_b1    = g(tsc_data, 22)
+            s62_r_b1  = g(tsc_data, 23)
+            s256_b1   = g(tsc_data, 24)
+            s256_r_b1 = g(tsc_data, 25)
 
             if coach_type == '11':
                 coach = self.end_coach(label, index, k801, k800, k802, k804,
@@ -2953,6 +2981,10 @@ class TSCGenerator(QSvgWidget):
         else:
             SubElement(coach, "text", x="67", y="188",**{"text-anchor": "right","font-style": "italic","font-size": "9", "fill": "red"}).text = "Activo"
 
+        print(s60_b1, s60_r_b1)
+        print(s62_b1, s62_r_b1)
+        print(s256_b1, s256_r_b1)
+
         if s60_b1 != s60_r_b1:
             SubElement(coach, "text", x="97", y="176",**{"text-anchor": "right","font-style": "italic","font-size": "9", "fill": "yellow"}).text = "Error"
         elif s60_b1 == "0":
@@ -3548,7 +3580,7 @@ class TSC_Diag_Window(DiagnosticWindow):
 
         hh = self.table.horizontalHeader()
         hh.setStretchLastSection(False)
-        hh.setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        hh.setDefaultAlignment(Qt.AlignCenter | Qt.AlignVCenter)
         hh.setSectionResizeMode(0, QHeaderView.ResizeToContents)
         hh.setSectionResizeMode(1, QHeaderView.ResizeToContents)
         hh.setSectionResizeMode(2, QHeaderView.ResizeToContents)
@@ -3556,6 +3588,8 @@ class TSC_Diag_Window(DiagnosticWindow):
 
         self.layout.addWidget(self.table)
         self.setCentralWidget(central)
+
+        self.inverted_diagnostic_vars = ['bDNRA_OK']
 
     def _on_toggled(self, checked):
         
@@ -3571,7 +3605,7 @@ class TSC_Diag_Window(DiagnosticWindow):
             self.close()
 
     def set_snapshot(self, snapshot: dict):
-
+            
             coach_types_by_endpoint = {}
             for endpoint_id, data in snapshot.get("tsc", {}).items():
                 vals = (data or {}).get("values") or {}
@@ -3586,9 +3620,10 @@ class TSC_Diag_Window(DiagnosticWindow):
 
             rows = []
 
+
             for endpoint_id, data in snapshot.get("tsc_diag", {}).items():
                 diag_vals = (data or {}).get("values") or {}
-
+                 
                 try:
                     coach_idx = self.endpoint_ids.index(endpoint_id) + 1
                 except ValueError:
@@ -3617,13 +3652,15 @@ class TSC_Diag_Window(DiagnosticWindow):
                     bcu_hit = self._bcu_diag_dict.get(var_short)
                     if bcu_hit:
                         code = bcu_hit.get("Error Code", var_short)
-                        desc = bcu_hit.get("Description", "")
-                        rows.append((coach_label, endpoint_id, code, desc))
-                        continue
-
-                    if var_full in self._tsc_var_to_desc:
+                        desc = bcu_hit.get("Description", "Descripción no disponible")
+                    elif var_full in self._tsc_var_to_desc:
                         code = var_short
                         desc = self._tsc_var_to_desc[var_full]
+                    else:
+                        code = var_short
+                        desc = "Descripción no disponible"
+
+                    if not var_short in self.inverted_diagnostic_vars:
                         rows.append((coach_label, endpoint_id, code, desc))
 
             self.table.setSortingEnabled(False)
@@ -3635,12 +3672,14 @@ class TSC_Diag_Window(DiagnosticWindow):
                 self.table.setItem(0, 1, QTableWidgetItem("-"))
                 self.table.setItem(0, 2, QTableWidgetItem("-"))
                 self.table.setItem(0, 3, QTableWidgetItem(
-                    "Sin causas activas (ningún diagnóstico = 1)"
+                    "Sin causas activas (TREN DISPUESTO)"
                 ))
             else:
                 self.table.setRowCount(len(rows))
                 for r, (coach_label, ip, code, desc) in enumerate(rows):
-                    self.table.setItem(r, 0, QTableWidgetItem(str(coach_label)))
+                    item_coach = QTableWidgetItem(str(coach_label))
+                    item_coach.setData(Qt.UserRole, int(coach_idx))
+                    self.table.setItem(r, 0, item_coach)
                     self.table.setItem(r, 1, QTableWidgetItem(str(ip)))
                     self.table.setItem(r, 2, QTableWidgetItem(str(code)))
                     self.table.setItem(r, 3, QTableWidgetItem(str(desc)))
@@ -4155,7 +4194,7 @@ class MainWindow(QMainWindow):
                         
         self.project = project_value
     
-        self.max_initial_ips = 21 if self.project == "DB" else 15 if self.project == "DSB" else 1
+        self.max_initial_ips = 13 if self.project == "DB" else 15 if self.project == "DSB" else 1
         
         self.progress_title.setText(f"Escaneando composición: {self.project}")
         self.detected_label.setText(f"Coches detectados: {0 + self.max_initial_ips} de {len(self.ip_data[self.project])} posibles.")
@@ -4270,6 +4309,7 @@ class MainWindow(QMainWindow):
             th.start()
 
     def on_vars_snapshot(self, snapshot: dict):
+
         # 1) tabla siempre
         self.update_table_from_snapshot(snapshot)
 
@@ -4277,7 +4317,7 @@ class MainWindow(QMainWindow):
         if self.check_TSC_action.isChecked() and self.tsc_window is not None:
             svg_snapshot = self.build_svg_snapshot(snapshot)
             self.tsc_window.set_snapshot(svg_snapshot)
-            self.tsc_window.TSC_Diag_window.set_snapshot(svg_snapshot)
+            self.tsc_window.TSC_Diag_window.set_snapshot(snapshot)
 
     def update_table_from_snapshot(self, snapshot: dict):
         coaches = snapshot.get("tsc", {})
