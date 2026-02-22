@@ -46,7 +46,8 @@ from PySide6.QtCore import (
     Signal,
     QTimer,
     QPoint,
-    QObject
+    QObject,
+    QRectF
 )
 from xml.etree.ElementTree import ( 
     Element,
@@ -1593,8 +1594,12 @@ class Vars_Warehouse(QObject):
         st = self.tsc_diag_state.get(endpoint_id)
         if st is None:
             return
+        
+        if st["online"] and st["values"] == values:
+            return
+        
         st["online"] = True
-        st["values"] = values or {}
+        st["values"] = values
         self._dirty = True
 
     def _tick(self):
@@ -1611,7 +1616,7 @@ class Vars_Warehouse(QObject):
                 for eid, st in self.tsc_diag_state.items()
             }
         }
-        # print(f"EP9: {snapshot.get("tsc").get("EP9")}")
+        
         self._dirty = False
         self.snapshotUpdated.emit(snapshot)
 
@@ -1655,7 +1660,7 @@ class ScanThread(QThread):
         for i, ip in enumerate(scan_list):
             vcu_norm_ping = ping(ip)
             vcu_cc_ping = ping(scan_list_vcuch_cc[i])
-            if vcu_norm_ping and vcu_cc_ping:
+            if vcu_cc_ping:
                 valid_ips.append(scan_list_vcuch_cc[i])
             elif vcu_norm_ping:
                 valid_ips.append(ip)
@@ -1911,35 +1916,52 @@ class TSCGenerator(QSvgWidget):
             return coach, True
 
     def save_as_png(self):
+        filename, _ = QFileDialog.getSaveFileName(
+            self, "Guardar como PNG", "", "Archivos PNG (*.png)"
+        )
+        if not filename:
+            return
+        if not filename.lower().endswith(".png"):
+            filename += ".png"
 
-        filename, _ = QFileDialog.getSaveFileName(self, "Guardar como PNG", "", "Archivos PNG (*.png)")
-        
-        if filename:
-            if not filename.endswith('.png'):
-                filename += '.png'
-            
-            scale = 2
-            # Ajustar las dimensiones del PNG basadas en el SVG
-            new_width = self.width() * scale
-            new_height = self.height() * scale
-            
-            # Crear una imagen con el tamaño ajustado
-            image = QImage(new_width, new_height, QImage.Format_ARGB32)
-            image.fill(Qt.transparent)  # Rellenar con transparencia
-            
-            painter = QPainter(image)
-    
-            # Escalar el contenido del SVG para ajustarlo al nuevo tamaño
-            painter.setTransform(QTransform().scale(2, 2))
-            self.render(painter, QPoint(0, 0), QRegion(self.rect()))
+        renderer = self.renderer()
+
+        # 1) Usa viewBox si está disponible (más fiable para no cortar)
+        vb = renderer.viewBoxF()
+        if vb.isValid() and vb.width() > 0 and vb.height() > 0:
+            logical_w = vb.width()
+            logical_h = vb.height()
+        else:
+            size = renderer.defaultSize()
+            if not size.isValid() or size.width() <= 0 or size.height() <= 0:
+                size = self.size()
+            logical_w = float(size.width())
+            logical_h = float(size.height())
+
+        # 2) Opción A: ancho objetivo en píxeles
+        target_width_px = 4000
+        scale = target_width_px / max(1.0, logical_w)
+        img_w = max(1, int(round(logical_w * scale)))
+        img_h = max(1, int(round(logical_h * scale)))
+
+        image = QImage(img_w, img_h, QImage.Format_ARGB32_Premultiplied)
+        image.fill(Qt.transparent)
+
+        painter = QPainter(image)
+        try:
+            painter.setRenderHint(QPainter.Antialiasing, True)
+            painter.setRenderHint(QPainter.TextAntialiasing, True)
+            painter.setRenderHint(QPainter.SmoothPixmapTransform, True)
+
+            # 3) Renderiza al rect destino: evita recortes por tamaños lógicos raros
+            renderer.render(painter, QRectF(0, 0, img_w, img_h))
+        finally:
             painter.end()
-        
-            # Guardar la imagen como PNG
-            try:
-                image.save(filename)
-                QMessageBox.information(None, "Éxito", f"Imagen guardada correctamente en {filename}")
-            except Exception as e:
-                QMessageBox.critical(None, "Error", f"No se pudo guardar el archivo: {e}")
+
+        if image.save(filename, "PNG"):
+            QMessageBox.information(self, "Éxito", f"Imagen guardada correctamente en:\n{filename}")
+        else:
+            QMessageBox.critical(self, "Error", f"No se pudo guardar el PNG:\n{filename}")
             
     def create_contact_svg(self, closed, x_offset=0, label=""):
         """
@@ -3487,9 +3509,17 @@ class TSCWindow(DiagnosticWindow):
         
         super().__init__(title="TSC", fixed_w=fixed_w, fixed_h=fixed_h, parent=parent)
 
+
         central = QWidget()
         lay = QVBoxLayout(central)
         lay.setContentsMargins(6, 6, 6, 6)
+
+        menubar = self.menuBar()
+        export_menu = menubar.addMenu("Exportar")
+
+        self.export_TSC_action = QAction("Guardar como PNG...", self)
+        export_menu.addAction(self.export_TSC_action)
+        
 
         self.scroll = QScrollArea()
         self.scroll.setWidgetResizable(False)
@@ -3503,6 +3533,8 @@ class TSCWindow(DiagnosticWindow):
             project_coach_types=project_coach_types,
             tsc_cc_vars=tsc_cc_vars,
         )
+
+        self.export_TSC_action.triggered.connect(self.tsc.save_as_png)
 
         self.TSC_Diag_window = TSC_Diag_Window(project=project, endpoint_ids=endpoint_ids, project_coach_types=project_coach_types,fixed_w=800, fixed_h=400)
 
@@ -3591,6 +3623,8 @@ class TSC_Diag_Window(DiagnosticWindow):
 
         self.inverted_diagnostic_vars = ['bDNRA_OK']
 
+        self._default_sort_applied = False
+
     def _on_toggled(self, checked):
         
         if checked:
@@ -3605,6 +3639,13 @@ class TSC_Diag_Window(DiagnosticWindow):
             self.close()
 
     def set_snapshot(self, snapshot: dict):
+            
+            header = self.table.horizontalHeader()
+            sort_col = header.sortIndicatorSection()
+            sort_order = header.sortIndicatorOrder()
+
+            print("TSC_Diag_Window: Actualizando snapshot...")
+            print(f"Columna de ordenación actual: {sort_col}, Orden: {'Ascendente' if sort_order == Qt.AscendingOrder else 'Descendente'}")
             
             coach_types_by_endpoint = {}
             for endpoint_id, data in snapshot.get("tsc", {}).items():
@@ -3677,14 +3718,22 @@ class TSC_Diag_Window(DiagnosticWindow):
             else:
                 self.table.setRowCount(len(rows))
                 for r, (coach_label, ip, code, desc) in enumerate(rows):
-                    item_coach = QTableWidgetItem(str(coach_label))
-                    item_coach.setData(Qt.UserRole, int(coach_idx))
-                    self.table.setItem(r, 0, item_coach)
+                    self.table.setItem(r, 0, QTableWidgetItem(str(coach_label)))
                     self.table.setItem(r, 1, QTableWidgetItem(str(ip)))
                     self.table.setItem(r, 2, QTableWidgetItem(str(code)))
                     self.table.setItem(r, 3, QTableWidgetItem(str(desc)))
 
             self.table.setSortingEnabled(True)
+
+            header = self.table.horizontalHeader()
+            sort_col = header.sortIndicatorSection()
+            sort_order = header.sortIndicatorOrder()
+
+            if not self._default_sort_applied:
+                self.table.sortItems(1, Qt.AscendingOrder)  # IP ascendente
+                self._default_sort_applied = True
+            else:
+                self.table.sortItems(sort_col, sort_order)  # mantener lo que eligió el usuario
 
 class MainWindow(QMainWindow):
     
@@ -3870,14 +3919,8 @@ class MainWindow(QMainWindow):
         
         ######### MENÚ EXPORTAR ##########
         
-        export_menu = self.menu_bar.addMenu("Exportar")
+        # export_menu = self.menu_bar.addMenu("Exportar")
         
-        self.export_TSC_action=QAction("Exportar imagen TSC", self)
-        self.export_TSC_action.setEnabled(False)
-        # self.export_TSC_action.triggered.connect(self.tsc.save_as_png)
-        
-        export_menu.addActions([self.export_TSC_action])
-
         ######### MENÚ AYUDA ##########
 
         ayuda_menu = self.menu_bar.addMenu("Ayuda")
@@ -4194,7 +4237,7 @@ class MainWindow(QMainWindow):
                         
         self.project = project_value
     
-        self.max_initial_ips = 13 if self.project == "DB" else 15 if self.project == "DSB" else 1
+        self.max_initial_ips = 9 if self.project == "DB" else 15 if self.project == "DSB" else 1
         
         self.progress_title.setText(f"Escaneando composición: {self.project}")
         self.detected_label.setText(f"Coches detectados: {0 + self.max_initial_ips} de {len(self.ip_data[self.project])} posibles.")
@@ -4442,6 +4485,7 @@ class MainWindow(QMainWindow):
                     parent=self,
                 )
 
+
                 # Si el usuario cierra la ventana -> equivale a desmarcar el check
                 self.tsc_window.closed.connect(lambda: self.check_TSC_action.setChecked(False))
 
@@ -4467,8 +4511,6 @@ class MainWindow(QMainWindow):
             window_size = self.tsc_window.size()
             self.tsc_window.move(int((max_width - min(window_size.width(), max_width))/2),int((max_height - min(window_size.height(), max_height))/2))
 
-            # if hasattr(self, "export_TSC_action") and self.export_TSC_action is not None:
-            #     self.export_TSC_action.setEnabled(True)
 
         else:
             self.diag_enabled["TSC"] = False
@@ -4481,9 +4523,6 @@ class MainWindow(QMainWindow):
                 except Exception:
                     pass
                 self.tsc_window = None
-
-            if hasattr(self, "export_TSC_action") and self.export_TSC_action is not None:
-                self.export_TSC_action.setEnabled(False)
 
     def create_table(self):
         
