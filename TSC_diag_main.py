@@ -735,10 +735,28 @@ class TCMS_vars:
         'BCUCH2_MVB1_DS_311.sDiagnosis23_b0', 
         'BCUCH2_MVB1_DS_311.sDiagnosis23_b1', 
         'BCUCH2_MVB1_DS_311.sDiagnosis23_b2',
-        'BCUCH1_MVB2_DS_30F.bDIMGA_S0',
-        'BCUCH2_MVB1_DS_30F.bDIMGA_S0',
+        'BCUB90_MVB1_DS_612.bDIBA_S2_NOK',
+        'BCUB95_MVB2_DS_612.bDIBA_S2_NOK',
+        'BCU_MVB2_DS_30D.bDIBA_Train_S2',
+        'BCU_MVB2_DS_30D.bDIMGA_Train_S2',
+        'BCUCH1_MVB2_DS_310.bDNRA_Notlocked2',
+        'BCUCH1_MVB2_DS_310.bDNRA_Notlocked1',
+        'BCUCH2_MVB1_DS_310.bDNRA_Notlocked2',
+        'BCUCH2_MVB1_DS_310.bDNRA_Notlocked1',
+        'BCU_MVB2_DS_30D.bDIMGA',
+        'BCU_MVB2_DS_30D.bPBA_Speed',
+        'BCUCH2_MVB1_DS_30F.bDIMGA_NOK',
+        'BCUCH2_MVB1_DS_30F.bPBA_Speed_NOK',
+        'BCUCH2_MVB1_DS_30F.bDIBA_Train_S2_NOK',
         'BCUCH1_MVB2_DS_30F.bDIBA_Train_S2_NOK',
-        'BCUCH2_MVB1_DS_30F.bDIBA_Train_S2_NOK'
+        'BCUCH1_MVB2_DS_30F.bPBA_Speed_NOK',
+        'BCUCH1_MVB2_DS_30F.bDIMGA_NOK',
+        'BCU_MVB1_DS_06E.bDIBA_Train_S2',
+        'BCU_MVB1_DS_06E.bDIMGA_Train_S2',
+        'BCUCH1_MVB2_DS_310.bDNRA_OK',
+        'BCUCH2_MVB1_DS_310.bDNRA_OK',
+        'BCU_MVB1_DS_06E.bDIMGA',
+        'BCU_MVB1_DS_06E.bPBA_Speed',
         ]
         self.BCU_DIAGNOSIS_CC = [
         'BCUB90_MVB1_DS_614.sDiagnosis01_b1',
@@ -935,26 +953,6 @@ class TCMS_vars:
         'BCUB95_MVB2_DS_614.sDiagnosis23_b1',
         'BCUB90_MVB1_DS_614.sDiagnosis23_b2',
         'BCUB95_MVB2_DS_614.sDiagnosis23_b2',
-        'BCUB90_MVB1_DS_612.bDIBA_S2_NOK',
-        'BCUB95_MVB2_DS_612.bDIBA_S2_NOK',
-        'BCU_MVB2_DS_30D.bDIBA_Train_S2',
-        'BCU_MVB2_DS_30D.bDIMGA_Train_S2',
-        'BCU_MVB2_DS_30D.bDNRA_Notlocked',
-        'BCU_MVB2_DS_30D.bDIMGA',
-        'BCU_MVB2_DS_30D.bPBA_Speed',
-        'BCUCH2_MVB1_DS_30F.bDIMGA_NOK',
-        'BCUCH2_MVB1_DS_30F.bPBA_Speed_NOK',
-        'BCUCH2_MVB1_DS_30F.bDIBA_Train_S2_NOK',
-        'BCUCH1_MVB2_DS_30F.bDIBA_Train_S2_NOK',
-        'BCUCH1_MVB2_DS_30F.bPBA_Speed_NOK',
-        'BCUCH1_MVB2_DS_30F.bDIMGA_NOK',
-        'BCU_MVB1_DS_06E.bDIBA_Train_S2',
-        'BCU_MVB1_DS_06E.bDIMGA_Train_S2',
-        'BCU_MVB1_DS_06E.bDNRA_Notlocked',
-        'BCUCH1_MVB2_DS_310.bDNRA_OK',
-        'BCUCH2_MVB1_DS_310.bDNRA_OK',
-        'BCU_MVB1_DS_06E.bDIMGA',
-        'BCU_MVB1_DS_06E.bPBA_Speed',
     ]
         #DICCIONARIO PARA INTERPRETAR LA DIAGNÓSIS
         self.BCU_DIAGNOSIS_DICT = {
@@ -1133,7 +1131,8 @@ class TCMS_vars:
         'bDIBA_S2_NOK': {'Error Code': 'DIBA_S2_NOK', 'Description': 'Function DIBA_Train not available.'},
         'bDIBA_Train_S2': {'Error Code': 'DIBA_Train_S2', 'Description': 'Improperly Brake Applied detected in any train wheelsets (only in Loco and extreme cars)'},
         'bDIMGA_Train_S2': {'Error Code': 'DIMGA_Train_S2', 'Description': 'Improperly MG brake Applied detected in any train car (only Loco and extreme cars)'},
-        'bDNRA_Notlocked': {'Error Code': 'DNRA_Notlocked', 'Description': 'NRA detected (locked) in any wheelset in loco/car (Loco and all cars except PMR)'},
+        'bDNRA_Notlocked1': {'Error Code': 'DNRA_Notlocked1', 'Description': 'Wheelset 1 not locked'},
+        'bDNRA_Notlocked2': {'Error Code': 'DNRA_Notlocked2', 'Description': 'Wheelset 2 not locked'},
         'bDIMGA': {'Error Code': 'DIMGA', 'Description': 'Improperly MTB applied'},
         'bPBA_Speed': {'Error Code': 'PBA_Speed', 'Description': 'Parking Applied with Speed > 5 kmh'},
         'bDIMGA_NOK': {'Error Code': 'DIMGA_NOK', 'Description': 'Function DIMGA not available'},
@@ -3003,10 +3002,6 @@ class TSCGenerator(QSvgWidget):
         else:
             SubElement(coach, "text", x="67", y="188",**{"text-anchor": "right","font-style": "italic","font-size": "9", "fill": "red"}).text = "Activo"
 
-        print(s60_b1, s60_r_b1)
-        print(s62_b1, s62_r_b1)
-        print(s256_b1, s256_r_b1)
-
         if s60_b1 != s60_r_b1:
             SubElement(coach, "text", x="97", y="176",**{"text-anchor": "right","font-style": "italic","font-size": "9", "fill": "yellow"}).text = "Error"
         elif s60_b1 == "0":
@@ -3635,6 +3630,7 @@ class TSC_Diag_Window(DiagnosticWindow):
             max_width = screen.availableGeometry().width()  
             max_height = screen.availableGeometry().height() 
             self.move(int((max_width - min(self.size().width(), max_width))/2),int((max_height - min(self.size().height(), max_height))/2))
+
         else:
             self.close()
 
@@ -3664,6 +3660,31 @@ class TSC_Diag_Window(DiagnosticWindow):
 
             for endpoint_id, data in snapshot.get("tsc_diag", {}).items():
                 diag_vals = (data or {}).get("values") or {}
+
+                # # lista = [
+                #     'BCU_MVB2_DS_30D.bDIBA_Train_S2',
+                #     'BCU_MVB2_DS_30D.bDIMGA_Train_S2',
+                #     'BCU_MVB2_DS_30D.bDNRA_Notlocked',
+                #     'BCU_MVB2_DS_30D.bDIMGA',
+                #     'BCU_MVB2_DS_30D.bPBA_Speed',
+                #     'BCUCH2_MVB1_DS_30F.bDIMGA_NOK',
+                #     'BCUCH2_MVB1_DS_30F.bPBA_Speed_NOK',
+                #     'BCUCH2_MVB1_DS_30F.bDIBA_Train_S2_NOK',
+                #     'BCUCH1_MVB2_DS_30F.bDIBA_Train_S2_NOK',
+                #     'BCUCH1_MVB2_DS_30F.bPBA_Speed_NOK',
+                #     'BCUCH1_MVB2_DS_30F.bDIMGA_NOK',
+                #     'BCU_MVB1_DS_06E.bDIBA_Train_S2',
+                #     'BCU_MVB1_DS_06E.bDIMGA_Train_S2',
+                #     'BCU_MVB1_DS_06E.bDNRA_Notlocked',
+                #     'BCUCH1_MVB2_DS_310.bDNRA_OK',
+                #     'BCUCH2_MVB1_DS_310.bDNRA_OK',
+                #     'BCU_MVB1_DS_06E.bDIMGA',
+                #     'BCU_MVB1_DS_06E.bPBA_Speed',
+                # ]
+
+                # if endpoint_id == "EP1":
+                #     test = {k: diag_vals[k] for k in lista}
+                    # print(test)
                  
                 try:
                     coach_idx = self.endpoint_ids.index(endpoint_id) + 1
@@ -4499,10 +4520,16 @@ class MainWindow(QMainWindow):
                     "tsc": {
                         eid: {"online": bool(st.get("online", False)), "values": dict(st.get("values", {}) or {})}
                         for eid, st in self.vars_warehouse.tsc_state.items()
+                    },
+                    "tsc_diag": {
+                        eid: {"online": bool(st.get("online", False)), "values": dict(st.get("values", {}) or {})}
+                        for eid, st in self.vars_warehouse.tsc_diag_state.items()
                     }
                 }
                 svg_snapshot = self.build_svg_snapshot(snapshot)
                 self.tsc_window.set_snapshot(svg_snapshot)
+                self.tsc_window.TSC_Diag_window.set_snapshot(snapshot)
+                
 
             screen = QApplication.primaryScreen()
             max_width = screen.availableGeometry().width()  
@@ -4859,10 +4886,17 @@ class MainWindow(QMainWindow):
         self.massive_ping_table.setContextMenuPolicy(Qt.CustomContextMenu) # Habilitar menú contextual
         self.massive_ping_table.customContextMenuRequested.connect(self.massive_ping_context_menu) # Conectar petición del menú contextual a la función
 
+        coach_types = []
+
+        for eid in self.vars_warehouse.tsc_state.keys():
+            coach_types.append(self.vars_warehouse.tsc_state[eid].get("values", {}).get(self.TCMS_vars.COACH_TYPE[0], "Unknown"))
+        
         if self.project == "DB":
-            num_coaches = len(self.trainset_coaches) - 1  # Último coche es cabcar
-        elif self.project == "DSB":
-            num_coaches = len(self.trainset_coaches)
+            coach_types.pop()  # Eliminar el último tipo que corresponde al cabcar
+        
+        print(coach_types)
+                
+        num_coaches = len(coach_types)
 
         self.massive_ping_table.setColumnCount(num_coaches * COLS_PER_COACH)  # 5 columnas por coche: PUERTO, VLAN, DEVICE, IP
         self.massive_ping_table.setRowCount(count)
@@ -4870,7 +4904,10 @@ class MainWindow(QMainWindow):
         for col in range(num_coaches):
             esu_id = 0 # Reiniciar ID de ESU para cada coche
             print_row = 1  # Reiniciar fila de impresión para cada coche
-            tipo = self.TCMS_vars.COACH_TYPES_DSB[int(self.coach_types[col])] if self.project == "DSB" else self.TCMS_vars.COACH_TYPES_DB[int(self.coach_types[col])]
+            if str(coach_types[col]) == "Unknown":
+                tipo = 0
+            else: 
+                tipo = self.TCMS_vars.COACH_TYPES_DSB[int(coach_types[col])] if self.project == "DSB" else self.TCMS_vars.COACH_TYPES_DB[int(coach_types[col])]
             
             if tipo == "C4302P":
                 tipo = "C4302C"
@@ -4878,7 +4915,7 @@ class MainWindow(QMainWindow):
             c0 = 5 * col  # desplazamiento de columnas para este coche (bloque de 4 columnas)
 
             # ---- Fila 0: título del coche (fusionado 4 columnas) ----
-            coach_title = QTableWidgetItem(f"Coche {col+1} — {tipo}")
+            coach_title = QTableWidgetItem(f"Coche {col+1} — {tipo if tipo != 0 else 'Desconocido'}")
             coach_title.setTextAlignment(Qt.AlignCenter)
             coach_title.setBackground(QBrush(QColor(100, 100, 100)))
             coach_title_font = coach_title.font(); coach_title_font.setBold(True); coach_title.setFont(coach_title_font)
@@ -4890,44 +4927,46 @@ class MainWindow(QMainWindow):
             # Cargar definición de red a partir del TIPO
             esus_dict = self.red_eth.get(tipo, {})  # dict de ESUs para ese tipo
             # Itera ESUs (orden natural del dict; si quieres orden predecible, usa: for esu_name in sorted(esus_dict))
-            for esu_name, ports_dict in esus_dict.items():
-                # ---- Fila de título de ESU (fusionada) ----
-                esu_item = QTableWidgetItem(str(esu_name))
-                esu_item.setTextAlignment(Qt.AlignCenter)
-                esu_font = esu_item.font(); esu_font.setBold(True); esu_item.setFont(esu_font)
-                self.massive_ping_table.setItem(print_row, c0, esu_item)
-                self.massive_ping_table.setSpan(print_row, c0, 1, COLS_PER_COACH)
-                print_row += 1
-                esu_header = ["PORT", "PORT ID", "VLAN", "DEVICE", "IP"]
-                for i, header in enumerate(esu_header):
-                    header_item = QTableWidgetItem(header)
-                    header_item.setTextAlignment(Qt.AlignCenter)
-                    header_font = header_item.font(); header_font.setBold(True); header_item.setFont(header_font)
-                    self.massive_ping_table.setItem(print_row, c0 + i, header_item)
-                print_row += 1
 
-                # ---- Filas de puertos de la ESU ----
-                # ports_dict: {"E0_0": {"vlan":..., "device":..., "ip":...}, ...}
-                port_id = 0
-                for port_name, info in ports_dict.items():  # si quieres orden, usa sorted(ports_dict.items())
-                    self.massive_ping_table.setItem(print_row, c0 + 0, QTableWidgetItem(str(port_name)))
-                    self.massive_ping_table.setItem(print_row, c0 + 1, QTableWidgetItem(str(port_id)))
-                    self.massive_ping_table.setItem(print_row, c0 + 2, QTableWidgetItem(str(info.get("VLAN", ""))))
-                    self.massive_ping_table.setItem(print_row, c0 + 3, QTableWidgetItem(str(info.get("Device", ""))))
-                    if str(info.get("Device", "")) == "VCU_CH":
-                        self.massive_ping_table.setItem(print_row, c0 + 4, QTableWidgetItem(str(self.trainset_coaches[col].ip)))
-                    else: 
-                        self.massive_ping_table.setItem(print_row, c0 + 4, QTableWidgetItem(self.calcular_ip(col + 1, info.get("VLAN", 0), esu_id, int(port_id)) if info.get("IP", "") is None else info.get("IP", ""))) #col+1 porque la posición empieza en 1
-                    # print(str(info.get("Device", "")), col, info.get("VLAN", 0), esu_id, int(port_id))
+            if not esus_dict == {}:
+
+                for esu_name, ports_dict in esus_dict.items():
+                    # ---- Fila de título de ESU (fusionada) ----
+                    esu_item = QTableWidgetItem(str(esu_name))
+                    esu_item.setTextAlignment(Qt.AlignCenter)
+                    esu_font = esu_item.font(); esu_font.setBold(True); esu_item.setFont(esu_font)
+                    self.massive_ping_table.setItem(print_row, c0, esu_item)
+                    self.massive_ping_table.setSpan(print_row, c0, 1, COLS_PER_COACH)
                     print_row += 1
-                    port_id += 1
-                
-                esu_id += 1 # Incrementar ID de ESU
-                if self.project == "DSB" and esu_id == 2:
-                    esu_id = 4  # Saltar ID 3 en DSB
+                    esu_header = ["PORT", "PORT ID", "VLAN", "DEVICE", "IP"]
+                    for i, header in enumerate(esu_header):
+                        header_item = QTableWidgetItem(header)
+                        header_item.setTextAlignment(Qt.AlignCenter)
+                        header_font = header_item.font(); header_font.setBold(True); header_item.setFont(header_font)
+                        self.massive_ping_table.setItem(print_row, c0 + i, header_item)
+                    print_row += 1
 
-
-        self.massive_ping_table.setItem(32, 4, QTableWidgetItem(str("192.168.1.139")))
+                    # ---- Filas de puertos de la ESU ----
+                    # ports_dict: {"E0_0": {"vlan":..., "device":..., "ip":...}, ...}
+                    port_id = 0
+                    for port_name, info in ports_dict.items():  # si quieres orden, usa sorted(ports_dict.items())
+                        self.massive_ping_table.setItem(print_row, c0 + 0, QTableWidgetItem(str(port_name)))
+                        self.massive_ping_table.setItem(print_row, c0 + 1, QTableWidgetItem(str(port_id)))
+                        self.massive_ping_table.setItem(print_row, c0 + 2, QTableWidgetItem(str(info.get("VLAN", ""))))
+                        self.massive_ping_table.setItem(print_row, c0 + 3, QTableWidgetItem(str(info.get("Device", ""))))
+                        if str(info.get("Device", "")) == "VCU_CH":
+                            self.massive_ping_table.setItem(print_row, c0 + 4, QTableWidgetItem(str(self.valid_ips[col])))
+                        else: 
+                            self.massive_ping_table.setItem(print_row, c0 + 4, QTableWidgetItem(self.calcular_ip(col + 1, info.get("VLAN", 0), esu_id, int(port_id)) if info.get("IP", "") is None else info.get("IP", ""))) #col+1 porque la posición empieza en 1
+                        # print(str(info.get("Device", "")), col, info.get("VLAN", 0), esu_id, int(port_id))
+                        print_row += 1
+                        port_id += 1
+                    
+                    esu_id += 1 # Incrementar ID de ESU
+                    if self.project == "DSB" and esu_id == 2:
+                        esu_id = 4  # Saltar ID 3 en DSB
+            
+        # self.massive_ping_table.setItem(32, 4, QTableWidgetItem(str("192.168.1.139")))
 
         # Ajustar el ancho de las columnas al contenido
         self.massive_ping_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
