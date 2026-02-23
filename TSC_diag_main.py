@@ -1342,6 +1342,14 @@ class CoachClient:
             return True
         return all(v == isagrafInterface.READ_ERROR for v in values.values())
 
+    def _all_write_fail(self, results: dict) -> bool:
+        """
+        True si TODAS las escrituras han fallado (False).
+        """
+        if not results:
+            return True
+        return all(v is False for v in results.values())
+
     def read_vars(self, vars_list: list[str], wait_time: float = 1.0) -> tuple[bool, int, dict]:
         """
         Lectura genérica (para TSC, diagnósticos, etc.)
@@ -1364,6 +1372,29 @@ class CoachClient:
             self.last_ok_ts_ms = ts_ms
 
         return online, ts_ms, values
+
+    def write_vars(self, var_map: dict, lock: bool = False, wait_time: float = 1.0) -> tuple[bool, int, dict]:
+        """
+        Escritura genérica (para TSC, diagnósticos, etc.)
+
+        Devuelve:
+        (online, ts_ms, results)
+
+        - online False si todo falla (todo False)
+        - ts_ms = timestamp ms del batch (del driver)
+        - results = dict {var: True/False}
+        """
+        if not var_map:
+            return True, 0, {}
+
+        ts_map = self.iface.writeValues(var_map, lock=lock, wait_time=wait_time)
+        ts_ms, results = self._flatten_ts_map(ts_map)
+
+        online = not self._all_write_fail(results)
+        if online:
+            self.last_ok_ts_ms = ts_ms
+
+        return online, ts_ms, results
 
 class Worker(QObject):
 
@@ -3500,7 +3531,7 @@ class DiagnosticWindow(QMainWindow):
 class TSCWindow(DiagnosticWindow):
 
     def __init__(self, *, project, endpoint_ids, tsc_vars, project_coach_types, tsc_cc_vars,
-                 fixed_w: int, fixed_h: int, parent=None): #El asterisco indica que los argumentos siguientes deben ser pasados como palabras clave, es decir (project = x, endpoint_ids = y, etc) y no como argumentos posicionales (x, y, etc)
+                 fixed_w: int, fixed_h: int, valid_ips: list, parent=None): #El asterisco indica que los argumentos siguientes deben ser pasados como palabras clave, es decir (project = x, endpoint_ids = y, etc) y no como argumentos posicionales (x, y, etc)
         
         super().__init__(title="TSC", fixed_w=fixed_w, fixed_h=fixed_h, parent=parent)
 
@@ -3508,6 +3539,8 @@ class TSCWindow(DiagnosticWindow):
         central = QWidget()
         lay = QVBoxLayout(central)
         lay.setContentsMargins(6, 6, 6, 6)
+
+        self.valid_ips = valid_ips
 
         menubar = self.menuBar()
         export_menu = menubar.addMenu("Exportar")
@@ -3531,7 +3564,7 @@ class TSCWindow(DiagnosticWindow):
 
         self.export_TSC_action.triggered.connect(self.tsc.save_as_png)
 
-        self.TSC_Diag_window = TSC_Diag_Window(project=project, endpoint_ids=endpoint_ids, project_coach_types=project_coach_types,fixed_w=800, fixed_h=400)
+        self.TSC_Diag_window = TSC_Diag_Window(project=project, endpoint_ids=endpoint_ids, project_coach_types=project_coach_types,fixed_w=800, fixed_h=400, valid_ips=self.valid_ips)
 
         self.scroll.setWidget(self.tsc)
 
@@ -3539,8 +3572,13 @@ class TSCWindow(DiagnosticWindow):
         self.btn_diag.setCheckable(True)
         self.btn_diag.toggled.connect(self.TSC_Diag_window._on_toggled)
 
+        self.reset_failures = QPushButton("Reset de fallos de inestabilidad, temperaturas y sensores de rueda")
+        self.reset_failures.clicked.connect(self._on_reset_failures_clicked)
+
+
         lay.addWidget(self.scroll)
         lay.addWidget(self.btn_diag)
+        lay.addWidget(self.reset_failures)
 
         self.setCentralWidget(central)
 
@@ -3552,10 +3590,53 @@ class TSCWindow(DiagnosticWindow):
         self.tsc.set_snapshot(snapshot)
         self.setFixedSize(min(self.tsc.scaled_tsc_width, self.max_width), min(self.tsc.scaled_tsc_height + 58, self.max_height))
 
+    def _on_reset_failures_clicked(self):
+        mw = self.parent()
+        if mw is None or not hasattr(mw, "endpoint_clients") or not hasattr(mw, "endpoint_ids"):
+            QMessageBox.warning(self, "Error", "No encuentro endpoint_clients/endpoint_ids en el MainWindow.")
+            return
+
+        self.reset_failures.setEnabled(False)
+
+        # diálogo simple de log (opcional)
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Reseteando fallos…")
+        dlg.resize(650, 350)
+        lay = QVBoxLayout(dlg)
+        txt = QTextEdit()
+        txt.setReadOnly(True)
+        lay.addWidget(txt)
+        btn_cancel = QPushButton("Cancelar")
+        lay.addWidget(btn_cancel)
+        dlg.show()
+
+        th = QThread(self)
+        w = ResetFailuresWorker(mw.endpoint_ids, mw.endpoint_clients, wait_time=1.0)
+        w.moveToThread(th)
+
+        th.started.connect(w.start)
+        w.log.connect(txt.append)
+
+        def cleanup(ok: bool):
+            txt.append("\nFIN: " + ("OK" if ok else "ERROR/CANCELADO"))
+            self.btn_reset_failures.setEnabled(True)
+            th.quit()
+            th.wait()
+
+        w.finished.connect(cleanup)
+        btn_cancel.clicked.connect(w.cancel)
+
+        th.start()
+
+        # guardar referencias para que no los destruya el GC
+        self._reset_thread = th
+        self._reset_worker = w
+        self._reset_dialog = dlg
+
 class TSC_Diag_Window(DiagnosticWindow):
 
     def __init__(self, *, project, endpoint_ids, project_coach_types,
-                 fixed_w: int, fixed_h: int, parent=None):
+                 fixed_w: int, fixed_h: int, valid_ips: list, parent=None):
 
         self.project = project
         self.endpoint_ids = endpoint_ids
@@ -3616,7 +3697,10 @@ class TSC_Diag_Window(DiagnosticWindow):
         self.layout.addWidget(self.table)
         self.setCentralWidget(central)
 
-        self.inverted_diagnostic_vars = ['bDNRA_OK']
+        self.inverted_diagnostic_vars = [
+        'bDNRA_Notlocked2',
+        'bDNRA_Notlocked1',
+        ]
 
         self._default_sort_applied = False
 
@@ -3640,8 +3724,8 @@ class TSC_Diag_Window(DiagnosticWindow):
             sort_col = header.sortIndicatorSection()
             sort_order = header.sortIndicatorOrder()
 
-            print("TSC_Diag_Window: Actualizando snapshot...")
-            print(f"Columna de ordenación actual: {sort_col}, Orden: {'Ascendente' if sort_order == Qt.AscendingOrder else 'Descendente'}")
+            # print("TSC_Diag_Window: Actualizando snapshot...")
+            # print(f"Columna de ordenación actual: {sort_col}, Orden: {'Ascendente' if sort_order == Qt.AscendingOrder else 'Descendente'}")
             
             coach_types_by_endpoint = {}
             for endpoint_id, data in snapshot.get("tsc", {}).items():
@@ -3661,7 +3745,7 @@ class TSC_Diag_Window(DiagnosticWindow):
             for endpoint_id, data in snapshot.get("tsc_diag", {}).items():
                 diag_vals = (data or {}).get("values") or {}
 
-                # # lista = [
+                # lista = [
                 #     'BCU_MVB2_DS_30D.bDIBA_Train_S2',
                 #     'BCU_MVB2_DS_30D.bDIMGA_Train_S2',
                 #     'BCU_MVB2_DS_30D.bDNRA_Notlocked',
@@ -3675,11 +3759,14 @@ class TSC_Diag_Window(DiagnosticWindow):
                 #     'BCUCH1_MVB2_DS_30F.bDIMGA_NOK',
                 #     'BCU_MVB1_DS_06E.bDIBA_Train_S2',
                 #     'BCU_MVB1_DS_06E.bDIMGA_Train_S2',
-                #     'BCU_MVB1_DS_06E.bDNRA_Notlocked',
                 #     'BCUCH1_MVB2_DS_310.bDNRA_OK',
                 #     'BCUCH2_MVB1_DS_310.bDNRA_OK',
                 #     'BCU_MVB1_DS_06E.bDIMGA',
                 #     'BCU_MVB1_DS_06E.bPBA_Speed',
+                #     'BCUCH1_MVB2_DS_310.bDNRA_Notlocked2',
+                #     'BCUCH1_MVB2_DS_310.bDNRA_Notlocked1',
+                #     'BCUCH2_MVB1_DS_310.bDNRA_Notlocked2',
+                #     'BCUCH2_MVB1_DS_310.bDNRA_Notlocked1',
                 # ]
 
                 # if endpoint_id == "EP1":
@@ -3739,7 +3826,20 @@ class TSC_Diag_Window(DiagnosticWindow):
             else:
                 self.table.setRowCount(len(rows))
                 for r, (coach_label, ip, code, desc) in enumerate(rows):
-                    self.table.setItem(r, 0, QTableWidgetItem(str(coach_label)))
+
+                    # ---- Columna 0: Coach label (orden numérico) ----
+                    label_str = str(coach_label)
+                    label_item = QTableWidgetItem()
+                    label_item.setData(Qt.DisplayRole, label_str)  # lo que se ve
+
+                    # coge el número del inicio: "10 (C4301)" -> 10
+                    m = re.match(r"\s*(\d+)", label_str)
+                    label_num = int(m.group(1)) if m else 10**9
+                    label_item.setData(Qt.EditRole, label_num)     # lo que usa Qt para ordenar
+
+                    self.table.setItem(r, 0, label_item)
+
+                    # ---- Resto de columnas igual ----
                     self.table.setItem(r, 1, QTableWidgetItem(str(ip)))
                     self.table.setItem(r, 2, QTableWidgetItem(str(code)))
                     self.table.setItem(r, 3, QTableWidgetItem(str(desc)))
@@ -3751,10 +3851,86 @@ class TSC_Diag_Window(DiagnosticWindow):
             sort_order = header.sortIndicatorOrder()
 
             if not self._default_sort_applied:
-                self.table.sortItems(1, Qt.AscendingOrder)  # IP ascendente
+                self.table.sortItems(0, Qt.AscendingOrder)  # IP ascendente
                 self._default_sort_applied = True
             else:
                 self.table.sortItems(sort_col, sort_order)  # mantener lo que eligió el usuario
+
+class ResetFailuresWorker(QObject):
+    log = Signal(str)
+    finished = Signal(bool)
+
+    def __init__(self, endpoint_ids, endpoint_clients, wait_time: float = 1.0):
+        super().__init__()
+        self.endpoint_ids = list(endpoint_ids)
+        self.endpoint_clients = endpoint_clients
+        self.wait_time = float(wait_time)
+        self._cancel = False
+
+        # VARS_LIST (según tu requisito)
+        self.MAINT_VARS = [
+            "VCUCH_MVB1_DS_64.MaintenaceMode",
+            "VCUCH_MVB2_DS_64.MaintenaceMode",
+        ]
+        self.RELEASE_VARS = [
+            "VCUCH_MVB2_DS_64.ReleaseFailureRunInstabCH",
+            "VCUCH_MVB1_DS_64.ReleaseFailureRunInstabCH",
+        ]
+
+        self._steps = [
+            ("MaintenaceMode = 1", {v: 1 for v in self.MAINT_VARS}),
+            ("ReleaseFailure = 1", {v: 1 for v in self.RELEASE_VARS}),
+            ("ReleaseFailure = 0", {v: 0 for v in self.RELEASE_VARS}),  # “reles a 0”
+            ("MaintenaceMode = 0", {v: 0 for v in self.MAINT_VARS}),
+        ]
+        self._step_idx = 0
+
+    def cancel(self):
+        self._cancel = True
+
+    def start(self):
+        # arranca el paso 0
+        self._run_next_step()
+
+    def _run_next_step(self):
+        if self._cancel:
+            self.log.emit("Cancelado.")
+            self.finished.emit(False)
+            return
+
+        if self._step_idx >= len(self._steps):
+            self.log.emit("✅ Reseteo terminado.")
+            self.finished.emit(True)
+            return
+
+        name, var_map = self._steps[self._step_idx]
+        self.log.emit(f"\nPaso {self._step_idx+1}/4: {name}")
+
+        # Escritura (secuencial, simple) sobre TODOS los endpoints
+        for eid in self.endpoint_ids:
+            if self._cancel:
+                self.log.emit("Cancelado.")
+                self.finished.emit(False)
+                return
+
+            client = self.endpoint_clients.get(eid)
+            if client is None:
+                self.log.emit(f"  {eid}: sin cliente")
+                continue
+
+            ok, ts, st = client.write_vars(var_map, lock=False, wait_time=self.wait_time)
+            total = len(st) if st else 0
+            oks = sum(1 for v in (st or {}).values() if v is True)
+            self.log.emit(f"  {eid}: {'OK' if ok else 'FAIL'} (vars OK {oks}/{total}) ts={ts}")
+
+        # Programar el siguiente paso tras 2 segundos (sin bloquear)
+        self._step_idx += 1
+        if self._step_idx < len(self._steps):
+            self.log.emit("Esperando 2 segundos…")
+            QTimer.singleShot(2000, self._run_next_step)
+        else:
+            # último paso, finalizar
+            self._run_next_step()
 
 class MainWindow(QMainWindow):
     
@@ -4258,7 +4434,7 @@ class MainWindow(QMainWindow):
                         
         self.project = project_value
     
-        self.max_initial_ips = 9 if self.project == "DB" else 15 if self.project == "DSB" else 1
+        self.max_initial_ips = 21 if self.project == "DB" else 15 if self.project == "DSB" else 1
         
         self.progress_title.setText(f"Escaneando composición: {self.project}")
         self.detected_label.setText(f"Coches detectados: {0 + self.max_initial_ips} de {len(self.ip_data[self.project])} posibles.")
@@ -4503,6 +4679,7 @@ class MainWindow(QMainWindow):
                     tsc_cc_vars=tsc_cc_vars,
                     fixed_w=FIX_W,
                     fixed_h=FIX_H,
+                    valid_ips=self.valid_ips,
                     parent=self,
                 )
 
