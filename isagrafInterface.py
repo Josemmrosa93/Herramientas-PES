@@ -35,7 +35,7 @@ class isagrafInterface():
         self.__port = 22
         self.__user = "root"
         self.__pass = "root"
-        self.__timeout = 20
+        self.__timeout = 8
         self.__ssh_client = None
         self.__conn_mutex = threading.Lock()
         self.__connected = False
@@ -578,6 +578,10 @@ class isagrafInterface():
 
         self.__conn_mutex.release()
         return result
+
+
+    def executeCommand(self, commands:str | list[str], wait_time:int=-1):
+        return self.__executeCommand(commands, wait_time)
 
 
     def readValues(self, variableMap:list[str], wait_time:int=-1) -> dict[int, dict[str, str]]:

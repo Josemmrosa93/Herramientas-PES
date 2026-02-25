@@ -84,17 +84,11 @@ CONFIG_FILE = "config.json"
 
 DEFAULT_CONFIG = {
     "general":{
-        "ssh_username": "root",
-        "ssh_password": "root",
         "ping_timeout": 200,
-        "ssh_timeout": 5,
-        "test_timeout": 1000,
-        "monitor_interval": 5,
-        "reset_pause": 5000,
     },  
     "massive_ping":{
         "ping_count": "1",
-        "max_threads": "50",
+        "max_threads": "21",
         "auto_export": True,        
     }
 }
@@ -735,28 +729,18 @@ class TCMS_vars:
         'BCUCH2_MVB1_DS_311.sDiagnosis23_b0', 
         'BCUCH2_MVB1_DS_311.sDiagnosis23_b1', 
         'BCUCH2_MVB1_DS_311.sDiagnosis23_b2',
-        'BCUB90_MVB1_DS_612.bDIBA_S2_NOK',
-        'BCUB95_MVB2_DS_612.bDIBA_S2_NOK',
+        'BCU_MVB1_DS_06E.bDIBA_Train_S2',
         'BCU_MVB2_DS_30D.bDIBA_Train_S2',
+        'BCU_MVB1_DS_06E.bDIMGA_Train_S2',
         'BCU_MVB2_DS_30D.bDIMGA_Train_S2',
-        'BCUCH1_MVB2_DS_310.bDNRA_Notlocked2',
-        'BCUCH1_MVB2_DS_310.bDNRA_Notlocked1',
-        'BCUCH2_MVB1_DS_310.bDNRA_Notlocked2',
-        'BCUCH2_MVB1_DS_310.bDNRA_Notlocked1',
+        'BCU_MVB1_DS_06E.bDIMGA',
         'BCU_MVB2_DS_30D.bDIMGA',
         'BCU_MVB2_DS_30D.bPBA_Speed',
-        'BCUCH2_MVB1_DS_30F.bDIMGA_NOK',
-        'BCUCH2_MVB1_DS_30F.bPBA_Speed_NOK',
-        'BCUCH2_MVB1_DS_30F.bDIBA_Train_S2_NOK',
-        'BCUCH1_MVB2_DS_30F.bDIBA_Train_S2_NOK',
-        'BCUCH1_MVB2_DS_30F.bPBA_Speed_NOK',
-        'BCUCH1_MVB2_DS_30F.bDIMGA_NOK',
-        'BCU_MVB1_DS_06E.bDIBA_Train_S2',
-        'BCU_MVB1_DS_06E.bDIMGA_Train_S2',
+        'BCU_MVB1_DS_06E.bPBA_Speed',
         'BCUCH1_MVB2_DS_310.bDNRA_OK',
         'BCUCH2_MVB1_DS_310.bDNRA_OK',
-        'BCU_MVB1_DS_06E.bDIMGA',
-        'BCU_MVB1_DS_06E.bPBA_Speed',
+        "BCU_MVB1_DS_06E.bDNRA_Notlocked",
+        "BCU_MVB2_DS_30D.bDNRA_Notlocked"
         ]
         self.BCU_DIAGNOSIS_CC = [
         'BCUB90_MVB1_DS_614.sDiagnosis01_b1',
@@ -953,6 +937,13 @@ class TCMS_vars:
         'BCUB95_MVB2_DS_614.sDiagnosis23_b1',
         'BCUB90_MVB1_DS_614.sDiagnosis23_b2',
         'BCUB95_MVB2_DS_614.sDiagnosis23_b2',
+        'BCUB90_MVB1_DS_612.bDIMGA_NOK',
+        'BCUB95_MVB2_DS_612.bDIMGA_NOK',
+        'BCUB90_MVB1_DS_612.bPBA_Speed_NOK',
+        'BCUB95_MVB2_DS_612.bPBA_Speed_NOK',
+        'BCUB90_MVB1_DS_612.bDIBA_Train_S2_NOK',
+        'BCUB95_MVB2_DS_612.bDIBA_Train_S2_NOK'
+
     ]
         #DICCIONARIO PARA INTERPRETAR LA DIAGNÓSIS
         self.BCU_DIAGNOSIS_DICT = {
@@ -1128,11 +1119,11 @@ class TCMS_vars:
         'sDiagnosis23_b0': {'Error Code': 'DIA_ContEBO_SigON', 'Description': 'Error while activating the continous EBO signal'},
         'sDiagnosis23_b1': {'Error Code': 'DIA_ContEBO_SigOFF', 'Description': 'Error while deactivating the continous EBO signal'},
         'sDiagnosis23_b2': {'Error Code': 'DIA_ContEBO_Train_OFF', 'Description': 'EBO according UIC 541-6 disabled but a signal has been detected on the EBO train line'},
-        'bDIBA_S2_NOK': {'Error Code': 'DIBA_S2_NOK', 'Description': 'Function DIBA_Train not available.'},
         'bDIBA_Train_S2': {'Error Code': 'DIBA_Train_S2', 'Description': 'Improperly Brake Applied detected in any train wheelsets (only in Loco and extreme cars)'},
         'bDIMGA_Train_S2': {'Error Code': 'DIMGA_Train_S2', 'Description': 'Improperly MG brake Applied detected in any train car (only Loco and extreme cars)'},
-        'bDNRA_Notlocked1': {'Error Code': 'DNRA_Notlocked1', 'Description': 'Wheelset 1 not locked'},
+        'bDNRA_Notlocked': {'Error Code': 'DNRA_Notlocked1', 'Description': 'Wheelset 1 not locked'},
         'bDNRA_Notlocked2': {'Error Code': 'DNRA_Notlocked2', 'Description': 'Wheelset 2 not locked'},
+        'bDNRA_Notlocked': {'Error Code': 'NRA detected (locked) in any wheelset loco/car (all cars except pmr)'},
         'bDIMGA': {'Error Code': 'DIMGA', 'Description': 'Improperly MTB applied'},
         'bPBA_Speed': {'Error Code': 'PBA_Speed', 'Description': 'Parking Applied with Speed > 5 kmh'},
         'bDIMGA_NOK': {'Error Code': 'DIMGA_NOK', 'Description': 'Function DIMGA not available'},
@@ -1395,6 +1386,9 @@ class CoachClient:
             self.last_ok_ts_ms = ts_ms
 
         return online, ts_ms, results
+
+    def ssh_cmd(self, commands: str | list[str], wait_time: int = 5):
+        return self.iface.executeCommand(commands, wait_time=wait_time) 
 
 class Worker(QObject):
 
@@ -3541,6 +3535,7 @@ class TSCWindow(DiagnosticWindow):
         lay.setContentsMargins(6, 6, 6, 6)
 
         self.valid_ips = valid_ips
+        self.project = project
 
         menubar = self.menuBar()
         export_menu = menubar.addMenu("Exportar")
@@ -3564,13 +3559,14 @@ class TSCWindow(DiagnosticWindow):
 
         self.export_TSC_action.triggered.connect(self.tsc.save_as_png)
 
-        self.TSC_Diag_window = TSC_Diag_Window(project=project, endpoint_ids=endpoint_ids, project_coach_types=project_coach_types,fixed_w=800, fixed_h=400, valid_ips=self.valid_ips)
+        self.TSC_Diag_window = TSC_Diag_Window(project=self.project, endpoint_ids=endpoint_ids, project_coach_types=project_coach_types,fixed_w=800, fixed_h=400, valid_ips=self.valid_ips)
 
         self.scroll.setWidget(self.tsc)
 
         self.btn_diag = QPushButton("Mostrar causas de apertura del lazo")
         self.btn_diag.setCheckable(True)
         self.btn_diag.toggled.connect(self.TSC_Diag_window._on_toggled)
+        self.TSC_Diag_window.closed.connect(lambda: self.btn_diag.setChecked(False))  # Para que el botón se desactive si se cierra la ventana de diagnóstico
 
         self.reset_failures = QPushButton("Reset de fallos de inestabilidad, temperaturas y sensores de rueda")
         self.reset_failures.clicked.connect(self._on_reset_failures_clicked)
@@ -3588,7 +3584,7 @@ class TSCWindow(DiagnosticWindow):
 
     def set_snapshot(self, snapshot: dict):
         self.tsc.set_snapshot(snapshot)
-        self.setFixedSize(min(self.tsc.scaled_tsc_width, self.max_width), min(self.tsc.scaled_tsc_height + 58, self.max_height))
+        self.setFixedSize(min(self.tsc.scaled_tsc_width, self.max_width), min(self.tsc.scaled_tsc_height + 110, self.max_height))
 
     def _on_reset_failures_clicked(self):
         mw = self.parent()
@@ -3611,7 +3607,7 @@ class TSCWindow(DiagnosticWindow):
         dlg.show()
 
         th = QThread(self)
-        w = ResetFailuresWorker(mw.endpoint_ids, mw.endpoint_clients, wait_time=1.0)
+        w = ResetFailuresWorker(mw.endpoint_ids, mw.endpoint_clients, wait_time=1.0, project = self.project)
         w.moveToThread(th)
 
         th.started.connect(w.start)
@@ -3619,9 +3615,8 @@ class TSCWindow(DiagnosticWindow):
 
         def cleanup(ok: bool):
             txt.append("\nFIN: " + ("OK" if ok else "ERROR/CANCELADO"))
-            self.btn_reset_failures.setEnabled(True)
+            self.reset_failures.setEnabled(True)
             th.quit()
-            th.wait()
 
         w.finished.connect(cleanup)
         btn_cancel.clicked.connect(w.cancel)
@@ -3651,6 +3646,13 @@ class TSC_Diag_Window(DiagnosticWindow):
 
         # ---- TCMS Vars / diccionarios ----
         self._tcms = TCMS_vars()
+
+        menubar = self.menuBar()
+        export_menu = menubar.addMenu("Exportar")
+
+        self.export_diag_action = QAction("Exportar tabla a Excel (.xlsx)", self)
+        export_menu.addAction(self.export_diag_action)
+        self.export_diag_action.triggered.connect(self._export_table_to_excel)
 
         # TSC_DIAG_VARS contiene SOLO las 32 flags
         # y coinciden en orden con filtered_TSC_DIAG_NAMES
@@ -3700,6 +3702,8 @@ class TSC_Diag_Window(DiagnosticWindow):
         self.inverted_diagnostic_vars = [
         'bDNRA_Notlocked2',
         'bDNRA_Notlocked1',
+        'bDNRA_Notlocked',
+        'bDNRA_OK'
         ]
 
         self._default_sort_applied = False
@@ -3793,10 +3797,14 @@ class TSC_Diag_Window(DiagnosticWindow):
                     coach_label += f" ({coach_type_str})"
 
                 for var_full, value in diag_vals.items():
-                    if value != "1":
-                        continue
 
                     var_short = var_full.split(".")[-1]
+
+                    if value != "1" or value!= '0':
+                        continue
+                    
+                    if value == 0 and var_short not in self.inverted_diagnostic_vars:
+                        continue
 
                     bcu_hit = self._bcu_diag_dict.get(var_short)
                     if bcu_hit:
@@ -3856,16 +3864,95 @@ class TSC_Diag_Window(DiagnosticWindow):
             else:
                 self.table.sortItems(sort_col, sort_order)  # mantener lo que eligió el usuario
 
+    def _export_table_to_excel(self):
+        
+        table = self.table
+
+        options = QFileDialog.Options()
+        file_path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Guardar tabla como...",
+            "",
+            "Archivos Excel (*.xlsx);;Todos los archivos (*)",
+            options=options
+        )
+        if not file_path:
+            return
+        if not file_path.lower().endswith(".xlsx"):
+            file_path += ".xlsx"
+        
+        workbook = xlsxwriter.Workbook(file_path)
+        worksheet = workbook.add_worksheet("Diagnóstico TSC")
+
+        header_format = workbook.add_format({
+            "bold": True,
+            "bg_color": "#2F5496",
+            "font_color": "#FFFFFF",
+            "border": 1,
+            "align": "center",
+            "valign": "vcenter"
+        })
+        cell_format = workbook.add_format({
+            "border": 1,
+            "text_wrap": True,
+            "valign": "top",
+            "align": "left"
+        })
+
+        col_count = table.columnCount()
+        headers = []
+        
+        for c in range(col_count):
+            hitem = table.horizontalHeaderItem(c)
+            headers.append(hitem.text() if hitem else f"Columna {c}")
+
+        worksheet.write_row(0, 0, headers, header_format)
+
+        rows_for_width = [headers]
+        row_count = table.rowCount()
+
+        for r in range(row_count):
+            row_values = []
+            for c in range(col_count):
+                item = table.item(r, c)
+                row_values.append(item.text() if item else "")
+            worksheet.write_row(r + 1, 0, row_values, cell_format)
+            rows_for_width.append(row_values)
+
+        if row_count > 0:
+            worksheet.autofilter(0, 0, row_count, col_count - 1)
+        worksheet.freeze_panes(1, 0)
+
+        max_widths = [0] * col_count
+        for rv in rows_for_width:
+            for c, val in enumerate(rv):
+                max_widths[c] = max(max_widths[c], len(str(val)))
+        for c, max_ch in enumerate(max_widths):
+            width = min(max(10, max_ch + 4), 80)
+            worksheet.set_column(c, c, width)
+
+        workbook.close()
+
+        try:
+            QMessageBox.information(self, "Exportado", f"Tabla exportada correctamente a:\n{file_path}")
+        except Exception:
+            pass
+
 class ResetFailuresWorker(QObject):
     log = Signal(str)
     finished = Signal(bool)
 
-    def __init__(self, endpoint_ids, endpoint_clients, wait_time: float = 1.0):
+    def __init__(self, endpoint_ids, endpoint_clients, wait_time: float = 1.0, project: str = "DB"):
         super().__init__()
         self.endpoint_ids = list(endpoint_ids)
         self.endpoint_clients = endpoint_clients
+        
+        if project == "DB":
+            self.endpoint_ids = self.endpoint_ids[:-1]
+
         self.wait_time = float(wait_time)
         self._cancel = False
+        self.project = project
 
         # VARS_LIST (según tu requisito)
         self.MAINT_VARS = [
@@ -3885,6 +3972,8 @@ class ResetFailuresWorker(QObject):
         ]
         self._step_idx = 0
 
+        self._we_done = False
+
     def cancel(self):
         self._cancel = True
 
@@ -3893,6 +3982,24 @@ class ResetFailuresWorker(QObject):
         self._run_next_step()
 
     def _run_next_step(self):
+
+        if not self._we_done:
+            self.log.emit("Habilitando escritura por SSH: isacmd -we (EP a EP) ...")
+            for eid in self.endpoint_ids:
+                if self._cancel:
+                    self.log.emit("Cancelado.")
+                    self.finished.emit(False)
+                    return
+                client = self.endpoint_clients.get(eid)
+                if client is None:
+                    self.log.emit(f"  {eid}: sin cliente")
+                    continue
+                out = client.ssh_cmd("isacmd -we", wait_time = 5)
+                self.log.emit(f"  {eid}: isacmd -we -> {out}")
+            
+            self._we_done = True
+            self.log.emit("Escritura habilitada. Empezando secuencia de reset…")
+
         if self._cancel:
             self.log.emit("Cancelado.")
             self.finished.emit(False)
@@ -3918,7 +4025,7 @@ class ResetFailuresWorker(QObject):
                 self.log.emit(f"  {eid}: sin cliente")
                 continue
 
-            ok, ts, st = client.write_vars(var_map, lock=False, wait_time=self.wait_time)
+            ok, ts, st = client.write_vars(var_map, lock=True, wait_time=self.wait_time)
             total = len(st) if st else 0
             oks = sum(1 for v in (st or {}).values() if v is True)
             self.log.emit(f"  {eid}: {'OK' if ok else 'FAIL'} (vars OK {oks}/{total}) ts={ts}")
@@ -4162,26 +4269,8 @@ class MainWindow(QMainWindow):
             self.ping_timeout = QSpinBox()
             self.ping_timeout.setRange(50,1001)
             self.ping_timeout.setSuffix(" ms")
-            self.ssh_timeout = QSpinBox()
-            self.ssh_timeout.setRange(4, 15)
-            self.ssh_timeout.setSuffix(" s")
-            self.test_refresh = QSpinBox()
-            self.test_refresh.setRange(1000, 10001)
-            self.test_refresh.setSuffix(" ms")
-            self.monitor_interval = QSpinBox()
-            self.monitor_interval.setRange(2, 10)
-            self.monitor_interval.setSuffix(" s")
-            self.reset_pause = QSpinBox()
-            self.reset_pause.setRange(1000,10001)
-            self.reset_pause.setSuffix(" ms")
-            # self.chk_minimizado = QCheckBox("Iniciar Minimizado")
 
             layout.addRow("Timeout para pings:", self.ping_timeout)
-            layout.addRow("Timeout para conexión SSH:", self.ssh_timeout)
-            layout.addRow("Tiempo de refresco de datos en representación", self.test_refresh)
-            layout.addRow("Tiempo de intento de recuperación de conexiones caídas", self.monitor_interval)
-            layout.addRow("Tiempo de pausa entre órdenes de reseteo de errores", self.reset_pause)
-            # layout.addRow("", self.chk_minimizado)
 
             return w
        
@@ -4197,7 +4286,7 @@ class MainWindow(QMainWindow):
             self.auto_export = QCheckBox("Auto exportar informe de resultados al escanear la red")
 
             self.max_threads = QSpinBox()
-            self.max_threads.setRange(1,21)
+            self.max_threads.setRange(1,50)
             self.max_threads.setSuffix(" hilos en paralelo")
 
             path_layout = QHBoxLayout()
@@ -4233,10 +4322,6 @@ class MainWindow(QMainWindow):
 
 
             self.ping_timeout.setValue(int(g.get("ping_timeout")))
-            self.ssh_timeout.setValue(int(g.get("ssh_timeout")))
-            self.test_refresh.setValue(int(g.get("test_timeout")))
-            self.monitor_interval.setValue(int(g.get("monitor_interval")))
-            self.reset_pause.setValue(int(g.get("reset_pause")))
 
             self.spin_ping_count.setValue(int(n.get("ping_count", "1")))
             self.max_threads.setValue(int(n.get("max_threads", "1")))
@@ -4257,14 +4342,9 @@ class MainWindow(QMainWindow):
             # Ejemplo (cambia los nombres de los widgets por los tuyos reales):
             
             g["ping_timeout"]     = self.ping_timeout.value()
-            g["ssh_timeout"]      = self.ssh_timeout.value()
-            g["test_timeout"]     = self.test_refresh.value()
-            g["monitor_interval"] = self.monitor_interval.value()
-            g["reset_pause"]      = self.reset_pause.value()
 
             # ----- massive_ping -----
             n["ping_count"] = self.spin_ping_count.value()
-            # print(self.spin_ping_count.value())
             n["max_threads"] = self.max_threads.value()
             n["auto_export"] = self.auto_export.isChecked()
             n["export_path"] = self.export_path.text()
@@ -4782,83 +4862,6 @@ class MainWindow(QMainWindow):
         self.check_TSC_action.setEnabled(True)
         self.massive_ping_action.setEnabled(True)
 
-    def reset_TAR_TEMP_failures(self):
-        """Función para reiniciar fallos temporales de TAR en los VCUs del tren."""
-
-        # Detener temporizador si está corriendo
-        if hasattr(self, "timer") and self.timer is not None:
-            # self.timer.stop()
-            self.stop_timer()
-
-        # Verificar que hay coches en el tren
-        if not self.trainset_coaches:
-            print("Error: No hay coches en el conjunto de trenes.")
-            return
-
-        # Lista de variables a escribir en los VCUs
-        VARS_LIST = [
-            "VCUCH_MVB1_DS_64.MaintenaceMode", 
-            "VCUCH_MVB2_DS_64.MaintenaceMode",
-            "VCUCH_MVB2_DS_64.ReleaseFailureRunInstabCH",
-            "VCUCH_MVB1_DS_64.ReleaseFailureRunInstabCH"
-            ]
-
-        # Si el modo prueba está activado, solo se usa el primer coche
-        coches_a_usar = self.trainset_coaches
-        
-
-        # Crear interfaz de progreso
-        self.progress_dialog = QDialog()
-        self.progress_dialog.setWindowTitle("Escribiendo en VCUs")
-        self.progress_dialog.setGeometry(300, 300, 600, 300)
-
-        dialog_layout = QVBoxLayout()
-        self.progress_label = QTextEdit()
-        self.progress_label.setReadOnly(True)
-        modo_texto = ""
-        self.progress_label.append(f"Lanzando comandos a las VCU´s, por favor espere...{modo_texto}\n")
-        dialog_layout.addWidget(self.progress_label)
-        self.progress_dialog.setLayout(dialog_layout)
-        self.progress_dialog.show()
-
-        def on_progress_dialog_closed():
-            """Reinicia el timer cuando se cierra la ventana."""
-            if hasattr(self, "timer") and self.timer is not None:
-                self.timer.start()
-
-        # Conectar el evento de cierre de la ventana al reinicio del timer
-        self.progress_dialog.finished.connect(on_progress_dialog_closed)
-
-        def ejecutar_comandos(valores):
-            """Ejecuta los comandos en los VCUs con los valores dados y llama al callback si se proporciona."""
-            for i in range(len(valores)):
-                with ThreadPoolExecutor(max_workers=len(coches_a_usar)) as executor:
-                    futures = {executor.submit(vcu.SSH_write_lock, [VARS_LIST[i]], [valores[i]], False): vcu for vcu in coches_a_usar}
-
-                    for future in as_completed(futures):
-                        coach = futures[future]
-                        try:
-                            ip, statuses = future.result()
-                            coach_number = self.trainset_coaches.index(coach) + 1  
-
-                            self.progress_label.append(f"➡ Variable {VARS_LIST[i]} a {valores[i]} en coche {coach_number} ({ip}):")
-                            for status in statuses:
-                                self.progress_label.append(f"    - {status}")
-
-                            self.progress_label.append("")
-                            self.progress_label.moveCursor(QTextCursor.End)
-
-                        except Exception as e:
-                            coach_number = self.trainset_coaches.index(coach) + 1
-                            error_text = f"❌ Error en Coche {coach_number}: {e}"
-                            print(error_text)
-                            self.progress_label.append(f"{error_text}\n")
-                            self.progress_label.moveCursor(QTextCursor.End)
-                
-        ejecutar_comandos([1,1,1,1])
-        ejecutar_comandos([0,0,0,0])
-        # QTimer.singleShot(RESET_PAUSE, ejecutar_comandos([0,0,0,0]))
-
     def export_to_excel(self, table):
         """Exportar los datos de la tabla a un archivo Excel incluyendo número y tipo de coche.
         Mejora: estilo visual, autofiltro, freeze pane y ancho de columnas adaptado al contenido.
@@ -5071,7 +5074,7 @@ class MainWindow(QMainWindow):
         if self.project == "DB":
             coach_types.pop()  # Eliminar el último tipo que corresponde al cabcar
         
-        print(coach_types)
+        # print(coach_types)
                 
         num_coaches = len(coach_types)
 
@@ -5425,7 +5428,7 @@ class MainWindow(QMainWindow):
 
             self.ping_result_signal.emit(row, col, ok, enviados, recibidos, perdidos, minimo, maximo, media)
         else:
-            # print("IP NO válida:", ip)
+            print("IP NO válida:", ip)
             pass
 
     def is_valid_ip(self, ip: str) -> bool:

@@ -1,17 +1,11 @@
 {
     "general": {
-        "ssh_username": "root",
-        "ssh_password": "root",
-        "ping_timeout": 100,
-        "ssh_timeout": 5,
-        "test_timeout": 2000,
-        "monitor_interval": 10,
-        "reset_pause": 5000
+        "ping_timeout": 500
     },
     "massive_ping": {
         "ping_count": 1,
         "max_threads": 21,
         "auto_export": true,
-        "export_path": "C:/Users/75815/Desktop/network_report.xls"
+        "export_path": ""
     }
 }
