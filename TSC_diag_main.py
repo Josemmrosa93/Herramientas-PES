@@ -945,7 +945,7 @@ class TCMS_vars:
         'BCUB95_MVB2_DS_612.bDIBA_Train_S2_NOK'
 
     ]
-        #DICCIONARIO PARA INTERPRETAR LA DIAGNÓSIS
+        #DICCIONARIO PARA INTERPRETAR LA DIAGNÓSIS DE FRENO
         self.BCU_DIAGNOSIS_DICT = {
         'bDIBA_S2_NOK': {'Error Code': 'bDIBA_S2_NOK', 'Description': 'Function DIBA_Train not available'},
         'bDIMGA_S0': {'Error Code': 'bDIMGA_S0', 'Description': 'Improperly MTB applied'},    
@@ -1295,7 +1295,316 @@ class TCMS_vars:
         'DIA_ContEBO_SigOFF': {'Variable': 'sDiagnosis23_b1', 'Description': 'Error while deactivating the continous EBO signal'},
         'DIA_ContEBO_Train_OFF': {'Variable': 'sDiagnosis23_b2', 'Description': 'EBO according UIC 541-6 disabled but a signal has been detected on the EBO train line'}
         }
-
+        #VARIABLES PARA COMANDAR EN DCU
+        self.DCU_COMMANDS_VARS = ['VCUCH_CAN_DS_21A.bSW_CenClosing',
+                                  'VCUCH_CAN_DS_21A.bSW_BurnInOn',
+                                'VCUCH_CAN_DS_21A.bSW_EnergySav',
+                                'VCUCH_CAN_DS_21A.bSW_CleanMode',
+                                'VCUCH_CAN_DS_21A.bSW_MaintMode',
+                                'VCUCH_CAN_DS_21A.bSW_StandByMode',
+                                'VCUCH_CAN_DS_21A.bSW_ReducedStep',
+                                'VCUCH_CAN_DS_21A.bSW_CenOpening',
+        ]
+        #VARIABLES DEL LAZO DE PUERTAS / BURNING TEST
+        self.DOORS_LOOP_VARS = [
+            'DCU_CAN_DS_19A.bStepClosed',
+            'DCU_CAN_DS_19C.bStepClosed',
+            'DCU_CAN_DS_19A.bClosedLocked',
+            'DCU_CAN_DS_19C.bClosedLocked',
+            'DCU_CAN_DS_19A.b2RemoteCloseON',
+            'DCU_CAN_DS_19C.b2RemoteCloseON',
+            'DCU_CAN_DS_19A.bRemoteCloseON',
+            'DCU_CAN_DS_19C.bRemoteCloseON',
+            'DCU_CAN_DS_19A.bStepOpen',
+            'DCU_CAN_DS_19C.bStepOpen',
+            'DCU_CAN_DS_19A.bDoorOpen',
+            'DCU_CAN_DS_19C.bDoorOpen',
+            'DCU_CAN_DS_19A.bEEDoperated',
+            'DCU_CAN_DS_19C.bEEDoperated',
+            'DCU_CAN_DS_19A.bEADoperated',
+            'DCU_CAN_DS_19C.bEADoperated',
+            'DCU_CAN_DS_19A.bEmSwOperated',
+            'DCU_CAN_DS_19C.bEmSwOperated',
+            'DCU_CAN_DS_19A.bDoorOutService',
+            'DCU_CAN_DS_19C.bDoorOutService',
+            'DCU_CAN_DS_19A.bStepOutService',
+            'DCU_CAN_DS_19C.bStepOutService',
+            'DCU_CAN_DS_19A.bStepManRelease',
+            'DCU_CAN_DS_19C.bStepManRelease',
+            'DCU_CAN_DS_19A.bBurninActive',
+            'DCU_CAN_DS_19C.bBurninActive',
+            'DCU_CAN_DS_19A.bLastBurninNOK',
+            'DCU_CAN_DS_19C.bLastBurninNOK',
+            'DCU_CAN_DS_19A.bLastBurninOK',
+            'DCU_CAN_DS_19C.bLastBurninOK',
+            'DCU_CAN_DS_19A.bBurninReady',
+            'DCU_CAN_DS_19C.bBurninReady',
+            'DCU_CAN_DS_19A.bDiagnostiCodeB',
+            'DCU_CAN_DS_19C.bDiagnostiCodeB',
+            'DCU_CAN_DS_19A.bDiagnostiCodeA',
+            'DCU_CAN_DS_19C.bDiagnostiCodeA',
+            'DCU_CAN_DS_19A.bPRMoutside',
+            'DCU_CAN_DS_19C.bPRMoutside',
+            'DCU_CAN_DS_19A.bPRMinside',
+            'DCU_CAN_DS_19C.bPRMinside',
+            'DCU_CAN_DS_19A.bEchoOH',
+            'DCU_CAN_DS_19C.bEchoOH',
+            'DCU_CAN_DS_19A.bEchoV10',
+            'DCU_CAN_DS_19C.bEchoV10',
+            'DCU_CAN_DS_19A.bEchoV3',
+            'DCU_CAN_DS_19C.bEchoV3',
+            'DCU_CAN_DS_19A.bEchoStepIn',
+            'DCU_CAN_DS_19C.bEchoStepIn',
+            'DCU_CAN_DS_19A.bEchoRedStk',
+            'DCU_CAN_DS_19C.bEchoRedStk',
+            'DCU_CAN_DS_19A.MajorSWrev',
+            'DCU_CAN_DS_19C.MajorSWrev',
+            'DCU_CAN_DS_19A.MinorSWrev',
+            'DCU_CAN_DS_19C.MinorSWrev',
+            'DCU_CAN_DS_19A.HWrevision',
+            'DCU_CAN_DS_19C.HWrevision',
+            'DCU_CAN_DS_19B.bHomogTestFail',
+            'DCU_CAN_DS_19D.bHomogTestFail',
+            'DCU_CAN_DS_19B.bHomogTestFinhishOk',
+            'DCU_CAN_DS_19D.bHomogTestFinhishOk',
+            'DCU_CAN_DS_19B.bHomogTestAct',
+            'DCU_CAN_DS_19D.bHomogTestAct',
+            'DCU_CAN_DS_19B.bStUIC15',
+            'DCU_CAN_DS_19D.bStUIC15',
+            'DCU_CAN_DS_19B.bStUIC14',
+            'DCU_CAN_DS_19D.bStUIC14',
+            'DCU_CAN_DS_19B.bStUIC9',
+            'DCU_CAN_DS_19D.bStUIC9',
+            'DCU_CAN_DS_19B.bStUICLATMode',
+            'DCU_CAN_DS_19D.bStUICLATMode',
+            'DCU_CAN_DS_19B.bStSafeSt',
+            'DCU_CAN_DS_19D.bStSafeSt',
+            'DCU_CAN_DS_19B.bStTB0Mode',
+            'DCU_CAN_DS_19D.bStTB0Mode',
+            'DCU_CAN_DS_19B.bStOBBTBSMode',
+            'DCU_CAN_DS_19D.bStOBBTBSMode',
+            'DCU_CAN_DS_19B.bActiveRelease',
+            'DCU_CAN_DS_19D.bActiveRelease',
+            'DCU_CAN_DS_19B.bEnergySaving_Release',
+            'DCU_CAN_DS_19D.bEnergySaving_Release',
+            'DCU_CAN_DS_29B.CycleCountDoor',
+            'DCU_CAN_DS_29D.CycleCountDoor',
+            'DCU_CAN_DS_29B.CycleCountStep',
+            'DCU_CAN_DS_29D.CycleCountStep',
+            'DCU_CAN_DS_19A.LifeSignal',
+            'DCU_CAN_DS_19C.LifeSignal',
+            'DCU_CAN_DS_19A_Failure_Rate',
+            'DCU_CAN_DS_19C_Failure_Rate',
+            'VCUCH_CAN_DS_21A.N3_par',
+            'VCUCH_CAN_DS_21C.N3_par',
+            'DCU_CAN_DS_2D4.N3_feedback',
+            'DCU_CAN_DS_2D6.N3_feedback'
+        ]
+        #VARIABLES PARA LA DIAGNOSIS DE DCU
+        self.DCU_DIAGNOSIS = [
+                'DCU_CAN_DS_49A.bCdiagCode1','DCU_CAN_DS_49C.bCdiagCode1',
+                'DCU_CAN_DS_49A.bCdiagCode2','DCU_CAN_DS_49C.bCdiagCode2',
+                'DCU_CAN_DS_49A.bCdiagCode3','DCU_CAN_DS_49C.bCdiagCode3',
+                'DCU_CAN_DS_49A.bCdiagCode4','DCU_CAN_DS_49C.bCdiagCode4',
+                'DCU_CAN_DS_49A.bCdiagCode5','DCU_CAN_DS_49C.bCdiagCode5',
+                'DCU_CAN_DS_49A.bCdiagCode6','DCU_CAN_DS_49C.bCdiagCode6',
+                'DCU_CAN_DS_49A.bCdiagCode7','DCU_CAN_DS_49C.bCdiagCode7',
+                'DCU_CAN_DS_49A.bCdiagCode8','DCU_CAN_DS_49C.bCdiagCode8',
+                'DCU_CAN_DS_49A.bCdiagCode9','DCU_CAN_DS_49C.bCdiagCode9',
+                'DCU_CAN_DS_49A.bCdiagCode10','DCU_CAN_DS_49C.bCdiagCode10',
+                'DCU_CAN_DS_49A.bCdiagCode12','DCU_CAN_DS_49C.bCdiagCode12',
+                'DCU_CAN_DS_49A.bCdiagCode13','DCU_CAN_DS_49C.bCdiagCode13',
+                'DCU_CAN_DS_49A.bCdiagCode14','DCU_CAN_DS_49C.bCdiagCode14',
+                'DCU_CAN_DS_49A.bCdiagCode15','DCU_CAN_DS_49C.bCdiagCode15',
+                'DCU_CAN_DS_49A.bCdiagCode16','DCU_CAN_DS_49C.bCdiagCode16',
+                'DCU_CAN_DS_49A.bCdiagCode17','DCU_CAN_DS_49C.bCdiagCode17',
+                'DCU_CAN_DS_49A.bCdiagCode18','DCU_CAN_DS_49C.bCdiagCode18',
+                'DCU_CAN_DS_49A.bCdiagCode19','DCU_CAN_DS_49C.bCdiagCode19',
+                'DCU_CAN_DS_49A.bCdiagCode20','DCU_CAN_DS_49C.bCdiagCode20',
+                'DCU_CAN_DS_49A.bCdiagCode21','DCU_CAN_DS_49C.bCdiagCode21',
+                'DCU_CAN_DS_49A.bCdiagCode22','DCU_CAN_DS_49C.bCdiagCode22',
+                'DCU_CAN_DS_49A.bCdiagCode23','DCU_CAN_DS_49C.bCdiagCode23',
+                'DCU_CAN_DS_49A.bCdiagCode24','DCU_CAN_DS_49C.bCdiagCode24',
+                'DCU_CAN_DS_49A.bCdiagCode25','DCU_CAN_DS_49C.bCdiagCode25',
+                'DCU_CAN_DS_49A.bCdiagCode26','DCU_CAN_DS_49C.bCdiagCode26',
+                'DCU_CAN_DS_49A.bCdiagCode28','DCU_CAN_DS_49C.bCdiagCode28',
+                'DCU_CAN_DS_49A.bCdiagCode29','DCU_CAN_DS_49C.bCdiagCode29',
+                'DCU_CAN_DS_49A.bCdiagCode30','DCU_CAN_DS_49C.bCdiagCode30',
+                'DCU_CAN_DS_49A.bCdiagCode31','DCU_CAN_DS_49C.bCdiagCode31',
+                'DCU_CAN_DS_49A.bCdiagCode32','DCU_CAN_DS_49C.bCdiagCode32',
+                'DCU_CAN_DS_49A.bCdiagCode33','DCU_CAN_DS_49C.bCdiagCode33',
+                'DCU_CAN_DS_49A.bCdiagCode34','DCU_CAN_DS_49C.bCdiagCode34',
+                'DCU_CAN_DS_49A.bCdiagCode35','DCU_CAN_DS_49C.bCdiagCode35',
+                'DCU_CAN_DS_49A.bCdiagCode36','DCU_CAN_DS_49C.bCdiagCode36',
+                'DCU_CAN_DS_49A.bCdiagCode37','DCU_CAN_DS_49C.bCdiagCode37',
+                'DCU_CAN_DS_49A.bCdiagCode38','DCU_CAN_DS_49C.bCdiagCode38',
+                'DCU_CAN_DS_49A.bCdiagCode39','DCU_CAN_DS_49C.bCdiagCode39',
+                'DCU_CAN_DS_49A.bCdiagCode40','DCU_CAN_DS_49C.bCdiagCode40',
+                'DCU_CAN_DS_49A.bCdiagCode41','DCU_CAN_DS_49C.bCdiagCode41',
+                'DCU_CAN_DS_49A.bCdiagCode42','DCU_CAN_DS_49C.bCdiagCode42',
+                'DCU_CAN_DS_49A.bCdiagCode43','DCU_CAN_DS_49C.bCdiagCode43',
+                'DCU_CAN_DS_49A.bCdiagCode44','DCU_CAN_DS_49C.bCdiagCode44',
+                'DCU_CAN_DS_49A.bCdiagCode45','DCU_CAN_DS_49C.bCdiagCode45',
+                'DCU_CAN_DS_49A.bCdiagCode46','DCU_CAN_DS_49C.bCdiagCode46',
+                'DCU_CAN_DS_49A.bCdiagCode47','DCU_CAN_DS_49C.bCdiagCode47',
+                'DCU_CAN_DS_49A.bCdiagCode48','DCU_CAN_DS_49C.bCdiagCode48',
+                'DCU_CAN_DS_49A.bCdiagCode49','DCU_CAN_DS_49C.bCdiagCode49',
+                'DCU_CAN_DS_49A.bCdiagCode50','DCU_CAN_DS_49C.bCdiagCode50',
+                'DCU_CAN_DS_49A.bCdiagCode51','DCU_CAN_DS_49C.bCdiagCode51',
+                'DCU_CAN_DS_49A.bCdiagCode52','DCU_CAN_DS_49C.bCdiagCode52',
+                'DCU_CAN_DS_49A.bCdiagCode53','DCU_CAN_DS_49C.bCdiagCode53',
+                'DCU_CAN_DS_49A.bCdiagCode55','DCU_CAN_DS_49C.bCdiagCode55',
+                'DCU_CAN_DS_49A.bCdiagCode56','DCU_CAN_DS_49C.bCdiagCode56',
+                'DCU_CAN_DS_49A.bCdiagCode57','DCU_CAN_DS_49C.bCdiagCode57',
+                'DCU_CAN_DS_49A.bCdiagCode61','DCU_CAN_DS_49C.bCdiagCode61',
+                'DCU_CAN_DS_49A.bCdiagCode62','DCU_CAN_DS_49C.bCdiagCode62',
+                'DCU_CAN_DS_49A.bCdiagCode66','DCU_CAN_DS_49C.bCdiagCode66',
+                'DCU_CAN_DS_49A.bCdiagCode67','DCU_CAN_DS_49C.bCdiagCode67',
+                'DCU_CAN_DS_49A.bCdiagCode70','DCU_CAN_DS_49C.bCdiagCode70',
+                'DCU_CAN_DS_49A.bCdiagCode71','DCU_CAN_DS_49C.bCdiagCode71',
+                'DCU_CAN_DS_49A.bCdiagCode72','DCU_CAN_DS_49C.bCdiagCode72',
+                'DCU_CAN_DS_49A.bCdiagCode73','DCU_CAN_DS_49C.bCdiagCode73',
+                'DCU_CAN_DS_49A.bCdiagCode74','DCU_CAN_DS_49C.bCdiagCode74',
+                'DCU_CAN_DS_49A.bCdiagCode75','DCU_CAN_DS_49C.bCdiagCode75',
+                'DCU_CAN_DS_19B.bCdiagCode63','DCU_CAN_DS_19D.bCdiagCode63',
+                'DCU_CAN_DS_19B.bCdiagCode81','DCU_CAN_DS_19D.bCdiagCode81',
+                'DCU_CAN_DS_19B.bCdiagCode82','DCU_CAN_DS_19D.bCdiagCode82',
+                'DCU_CAN_DS_19B.bCdiagCode83','DCU_CAN_DS_19D.bCdiagCode83',
+                'DCU_CAN_DS_19B.bCdiagCode84','DCU_CAN_DS_19D.bCdiagCode84',
+                'DCU_CAN_DS_19B.bCdiagCode85','DCU_CAN_DS_19D.bCdiagCode85',
+                'DCU_CAN_DS_19B.bCdiagCode86','DCU_CAN_DS_19D.bCdiagCode86',
+                'DCU_CAN_DS_19B.bCdiagCode87','DCU_CAN_DS_19D.bCdiagCode87',
+                'DCU_CAN_DS_19B.bCdiagCode88','DCU_CAN_DS_19D.bCdiagCode88',
+                'DCU_CAN_DS_19B.bCdiagCode89','DCU_CAN_DS_19D.bCdiagCode89',
+                'DCU_CAN_DS_19B.bCdiagCode90','DCU_CAN_DS_19D.bCdiagCode90',
+                'DCU_CAN_DS_19B.bCdiagCode92','DCU_CAN_DS_19D.bCdiagCode92',
+                'DCU_CAN_DS_19B.bCdiagCode93','DCU_CAN_DS_19D.bCdiagCode93',
+                'DCU_CAN_DS_19B.bCdiagCode94','DCU_CAN_DS_19D.bCdiagCode94',
+                'DCU_CAN_DS_19B.bCdiagCode95','DCU_CAN_DS_19D.bCdiagCode95',
+                'DCU_CAN_DS_19B.bCdiagCode96','DCU_CAN_DS_19D.bCdiagCode96',
+                'DCU_CAN_DS_19B.bCdiagCode97','DCU_CAN_DS_19D.bCdiagCode97',
+                'DCU_CAN_DS_19B.bCdiagCode98','DCU_CAN_DS_19D.bCdiagCode98',
+                'DCU_CAN_DS_19B.bCdiagCode99','DCU_CAN_DS_19D.bCdiagCode99',
+                'DCU_CAN_DS_19B.bCdiagCode106','DCU_CAN_DS_19D.bCdiagCode106',
+                'DCU_CAN_DS_19B.bCdiagCode107','DCU_CAN_DS_19D.bCdiagCode107',
+                'DCU_CAN_DS_19B.bCdiagCode108','DCU_CAN_DS_19D.bCdiagCode108',
+                'DCU_CAN_DS_19B.bCdiagCode110','DCU_CAN_DS_19D.bCdiagCode110',
+                'DCU_CAN_DS_19B.bCdiagCode111','DCU_CAN_DS_19D.bCdiagCode111',
+                'DCU_CAN_DS_19B.bCdiagCode112','DCU_CAN_DS_19D.bCdiagCode112',
+                'DCU_CAN_DS_19B.bCdiagCode113','DCU_CAN_DS_19D.bCdiagCode113',
+                'DCU_CAN_DS_19B.bCdiagCode114','DCU_CAN_DS_19D.bCdiagCode114',
+                'DCU_CAN_DS_19B.bCdiagCode115','DCU_CAN_DS_19D.bCdiagCode115',
+                'DCU_CAN_DS_19B.bCdiagCode116','DCU_CAN_DS_19D.bCdiagCode116',
+                'DCU_CAN_DS_19B.bCdiagCode117','DCU_CAN_DS_19D.bCdiagCode117',
+                'DCU_CAN_DS_19B.bCdiagCode118','DCU_CAN_DS_19D.bCdiagCode118',
+                'DCU_CAN_DS_19B.bCdiagCode119','DCU_CAN_DS_19D.bCdiagCode119'
+                ]
+        #DICCIONARIO PARA INTERPRETAR LA DIAGNOSIS DE PUERTAS
+        self.DCU_DIAGNOSIS_DICT = {
+        'bCdiagCode1':  {'Error Code': 'bCdiagCode1',  'Description': 'Broken wire in door drive M1 motor'},
+        'bCdiagCode2':  {'Error Code': 'bCdiagCode2',  'Description': 'Fault in door closed and locked micro [S1]'},
+        'bCdiagCode3':  {'Error Code': 'bCdiagCode3',  'Description': 'Fault in door closed and locked micro [S2]'},
+        'bCdiagCode4':  {'Error Code': 'bCdiagCode4',  'Description': 'Door does not unlock within 3 s'},
+        'bCdiagCode5':  {'Error Code': 'bCdiagCode5',  'Description': 'Door motor encoder failure [M1]'},
+        'bCdiagCode6':  {'Error Code': 'bCdiagCode6',  'Description': 'Repeated obstacle detection in door closing'},
+        'bCdiagCode7':  {'Error Code': 'bCdiagCode7',  'Description': 'Repeated obstacle detection at door opening'},
+        'bCdiagCode8':  {'Error Code': 'bCdiagCode8',  'Description': 'DCU internal security channel failure [Board A]'},
+        'bCdiagCode9':  {'Error Code': 'bCdiagCode9',  'Description': 'Door leaf detection switch fails'},
+        'bCdiagCode10': {'Error Code': 'bCdiagCode10', 'Description': 'Internal safety channel on board “B” of the DCU fails'},
+        # No hay bCdiagCode11 en la tabla original
+        'bCdiagCode12': {'Error Code': 'bCdiagCode12', 'Description': 'Short circuit on 5 VDC power supply of the DCU'},
+        'bCdiagCode13': {'Error Code': 'bCdiagCode13', 'Description': 'Malfunction at DCU output O001: Green loop (TIL)'},
+        'bCdiagCode14': {'Error Code': 'bCdiagCode14', 'Description': 'Malfunction at DCU output O002: crew switch: position I “central close”'},
+        'bCdiagCode15': {'Error Code': 'bCdiagCode15', 'Description': 'Malfunction at DCU output O003: power supply: elements entrance area {H1, H2, S11, S12, S21, S22, S47, S61}'},
+        'bCdiagCode16': {'Error Code': 'bCdiagCode16', 'Description': 'Malfunction at DCU output O004: Decoupling emergency egress device Y4'},
+        'bCdiagCode17': {'Error Code': 'bCdiagCode17', 'Description': 'Malfunction at DCU output O005: Warning lamp portal inside H11'},
+        'bCdiagCode18': {'Error Code': 'bCdiagCode18', 'Description': 'Malfunction at DCU output O006: Illumination emergency switch S62'},
+        'bCdiagCode19': {'Error Code': 'bCdiagCode19', 'Description': 'Malfunction at DCU output O007: illumination push button open portal inside + outside: LEDs green {S21, S22}'},
+        'bCdiagCode20': {'Error Code': 'bCdiagCode20', 'Description': 'Malfunction at DCU output O008: illumination push button open portal inside + outside: LEDs red {S21, S22}'},
+        'bCdiagCode21': {'Error Code': 'bCdiagCode21', 'Description': 'Malfunction at DCU output O009: Warning buzzer portal inside + outside: BIT 1 {H1, H2}'},
+        'bCdiagCode22': {'Error Code': 'bCdiagCode22', 'Description': 'Malfunction at DCU output O010: Warning buzzer portal inside + outside: BIT 2 {H1, H2}'},
+        'bCdiagCode23': {'Error Code': 'bCdiagCode23', 'Description': 'Malfunction at DCU output O011: Warning buzzer portal inside + outside: BIT 3 {H1, H2}'},
+        'bCdiagCode24': {'Error Code': 'bCdiagCode24', 'Description': 'Malfunction at DCU output O012: power supply: limit switches door {S1, S2, S3, S4, S5.1, S5.2, S8, S16.1, S16.2, S17.1, S17.2}'},
+        'bCdiagCode25': {'Error Code': 'bCdiagCode25', 'Description': 'Malfunction at DCU output O103: Power supply: push buttons PRM + close, elements step {S14, S26, S27}'},
+        'bCdiagCode26': {'Error Code': 'bCdiagCode26', 'Description': 'Malfunction at DCU output O104: Armature stop brake step Y3'},
+        # No hay bCdiagCode27 en la tabla original
+        'bCdiagCode28': {'Error Code': 'bCdiagCode28', 'Description': 'Malfunction at DCU output O110: illumination push button close portal inside + outside: LEDs green {S26, S27}'},
+        'bCdiagCode29': {'Error Code': 'bCdiagCode29', 'Description': 'Malfunction at DCU output O107: illumination push button PRM portal inside + outside: LEDs green {-} {S52.1, S55, S56.1}'},
+        'bCdiagCode30': {'Error Code': 'bCdiagCode30', 'Description': 'Malfunction at DCU output O108: illumination push button PRM portal inside + outside: LEDs red {-} {S14, S26, S27, S31, S32}'},
+        'bCdiagCode31': {'Error Code': 'bCdiagCode31', 'Description': 'Push button open portal inside S22 fails'},
+        'bCdiagCode32': {'Error Code': 'bCdiagCode32', 'Description': 'Push button open portal outside S21 fails'},
+        'bCdiagCode33': {'Error Code': 'bCdiagCode33', 'Description': 'PRM push button inside S32 fails'},
+        'bCdiagCode34': {'Error Code': 'bCdiagCode34', 'Description': 'PRM push button outside S31 fails'},
+        'bCdiagCode35': {'Error Code': 'bCdiagCode35', 'Description': 'Service push button on DCU fails'},
+        'bCdiagCode36': {'Error Code': 'bCdiagCode36', 'Description': 'Sensitive edge door - front side, outer edge S11 steady activated'},
+        'bCdiagCode37': {'Error Code': 'bCdiagCode37', 'Description': 'Sensitive edge door - front side, inner edge S12 steady activated'},
+        'bCdiagCode38': {'Error Code': 'bCdiagCode38', 'Description': 'Sensitive edge door - front side, outer edge S11 fails'},
+        'bCdiagCode39': {'Error Code': 'bCdiagCode39', 'Description': 'Sensitive edge door - front side, inner edge S12 fails'},
+        'bCdiagCode40': {'Error Code': 'bCdiagCode40', 'Description': 'Sensitive edge step front side S14 fails'},
+        'bCdiagCode41': {'Error Code': 'bCdiagCode41', 'Description': 'Sensitive edge step front side S14 steady activated'},
+        'bCdiagCode42': {'Error Code': 'bCdiagCode42', 'Description': 'Ethernet Bus communication fails'},
+        'bCdiagCode43': {'Error Code': 'bCdiagCode43', 'Description': 'Can Bus communication fails'},
+        'bCdiagCode44': {'Error Code': 'bCdiagCode44', 'Description': 'Door leaves the closed&locked position without permission'},
+        'bCdiagCode45': {'Error Code': 'bCdiagCode45', 'Description': 'Signals of the limit switches are different'},
+        'bCdiagCode46': {'Error Code': 'bCdiagCode46', 'Description': 'Relay function fails on board “A”'},
+        'bCdiagCode47': {'Error Code': 'bCdiagCode47', 'Description': 'Relay function fails on board “B”'},
+        'bCdiagCode48': {'Error Code': 'bCdiagCode48', 'Description': 'Door coding faulty'},
+        'bCdiagCode49': {'Error Code': 'bCdiagCode49', 'Description': 'Door coding faulty'},
+        'bCdiagCode50': {'Error Code': 'bCdiagCode50', 'Description': 'Push button close inside S27 fails'},
+        'bCdiagCode51': {'Error Code': 'bCdiagCode51', 'Description': 'Push button close outside S27 fails'},
+        'bCdiagCode52': {'Error Code': 'bCdiagCode52', 'Description': 'Decoupling (solenoid) device on the EED fails'},
+        'bCdiagCode53': {'Error Code': 'bCdiagCode53', 'Description': 'Short circuit on 5 VDC power supply of the DCU'},
+        # No hay bCdiagCode54 en la tabla original
+        'bCdiagCode55': {'Error Code': 'bCdiagCode55', 'Description': 'Malfunction at DCU output O110: illumination push button close portal inside + outside: LEDs green {S26, S27}'},
+        'bCdiagCode56': {'Error Code': 'bCdiagCode56', 'Description': 'Malfunction at DCU output O111: illumination push button close portal inside + outside: LEDs red {S26, S27}'},
+        'bCdiagCode57': {'Error Code': 'bCdiagCode57', 'Description': 'Malfunction at DCU output O112: power supply: limit switches step {S52.1, S55, S56.1}'},
+        # No hay bCdiagCode58, bCdiagCode59, bCdiagCode60 en la tabla original
+        'bCdiagCode61': {'Error Code': 'bCdiagCode61', 'Description': 'Crew switch fails'},
+        'bCdiagCode62': {'Error Code': 'bCdiagCode62', 'Description': 'Crew switch inside “ramp mode” S48 fails'},
+        'bCdiagCode63': {'Error Code': 'bCdiagCode63', 'Description': 'Crew switch for ready for departure fails'},
+        # bCdiagCode64-65 no presentes
+        'bCdiagCode66': {'Error Code': 'bCdiagCode66', 'Description': 'Door out of service device fails'},
+        'bCdiagCode67': {'Error Code': 'bCdiagCode67', 'Description': 'Step out of service device fails'},
+        # bCdiagCode68-69 no presentes
+        'bCdiagCode70': {'Error Code': 'bCdiagCode70', 'Description': 'Limit switch “door locked left 1” {S16.1} fails'},
+        'bCdiagCode71': {'Error Code': 'bCdiagCode71', 'Description': 'Limit switch “door locked left 2” {S16.2} fails'},
+        'bCdiagCode72': {'Error Code': 'bCdiagCode72', 'Description': 'Limit switch “door locked right 1” {S17.1} fails'},
+        'bCdiagCode73': {'Error Code': 'bCdiagCode73', 'Description': 'Limit switch “door locked right 2” {S17.2} fails'},
+        'bCdiagCode74': {'Error Code': 'bCdiagCode74', 'Description': 'Door locking unit left fails'},
+        'bCdiagCode75': {'Error Code': 'bCdiagCode75', 'Description': 'Door locking unit right fails'},
+        'bCdiagCode81': {'Error Code': 'bCdiagCode81',  'Description': 'Broken cable in M2 motor, bridge-plate actuation'},
+        'bCdiagCode82': {'Error Code': 'bCdiagCode82',  'Description': 'Limit switch “step closed” {S52.1} fails'},
+        'bCdiagCode83': {'Error Code': 'bCdiagCode83',  'Description': 'Step leaves the closed position without permission'},
+        'bCdiagCode84': {'Error Code': 'bCdiagCode84',  'Description': 'Step does not unlock within 3 s'},
+        'bCdiagCode85': {'Error Code': 'bCdiagCode85',  'Description': 'Fault in step position sensors'},
+        'bCdiagCode86': {'Error Code': 'bCdiagCode86',  'Description': 'Step movement monitoring at closing sequence was activated on a fixed number of successive closing attempts'},
+        'bCdiagCode87': {'Error Code': 'bCdiagCode87',  'Description': 'Step obstacle detection at opening sequence was activated on a fixed number of successive opening attempts'},
+        'bCdiagCode88': {'Error Code': 'bCdiagCode88',  'Description': 'Armature stop brake step fails'},
+        'bCdiagCode89': {'Error Code': 'bCdiagCode89',  'Description': 'Burn In test fails'},
+        'bCdiagCode90': {'Error Code': 'bCdiagCode90',  'Description': 'Status of input signals is different'},
+        'bCdiagCode92': {'Error Code': 'bCdiagCode92',  'Description': 'Status of input speed signals is equal'},
+        'bCdiagCode93': {'Error Code': 'bCdiagCode93',  'Description': 'System does not detect fully opened position at defined time'},
+        'bCdiagCode94': {'Error Code': 'bCdiagCode94',  'Description': 'System does not detect closed (&locked) position at defined time'},
+        'bCdiagCode95': {'Error Code': 'bCdiagCode95',  'Description': 'System does not detect fully opened position at defined time'},
+        'bCdiagCode96': {'Error Code': 'bCdiagCode96',  'Description': 'Major internal DCU failure'},
+        'bCdiagCode97': {'Error Code': 'bCdiagCode97',  'Description': 'System does not detect closed (&locked) position at defined time'},
+        'bCdiagCode98': {'Error Code': 'bCdiagCode98',  'Description': 'UIC14 data bus signal and hardwired signal are different'},
+        'bCdiagCode99': {'Error Code': 'bCdiagCode99',  'Description': 'UIC15 data bus signal and hardwired signal are different'},
+        'bCdiagCode106': {'Error Code': 'bCdiagCode106', 'Description': 'Door leaf speed of manual movement is too high'},
+        'bCdiagCode107': {'Error Code': 'bCdiagCode107', 'Description': 'Step plate speed of manual movement is too high'},
+        'bCdiagCode108': {'Error Code': 'bCdiagCode108', 'Description': 'Faulty emergency state evaluated'},
+        'bCdiagCode110': {'Error Code': 'bCdiagCode110', 'Description': 'Malfunction on UIC-trainline 14(+)/12(-)'},
+        'bCdiagCode111': {'Error Code': 'bCdiagCode111', 'Description': 'Malfunction on UIC-trainline 15(+)/12(-)'},
+        'bCdiagCode112': {'Error Code': 'bCdiagCode112', 'Description': 'Relay function fails on UIC16 bypass contact'},
+        'bCdiagCode113': {'Error Code': 'bCdiagCode113', 'Description': 'Homogeneity test error'},
+        'bCdiagCode114': {'Error Code': 'bCdiagCode114', 'Description': 'Malfunction at DCU output O101: UIC16 bypass relay'},
+        'bCdiagCode115': {'Error Code': 'bCdiagCode115', 'Description': 'Malfunction at DCU output O102: Release opposite entrance'},
+        'bCdiagCode116': {'Error Code': 'bCdiagCode116', 'Description': 'Malfunction at DCU output O105: Power supply: UIC14&15&16'},
+        'bCdiagCode117': {'Error Code': 'bCdiagCode117', 'Description': 'Malfunction on output UIC 09(+)/12(-) of Door Control Unit'},
+        'bCdiagCode118': {'Error Code': 'bCdiagCode118', 'Description': 'Incongruency in UIC14 vs UIC12 inputs'},
+        'bCdiagCode119': {'Error Code': 'bCdiagCode119', 'Description': 'Incongruency in UIC15 vs UIC12 inputs'},
+    }
+    
 class CoachClient:
     """
     Cliente por coche/coach basado en isagrafInterface (Ethernet).
@@ -1392,8 +1701,10 @@ class CoachClient:
 
 class Worker(QObject):
 
-    on_tsc_data = Signal(str, object, dict)    # endpoint_id, ts_ms, values
+    on_tsc_data = Signal(str, object, dict, bool)    # endpoint_id, ts_ms, values
     on_tsc_diag_data = Signal(str, object, dict)    # endpoint_id, ts_ms, values
+    on_door_data = Signal(str, object, dict, bool)    # endpoint_id, ts_ms, values
+    on_door_diag_data = Signal(str, object, dict)    # endpoint_id, ts_ms, values
     status = Signal(str, bool, str, object)    # endpoint_id, online, msg, ts_ms
 
     def __init__(self, is_cc: bool, project: str, endpoint_client: CoachClient, vars_to_read: dict, diag_enabled: dict, period_s: float = 0.5, wait_time: float = 1.0):
@@ -1423,9 +1734,12 @@ class Worker(QObject):
         self.tsc_diag_vars = vars_to_read.get("TSC_DIAG_VARS")
         self.bcu_diag_vars = vars_to_read.get("BCU_DIAG_VARS")
         self.bcu_diag_vars_cc = vars_to_read.get("BCU_DIAG_VARS_CC")
+        self.doors_vars = vars_to_read.get("DOORS")
+        self.doors_diag_vars = vars_to_read.get("DOORS_DIAG_VARS")
 
         # Desempaquetamos las opciones de diagnóstico habilitados según la configuración. Esto se modificará en función de lo que se quiera mostrar en la UI (checkboxes).
         self.tsc_enabled = diag_enabled.get("TSC")
+        self.doors_enabled = diag_enabled.get("DOORS")
 
         if self.project == "DSB":
             self.tsc_normal_vars = list(self.tsc_coach_vars_dsb)
@@ -1439,7 +1753,8 @@ class Worker(QObject):
         if isinstance(self.coach_type_var, list):
             self.coach_type_var = self.coach_type_var[0] if self.coach_type_var else None
         if self.coach_type_var:
-            self.tsc_normal_vars = [v for v in self.tsc_normal_vars if v != self.coach_type_var] + [self.coach_type_var]
+            self.tsc_normal_vars = [v for v in self.tsc_normal_vars if v != self.coach_type_var] + [self.coach_type_var] 
+            self.doors_vars = [v for v in self.doors_vars if v != self.coach_type_var] + [self.coach_type_var]
 
     def start(self):
         if self._timer is None:
@@ -1475,19 +1790,20 @@ class Worker(QObject):
                     self._pending_config = None
 
                     self.tsc_enabled = cfg.get("TSC")
+                    self.doors_enabled = cfg.get("DOORS")
                     
-                    # print(f"Updated Worker config: TSC_enabled={self.tsc_enabled}")
+                    # print(f"Updated Worker config: TSC_enabled={self.tsc_enabled}, Doors_enabled={self.doors_enabled}")
 
                 # ################################# METEMOS UN DIAGNÓSTICO MÍNIMO PARA MANTENER VIVA LA TABLA ###############################
 
-                if self.tsc_enabled:
+                if self.tsc_enabled or self.doors_enabled:
                     self._at_least_one_read = True
                 else:
                     self._at_least_one_read = False
 
                 ts_ms = 0
 
-                # ################################ LECTURA DE TSC ################################
+                # ################################ LECTURA DE TSC O NINGUNO ACTIVO #######################################
 
                 if self.tsc_enabled or not self._at_least_one_read:
                     if not self.is_cc:
@@ -1509,11 +1825,42 @@ class Worker(QObject):
                         if ts_ms >= self._last_ts:
                             self._last_ts = ts_ms
                             reformat_tsc_values = {k: self._to_str_value(v) for k, v in (tsc_values or {}).items()}
-                            self.on_tsc_data.emit(self.endpoint_id, ts_ms, reformat_tsc_values)
+                            self.on_tsc_data.emit(self.endpoint_id, ts_ms, reformat_tsc_values, True)
                             reformat_diag_values = {k: self._to_str_value(v) for k, v in (tsc_diag_values or {}).items()}
                             self.on_tsc_diag_data.emit(self.endpoint_id, ts_ms, reformat_diag_values)
 
-                ##################################################################################
+                ############################################################################################################
+
+                #################################### LECTURA DE PUERTAS ####################################################
+
+                if self.doors_enabled:
+                    
+                    online, ts_ms, door_values = self.client.read_vars(self.doors_vars, wait_time=self.wait_time)
+                    online, ts_ms, door_diag_values = self.client.read_vars(self.doors_diag_vars, wait_time=self.wait_time)
+
+                    if not online:
+                        self.status.emit(self.endpoint_id, False, "offline (READ_ERROR)", ts_ms)
+                        # for k in door_values:
+                        #     door_values[k] = random.choice(['0', '1'])
+                        # door_values['oVCUCH_TRDP_DS_A000.COM_Vehicle_Type'] = '3'
+                        # door_values['DCU_CAN_DS_19A_Failure_Rate'] = random.choice(['0', '255'])
+                        # door_values['DCU_CAN_DS_19C_Failure_Rate']  = random.choice(['0', '255'])
+            
+                        # # print(door_values)
+                        # online = True
+                        # self.on_door_data.emit(self.endpoint_id, ts_ms, door_values, True)
+                        
+                    else:
+                        self.status.emit(self.endpoint_id, True, "ok", ts_ms)
+
+                        if ts_ms >= self._last_ts:
+                            self._last_ts = ts_ms
+                            reformat_door_values = {k: self._to_str_value(v) for k, v in (door_values or {}).items()}
+                            self.on_door_data.emit(self.endpoint_id, ts_ms, reformat_door_values, True)
+                            reformat_door_diag_values = {k: self._to_str_value(v) for k, v in (door_diag_values or {}).items()}
+                            self.on_door_diag_data.emit(self.endpoint_id, ts_ms, reformat_door_diag_values)
+
+                ############################################################################################################
 
             except Exception as e:
                 print(f"Error: {e}")
@@ -1571,8 +1918,10 @@ class Vars_Warehouse(QObject):
 
     def __init__(self, endpoint_ids, render_hz=1):
         super().__init__()
-        self.tsc_state = {eid: {"online": False, "values": {}} for eid in endpoint_ids}
+        self.tsc_state = {eid: {"online": False, "values": {}, "active": False} for eid in endpoint_ids}
         self.tsc_diag_state = {eid: {"online": False, "values": {}} for eid in endpoint_ids}
+        self.doors_state = {eid: {"online": False, "values": {}, "active": False} for eid in endpoint_ids}
+        self.door_diag_state = {eid: {"online": False, "values": {}} for eid in endpoint_ids}
         self._dirty = True
 
         hz = max(1.0, float(render_hz))
@@ -1587,7 +1936,7 @@ class Vars_Warehouse(QObject):
     def stop(self):
         self._timer.stop()
 
-    def on_tsc_data(self, endpoint_id, ts_ms, values):
+    def on_tsc_data(self, endpoint_id, ts_ms, values, active):
         st = self.tsc_state.get(endpoint_id)
         if st is None:
             return
@@ -1595,11 +1944,28 @@ class Vars_Warehouse(QObject):
         values = values or {}
 
         # Si ya estaba online y los valores son iguales -> no hay cambio real
-        if st["online"] and st["values"] == values:
+        if st["online"] and st["values"] == values and st['active'] == active:
             return
 
         st["online"] = True
         st["values"] = values
+        st["active"] = active
+        self._dirty = True
+
+    def on_doors_data(self, endpoint_id, ts_ms, values, active):
+        st = self.doors_state.get(endpoint_id)
+        if st is None:
+            return
+        
+        values = values or {}
+
+        # Si ya estaba online y los valores son iguales -> no hay cambio real
+        if st["online"] and st["values"] == values and st["active"] == active:
+            return
+
+        st["online"] = True
+        st["values"] = values
+        st["active"] = active
         self._dirty = True
 
     def on_status(self, endpoint_id, online, msg, ts_ms):
@@ -1626,21 +1992,40 @@ class Vars_Warehouse(QObject):
         st["values"] = values
         self._dirty = True
 
+    def on_door_diag_data(self, endpoint_id, ts_ms, values):
+        st = self.door_diag_state.get(endpoint_id)
+        if st is None:
+            return
+        
+        if st["online"] and st["values"] == values:
+            return
+        
+        st["online"] = True
+        st["values"] = values
+        self._dirty = True
+
     def _tick(self):
         if not self._dirty:
             return
 
         snapshot = {
             "tsc": {
-                eid: {"online": bool(st["online"]), "values": dict(st["values"])}
+                eid: {"online": bool(st["online"]), "values": dict(st["values"]), "active": bool(st["active"])}
                 for eid, st in self.tsc_state.items()
             },
             "tsc_diag": {
                 eid: {"online": bool(st["online"]), "values": dict(st["values"])}
                 for eid, st in self.tsc_diag_state.items()
+            },
+            "doors": {
+                eid: {"online": bool(st["online"]), "values": dict(st["values"]), "active": bool(st["active"])}
+                for eid, st in self.doors_state.items()
+            },
+            "doors_diag": {
+                eid: {"online": bool(st["online"]), "values": dict(st["values"])}
+                for eid, st in self.door_diag_state.items()
             }
-        }
-        
+                }
         self._dirty = False
         self.snapshotUpdated.emit(snapshot)
 
@@ -1724,6 +2109,7 @@ class TSCGenerator(QSvgWidget):
         # La var de tipo de coche (la usas para mostrar y para decidir dibujo)
         # OJO: en tu nuevo flujo dijiste que COACH_TYPE está al final de tsc_vars
         self.coach_type_var = self.tsc_vars[-1] if self.tsc_vars else None
+        # print(f"Coach type variable: {self.coach_type_var}")
 
         # snapshot actual (lo alimenta vars_warehouse -> build_svg_snapshot)
         self.snapshot = {"tsc": {}}
@@ -3508,6 +3894,538 @@ class TSCGenerator(QSvgWidget):
 
         return coach
 
+class DoorsGenerator(QSvgWidget):
+
+    def __init__(self, project, endpoint_ids, doors_vars, project_coach_types, scale_factor = 1.25):
+        super().__init__()
+
+        self.project = project
+        self.endpoint_ids = list(endpoint_ids)
+
+        # Listas de variables (mismo orden que usabas antes)
+        self.doors_vars = list(doors_vars)
+
+        # Map de tipos (ya lo tienes en TCMS_vars)
+        self.project_coach_types = project_coach_types
+
+        # La var de tipo de coche (la usas para mostrar y para decidir dibujo)
+        # OJO: en tu nuevo flujo dijiste que COACH_TYPE está al final de tsc_vars
+        self.coach_type_var = self.doors_vars[-1] if self.doors_vars else None
+        
+
+        # snapshot actual (lo alimenta vars_warehouse -> build_svg_snapshot)
+        self.snapshot = {"doors": {}}
+
+        self.scale_factor = float(scale_factor)
+        self.scaled_doors_width = int(800 * self.scale_factor)
+        self.scaled_doors_height = int(300 * self.scale_factor)
+      
+    def set_snapshot(self, snapshot: dict):
+        
+        self.snapshot = snapshot or {"doors": {}}
+        self.render_from_snapshot()
+
+    def render_from_snapshot(self):
+        svg = self.generate_svg_from_snapshot()
+        self.load(bytearray(svg, encoding="utf-8"))
+  
+    def generate_svg_from_snapshot(self) -> str:
+
+        coaches_dict = (self.snapshot or {}).get("doors", {}) or {}
+        
+
+        # Orden estable: el orden de endpoint_ids, pero solo los que existan en snapshot
+        coach_ids = [eid for eid in self.endpoint_ids[:-1] if eid in coaches_dict]
+        self.num_coaches = len(coach_ids)
+
+        # Si no hay nada, dibuja un SVG vacío mínimo (alto antiguo)
+        if self.num_coaches == 0:
+            root = Element("svg", xmlns="http://www.w3.org/2000/svg", width="800", height="300")
+            return tostring(root, encoding="unicode")
+
+        # Tipos y online por coach (para offsets como el antiguo)
+        coach_type_codes = []
+        coach_online = []
+        for eid in coach_ids:
+            st = coaches_dict.get(eid, {}) or {}
+            values = st.get("values", {}) or {}
+            ct = values.get(self.coach_type_var, "")
+            coach_type_codes.append(str(ct))
+            coach_online.append(bool(st.get("online", False)))
+
+
+        base_width = self.num_coaches * 100
+
+
+        self.pmr_pos = coach_type_codes.index("5") if "5" in coach_type_codes else None
+        self.cab_pos = coach_type_codes.index("2") if (self.project == "DB" and "2" in coach_type_codes) else None
+
+        pmr_online = bool(coach_online[self.pmr_pos]) if self.pmr_pos is not None else False
+        cab_online = bool(coach_online[self.cab_pos]) if self.cab_pos is not None else False
+
+        corrected_svg_width = base_width
+
+        svg_root = Element(
+            "svg",
+            xmlns="http://www.w3.org/2000/svg",
+            width=str(corrected_svg_width),
+            height="300",
+            viewBox = f"0 0 {corrected_svg_width} 300"
+        )
+
+        self.setFixedSize(int(corrected_svg_width * self.scale_factor), int(300 * self.scale_factor))
+        self.scaled_doors_width = int(corrected_svg_width * self.scale_factor)
+        self.scaled_doors_height = int(300 * self.scale_factor)
+        # print(f"Adjusted SVG width: {corrected_svg_width}, scaled size: {self.scaled_tsc_width}x{self.scaled_tsc_height}")
+
+        # Genera cada coche (grupo <g>) y lo traslada en X
+        for idx, eid in enumerate(coach_ids):
+            st = coaches_dict.get(eid, {}) or {}
+            values = st.get("values", {}) or {}
+            coach_type = str(values.get(self.coach_type_var, ""))
+            online = bool(st.get("online", False))
+            
+            coach_g, _flag = self.process_coach_from_values(
+                coach_id=eid,
+                index=idx,
+                coach_type=coach_type,
+                values=values,
+                online=online,
+            )
+
+            x_pos = idx * 100
+
+            coach_g.set("transform", f"translate({x_pos}, 0)")
+            svg_root.append(coach_g)
+
+        return tostring(svg_root, encoding="unicode")
+
+    def process_coach_from_values(self, coach_id, index, coach_type, values, online=True):
+
+        READ_ERR = isagrafInterface.READ_ERROR
+
+        if not online:
+            return self.offline_coach(coach_id, index), False
+
+        def build_list(vars_list):
+            return [values.get(v, READ_ERR) for v in (vars_list or [])]
+
+        def g(lst, i, default=READ_ERR):
+            return lst[i] if (i is not None and i < len(lst)) else default
+
+        doors_data = build_list(self.doors_vars)
+
+        label = ""
+        if isinstance(coach_type, str) and coach_type.isdigit():
+            label = self.project_coach_types.get(int(coach_type), str(coach_type))
+
+    
+        step_closed_r = g(doors_data, 0)
+        step_closed_l = g(doors_data, 1)
+        closed_n_locked_r = g(doors_data, 2)
+        closed_n_locked_l = g(doors_data, 3)
+        second_remote_close_r = g(doors_data, 4)
+        second_remote_close_l = g(doors_data, 5)
+        remote_close_r = g(doors_data, 6)
+        remote_close_l = g(doors_data, 7)
+        step_open_r = g(doors_data, 8)
+        step_open_l = g(doors_data, 9)
+        door_open_r = g(doors_data, 10)
+        door_open_l = g(doors_data, 11)
+        eed_operated_r = g(doors_data, 12)
+        eed_operated_l = g(doors_data, 13)
+        ead_operated_r = g(doors_data, 14)
+        ead_operated_l = g(doors_data, 15)
+        emsw_operated_r = g(doors_data, 16)
+        emsw_operated_l = g(doors_data, 17)
+        door_oos_r = g(doors_data, 18)
+        door_oos_l = g(doors_data, 19)
+        step_oos_r = g(doors_data, 20)
+        step_oos_l = g(doors_data, 21)
+        step_manual_release_r = g(doors_data, 22)
+        step_manual_release_l = g(doors_data, 23)
+        burn_in_active_r = g(doors_data, 24)
+        burn_in_active_l = g(doors_data, 25)
+        last_burn_in_nok_r = g(doors_data, 26)
+        last_burn_in_nok_l = g(doors_data, 27)
+        last_burn_in_ok_r = g(doors_data, 28)
+        last_burn_in_ok_l = g(doors_data, 29)
+        burn_in_ready_r = g(doors_data, 30)
+        burn_in_ready_l = g(doors_data, 31)
+        code_b_r = g(doors_data, 32)
+        code_b_l = g(doors_data, 33)
+        code_a_r = g(doors_data, 34)
+        code_a_l = g(doors_data, 35)
+        pmr_outside_r = g(doors_data, 36)
+        pmr_outside_l = g(doors_data, 37)
+        pmr_inside_r = g(doors_data, 38)
+        pmr_inside_l = g(doors_data, 39)
+        echo_OH_r = g(doors_data, 40)
+        echo_OH_l = g(doors_data, 41)
+        echo_V10_r = g(doors_data, 42)
+        echo_V10_l = g(doors_data, 43)
+        echo_V3_r = g(doors_data, 44)
+        echo_V3_l = g(doors_data, 45)
+        echo_step_in_r = g(doors_data, 46)
+        echo_step_in_l = g(doors_data, 47)
+        echo_red_Stk_r = g(doors_data, 48)
+        echo_red_Stk_l = g(doors_data, 49)
+        major_sw_r = g(doors_data, 50)
+        major_sw_l = g(doors_data, 51)
+        minor_sw_r = g(doors_data, 52)
+        minor_sw_l = g(doors_data, 53)
+        hw_rev_r = g(doors_data, 54)
+        hw_rev_l = g(doors_data, 55)
+        homog_test_fail_r = g(doors_data, 56)
+        homog_test_fail_l = g(doors_data, 57)
+        homog_test_ok_r = g(doors_data, 58)
+        homog_test_ok_l = g(doors_data, 59)
+        homog_test_active_r = g(doors_data, 60)
+        homog_test_active_l = g(doors_data, 61)
+        uic_15_r = g(doors_data, 62)
+        uic_15_l = g(doors_data, 63)
+        uic_14_r = g(doors_data, 64)
+        uic_14_l = g(doors_data, 65)
+        uic_9_r = g(doors_data, 66)
+        uic_9_l = g(doors_data, 67)
+        uic_lat_mode_r = g(doors_data, 68)
+        uic_lat_mode_l = g(doors_data, 69)
+        safe_st_r = g(doors_data, 70)
+        safe_st_l = g(doors_data, 71)
+        tbo_mode_r = g(doors_data, 72)
+        tbo_mode_l = g(doors_data, 73)
+        obb_mode_r = g(doors_data, 74)
+        obb_mode_l = g(doors_data, 75)
+        active_release_r = g(doors_data, 76)
+        active_release_l = g(doors_data, 77)
+        energy_saving_r = g(doors_data, 78)
+        energy_saving_l = g(doors_data, 79)
+        cycle_count_door_r = g(doors_data, 80)
+        cycle_count_door_l = g(doors_data, 81)
+        cycle_count_step_r = g(doors_data, 82)
+        cycle_count_step_l = g(doors_data, 83)
+        life_signal_r = g(doors_data, 84)
+        life_signal_l = g(doors_data, 85)
+        failure_rate_r = g(doors_data, 86)
+        failure_rate_l = g(doors_data, 87)
+        n3_order_r = g(doors_data, 88)
+        n3_order_l = g(doors_data, 89)
+        n3_fb_r = g(doors_data, 90)
+        n3_fb_l = g(doors_data, 91)
+        
+        if coach_type in ['3','4','5','6','8','9','10', '11']:
+                coach = self.normal_coach(label, index, closed_n_locked_r, step_closed_r, door_open_r, step_open_r, uic_15_r, uic_14_r, uic_9_r, tbo_mode_r, obb_mode_r, uic_lat_mode_r, failure_rate_r, code_a_r, code_b_r, door_oos_r, step_oos_r, closed_n_locked_l, step_closed_l, door_open_l, step_open_l, uic_15_l, uic_14_l, uic_9_l, tbo_mode_l, obb_mode_l, uic_lat_mode_l, failure_rate_l, code_a_l, code_b_l, door_oos_l, step_oos_l)
+            
+        else:
+            return self.offline_coach(coach_id, index), False
+
+        return coach, True
+
+    def save_as_png(self):
+        filename, _ = QFileDialog.getSaveFileName(
+            self, "Guardar como PNG", "", "Archivos PNG (*.png)"
+        )
+        if not filename:
+            return
+        if not filename.lower().endswith(".png"):
+            filename += ".png"
+
+        renderer = self.renderer()
+
+        # 1) Usa viewBox si está disponible (más fiable para no cortar)
+        vb = renderer.viewBoxF()
+        if vb.isValid() and vb.width() > 0 and vb.height() > 0:
+            logical_w = vb.width()
+            logical_h = vb.height()
+        else:
+            size = renderer.defaultSize()
+            if not size.isValid() or size.width() <= 0 or size.height() <= 0:
+                size = self.size()
+            logical_w = float(size.width())
+            logical_h = float(size.height())
+
+        # 2) Opción A: ancho objetivo en píxeles
+        target_width_px = 4000
+        scale = target_width_px / max(1.0, logical_w)
+        img_w = max(1, int(round(logical_w * scale)))
+        img_h = max(1, int(round(logical_h * scale)))
+
+        image = QImage(img_w, img_h, QImage.Format_ARGB32_Premultiplied)
+        image.fill(Qt.transparent)
+
+        painter = QPainter(image)
+        try:
+            painter.setRenderHint(QPainter.Antialiasing, True)
+            painter.setRenderHint(QPainter.TextAntialiasing, True)
+            painter.setRenderHint(QPainter.SmoothPixmapTransform, True)
+
+            # 3) Renderiza al rect destino: evita recortes por tamaños lógicos raros
+            renderer.render(painter, QRectF(0, 0, img_w, img_h))
+        finally:
+            painter.end()
+
+        if image.save(filename, "PNG"):
+            QMessageBox.information(self, "Éxito", f"Imagen guardada correctamente en:\n{filename}")
+        else:
+            QMessageBox.critical(self, "Error", f"No se pudo guardar el PNG:\n{filename}")
+            
+    def create_door_svg(self, closed_and_locked, step_closed, door_open, step_open, code_a, code_b, failure_rate, side, oos, step_oos, x_offset=0, label=""):
+        """
+        Representa el estado de un contacto con una etiqueta.
+        - opened=True para contacto abierto, False para cerrado.
+        - x_offset para desplazar horizontalmente el contacto.
+        - label es el texto que se mostrará debajo del contacto.
+        """
+        door = Element("g", transform=f"translate({x_offset}, 0)")
+
+        if failure_rate:
+            SubElement(door, "rect", x="-10", y="-3", width="20", height="6", fill="grey")
+        else:
+            if code_a:
+                SubElement(door, "rect", x="-10", y="-3", width="20", height="6", fill="red")
+            elif code_b:
+                SubElement(door, "rect", x="-10", y="-3", width="20", height="6", fill="yellow")
+
+            else:
+                if oos:
+                    SubElement(door, "rect", x="-10", y="-3", width="20", height="6", fill="orange")
+                elif closed_and_locked:
+                    SubElement(door, "rect", x="-10", y="-3", width="20", height="6", fill="black")
+                elif door_open:
+                    SubElement(door, "rect", x="-10", y="-3", width="20", height="6", fill="blue")
+                else:
+                    SubElement(door, "rect", x="-10", y="-3", width="20", height="6", fill="purple")
+
+                # if step_oos:
+                #     if side == "R":
+                #         SubElement(door, "rect", x="-7", y="-7", width="14", height="4", fill="orange")
+                #     elif side == "L":
+                #         SubElement(door, "rect", x="-7", y="3", width="14", height="4", fill="orange")
+                # if step_closed:
+                #     if side == "R":
+                #         SubElement(door, "rect", x="-7", y="-7", width="14", height="4", fill="black")
+                #     elif side == "L":
+                #         SubElement(door, "rect", x="-7", y="3", width="14", height="4", fill="black")
+                # elif step_open:
+                #     if side == "R":
+                #         SubElement(door, "rect", x="-7", y="-7", width="14", height="4", fill="blue")
+                #     elif side == "L":
+                #         SubElement(door, "rect", x="-7", y="3", width="14", height="4", fill="blue")
+                # else:
+                #     SubElement(door, "rect", x="-7", y="-7", width="14", height="4", fill="purple")
+
+        
+        
+        # if step_closed:
+        #     SubElement(door, "rect", x="-7", y="0", width="14", height="4", fill="grey")
+        
+        # Etiqueta debajo del contacto
+        SubElement(door, "text", x="0", y="12", text_anchor="middle", font_style="italic", font_size="8").text = label
+
+        return door
+        
+    def normal_coach(self, coach_name, coach_pos, closed_and_locked_R, step_closed_R, door_open_R, step_open_R, UIC15_R, UIC14_R, UIC9_R, TB0_R, OBB_R, LAT_R, Failure_rate_R, fail_type_a_R, fail_type_b_R, oos_r, step_oos_r, closed_and_locked_L, step_closed_L, door_open_L, step_open_L, UIC15_L, UIC14_L, UIC9_L, TB0_L, OBB_L, LAT_L, Failure_rate_L, fail_type_a_L, fail_type_b_L, oos_l, step_oos_l):
+
+        coach = Element("g")
+
+        SubElement(coach, "line", x1="100", y1="0", x2="100", y2="115", stroke="black", **{"stroke-width": "1", "stroke-dasharray": "5, 5"},opacity="0.35") #Línea de separación entre coches
+        SubElement(coach, "text", x="50", y="92",**{"text-anchor": "middle","font-style": "italic","font-size": "10"}).text = f"Coche {coach_pos+1}: {coach_name}" #Etiqueta con el nombre del coche y su posición   
+        
+        SubElement(coach, "line", x1="0", y1="40", x2="5", y2="40", stroke="black", stroke_width="1") #Líneas muelles
+        SubElement(coach, "line", x1="0", y1="60", x2="5", y2="60", stroke="black", stroke_width="1") #Líneas muelles
+        SubElement(coach, "line", x1="95", y1="40", x2="100", y2="40", stroke="black", stroke_width="1") #Líneas muelles 
+        SubElement(coach, "line", x1="95", y1="60", x2="100", y2="60", stroke="black", stroke_width="1") #Líneas muelles
+        
+        SubElement(coach, "line", x1="5", y1="40", x2="5", y2="30", stroke="black", stroke_width="1") #Líneas muelles
+        SubElement(coach, "line", x1="5", y1="60", x2="5", y2="70", stroke="black", stroke_width="1") #Líneas muelles
+        SubElement(coach, "line", x1="95", y1="40", x2="95", y2="30", stroke="black", stroke_width="1") #Líneas muelles
+        SubElement(coach, "line", x1="95", y1="60", x2="95", y2="70", stroke="black", stroke_width="1") #Líneas muelles
+
+        SubElement(coach, "line", x1="5", y1="30", x2="65", y2="30", stroke="black", stroke_width="1") #Líneas horizontales
+        SubElement(coach, "line", x1="5", y1="70", x2="65", y2="70", stroke="black", stroke_width="1") #Líneas horizontales
+        SubElement(coach, "line", x1="85", y1="30", x2="95", y2="30", stroke="black", stroke_width="1") #Líneas horizontales
+        SubElement(coach, "line", x1="85", y1="70", x2="95", y2="70", stroke="black", stroke_width="1") #Líneas horizontales
+
+        if int(Failure_rate_R) > 240:
+            door_r_off = 1
+        else: 
+            door_r_off = 0
+        if int(Failure_rate_L) > 240:
+            door_l_off = 1
+        else:
+            door_l_off = 0
+             
+        # puerta
+        upper_door = SubElement(coach, "g", transform="translate(75, 30)")
+        lower_door = SubElement(coach, "g", transform="translate(75, 70)")
+        upper_door.append(self.create_door_svg(int(closed_and_locked_R),int(step_closed_R),int(door_open_R), int(step_open_R), int(fail_type_a_R), int(fail_type_b_R), int(door_r_off), "R", int(oos_r), int(step_oos_r), x_offset=0, label=""))
+        lower_door.append(self.create_door_svg(int(closed_and_locked_L),int(step_closed_L),int(door_open_L), int(step_open_L), int(fail_type_a_L), int(fail_type_b_L), int(door_l_off), "L", int(oos_l), int(step_oos_l), x_offset=0, label=""))
+
+
+        # #Determina si el comportamiento de las RIOMS es correcto
+        # if int(fr_riom_sc1)>240:
+        #     SubElement(coach, "text", x="50", y="75",**{"text-anchor": "middle","font-style": "italic","font-size": "6.5", "fill": "red"}).text = "RIOM SC APAGADA"
+        # elif int(fr_riom_sc1r)>240:
+        #     SubElement(coach, "text", x="50", y="75",**{"text-anchor": "middle","font-style": "italic","font-size": "6.5", "fill": "red"}).text = "RIOM SCr APAGADA"
+        # elif k800_state and k802_state and not k801_state:
+        #     SubElement(coach, "text", x="50", y="75",**{"text-anchor": "middle","font-style": "italic","font-size": "6.5", "fill": "green"}).text = "CERRADO POR REDUNDANTE"
+        # elif k801_state and not k800_state:
+        #     SubElement(coach, "text", x="50", y="75",**{"text-anchor": "middle","font-style": "italic","font-size": "6.5", "fill": "green"}).text = "CERRADO POR PRINCIPAL"
+        # elif k800_state and not k801_state and not k802_state:
+        #     SubElement(coach, "text", x="50", y="75",**{"text-anchor": "middle","font-style": "italic","font-size": "6.5", "fill": "red"}).text = "ABIERTO"
+        # else:
+        #     SubElement(coach, "text", x="50", y="75",**{"text-anchor": "middle","font-style": "italic","font-size": "6.5", "fill": "red"}).text = "ERROR DE CABLEADO"
+
+        # # Conexión horizontal después de bifurcación y contacto (ajustada)
+        # SubElement(coach, "line", x1="90", y1="30", x2="100", y2="30", stroke="black", stroke_width="1")  # Salida
+
+            
+        # # Determinar el color de fondo del coche
+        # if k801_state or (k800_state and k802_state):
+        #     background_color = "green"
+        # else:
+        #     background_color = "red"
+            
+        # SubElement(coach, "rect", x="0", y="0", width="100", height="95", fill=background_color, opacity="0.15") 
+            
+        # SubElement(coach, "circle", cx="100",cy="30",r="2",fill="black")
+        # SubElement(coach, "circle", cx="100",cy="90",r="2",fill="black")
+        
+        # if pmr_index is not None and coach_pos<pmr_index:
+        #     SubElement(coach, "text", x="60", y="37.5", transform="rotate(270 90 30)", **{"text-anchor": "right","font-style": "italic","font-size": "7"}).text = "XM06:24"
+        #     SubElement(coach, "text", x="60", y="-52.5", transform="rotate(270 90 30)", **{"text-anchor": "right","font-style": "italic","font-size": "7"}).text = "XH06:24"
+        #     SubElement(coach, "text", x="67.5", y="85",**{"text-anchor": "right","font-style": "italic","font-size": "7"}).text = "XM06:25"
+        #     SubElement(coach, "text", x="5", y="85",**{"text-anchor": "left","font-style": "italic","font-size": "7"}).text = "XH06:25"
+            
+        #     SubElement(coach, "text", x="5", y="235", **{"text-anchor": "left","font-style": "italic","font-size": "7"}).text = "XH06:17"
+        #     SubElement(coach, "text", x="5", y="270", **{"text-anchor": "left","font-style": "italic","font-size": "7"}).text = "XH06:18"    
+        #     SubElement(coach, "text", x="67.5", y="235", **{"text-anchor": "right","font-style": "italic","font-size": "7"}).text = "XM06:17"
+        #     SubElement(coach, "text", x="67.5", y="270", **{"text-anchor": "right","font-style": "italic","font-size": "7"}).text = "XM06:18"
+            
+        #     SubElement(coach, "text", x="5", y="125", **{"text-anchor": "left","font-style": "italic","font-size": "7"}).text = "XH06:7"
+        #     SubElement(coach, "text", x="5", y="160", **{"text-anchor": "left","font-style": "italic","font-size": "7"}).text = "XH06:8"    
+        #     SubElement(coach, "text", x="70", y="125", **{"text-anchor": "right","font-style": "italic","font-size": "7"}).text = "XM06:7"
+        #     SubElement(coach, "text", x="70", y="160", **{"text-anchor": "right","font-style": "italic","font-size": "7"}).text = "XM06:8"
+            
+        # elif pmr_index is not None and coach_pos>pmr_index:
+        #     SubElement(coach, "text", x="60", y="37.5", transform="rotate(270 90 30)", **{"text-anchor": "right","font-style": "italic","font-size": "7"}).text = "XH06:24"
+        #     SubElement(coach, "text", x="60", y="-52.5", transform="rotate(270 90 30)", **{"text-anchor": "right","font-style": "italic","font-size": "7"}).text = "XM06:24"
+        #     SubElement(coach, "text", x="67.5", y="85",**{"text-anchor": "right","font-style": "italic","font-size": "7"}).text = "XH06:25"
+        #     SubElement(coach, "text", x="5", y="85",**{"text-anchor": "left","font-style": "italic","font-size": "7"}).text = "XM06:25"
+            
+        #     SubElement(coach, "text", x="67.5", y="235", **{"text-anchor": "right","font-style": "italic","font-size": "7"}).text = "XH06:17"
+        #     SubElement(coach, "text", x="67.5", y="270", **{"text-anchor": "right","font-style": "italic","font-size": "7"}).text = "XH06:18"    
+        #     SubElement(coach, "text", x="5", y="235", **{"text-anchor": "left","font-style": "italic","font-size": "7"}).text = "XM06:17"
+        #     SubElement(coach, "text", x="5", y="270", **{"text-anchor": "left","font-style": "italic","font-size": "7"}).text = "XM06:18"
+            
+        #     SubElement(coach, "text", x="70", y="125", **{"text-anchor": "right","font-style": "italic","font-size": "7"}).text = "XH06:7"
+        #     SubElement(coach, "text", x="70", y="160", **{"text-anchor": "right","font-style": "italic","font-size": "7"}).text = "XH06:8"    
+        #     SubElement(coach, "text", x="5", y="125", **{"text-anchor": "left","font-style": "italic","font-size": "7"}).text = "XM06:7"
+        #     SubElement(coach, "text", x="5", y="160", **{"text-anchor": "left","font-style": "italic","font-size": "7"}).text = "XM06:8"
+        
+        # SubElement(coach, "line", x1="0", y1="115", x2="40", y2="115", stroke="black", stroke_width="1")
+        # SubElement(coach, "line", x1="60", y1="115", x2="100", y2="115", stroke="black", stroke_width="1")
+        # SubElement(coach, "line", x1="0", y1="165", x2="100", y2="165", stroke="black", stroke_width="1") 
+        
+        # if int(k804_state)==1:
+        #     k804_state=0
+        # else:
+        #     k804_state=1
+        
+        # bypass = SubElement(coach, "g", transform="translate(40, 115)")
+        # bypass.append(self.create_contact_svg(k804_state, x_offset=0, label="K804"))
+        
+        # if k804_state:
+        #     background_color = "green"
+        # else:
+        #     background_color = "red"
+            
+        # SubElement(coach, "rect", x="0", y="95", width="100", height="100", fill=background_color, opacity="0.15")
+        # SubElement(coach, "line", x1="0", y1="95", x2="100", y2="95", stroke="black", **{"stroke-width": "4"}, opacity="0.35")
+
+        # SubElement(coach, "line", x1="0", y1="225", x2="100", y2="225", stroke="black", stroke_width="1")
+        # SubElement(coach, "line", x1="0", y1="275", x2="100", y2="275", stroke="black", stroke_width="1")
+
+        
+        # SubElement(coach, "circle", cx="100",cy="225",r="2",fill="black")
+        # SubElement(coach, "circle", cx="100",cy="275",r="2",fill="black")
+        
+        # SubElement(coach, "circle", cx="100",cy="115",r="2",fill="black")
+        # SubElement(coach, "circle", cx="100",cy="165",r="2",fill="black")
+
+        # SubElement(coach, "text", x="5", y="176",**{"text-anchor": "right","font-style": "italic","font-size": "9"}).text = "S60:"
+        # SubElement(coach, "text", x="5", y="188",**{"text-anchor": "right","font-style": "italic","font-size": "9"}).text = "S62:"
+        # # SubElement(coach, "text", x="50", y="176",**{"text-anchor": "right","font-style": "italic","font-size": "9"}).text = "S255:"
+        # SubElement(coach, "text", x="50", y="188",**{"text-anchor": "right","font-style": "italic","font-size": "9"}).text = "S256:"
+
+        # if s60 != s60_r:
+        #     SubElement(coach, "text", x="22", y="176",**{"text-anchor": "right","font-style": "italic","font-size": "9", "fill": "yellow"}).text = "Error"
+        # elif s60 == "0":
+        #     SubElement(coach, "text", x="22", y="176",**{"text-anchor": "right","font-style": "italic","font-size": "9",  "fill": "green"}).text = "Off"
+        # else:
+        #     SubElement(coach, "text", x="22", y="176",**{"text-anchor": "right","font-style": "italic","font-size": "9", "fill": "red"}).text = "Activo"
+
+        # if s62 != s62_r:
+        #     SubElement(coach, "text", x="22", y="188",**{"text-anchor": "right","font-style": "italic","font-size": "9", "fill": "yellow"}).text = "Error"
+        # elif s62 == "0":
+        #     SubElement(coach, "text", x="22", y="188",**{"text-anchor": "right","font-style": "italic","font-size": "9", "fill": "green"}).text = "Off"
+        # else:
+        #     SubElement(coach, "text", x="22", y="188",**{"text-anchor": "right","font-style": "italic","font-size": "9", "fill": "red"}).text = "Activo"
+
+        # # if s255 != s255_r:
+        # #     SubElement(coach, "text", x="72", y="176",**{"text-anchor": "right","font-style": "italic","font-size": "9", "fill": "yellow"}).text = "Error"
+        # # elif s255 == "0":
+        # #     SubElement(coach, "text", x="72", y="176",**{"text-anchor": "right","font-style": "italic","font-size": "9", "fill": "green"}).text = "Off"
+        # # else:
+        #     # SubElement(coach, "text", x="72", y="176",**{"text-anchor": "right","font-style": "italic","font-size": "9", "fill": "red"}).text = "Activo"
+
+        # if s256 != s256_r:
+        #     SubElement(coach, "text", x="72", y="188",**{"text-anchor": "right","font-style": "italic","font-size": "9", "fill": "yellow"}).text = "Error"
+        # elif s256 == "0":
+        #     SubElement(coach, "text", x="72", y="188",**{"text-anchor": "right","font-style": "italic","font-size": "9", "fill": "green"}).text = "Off"
+        # else:
+        #     SubElement(coach, "text", x="72", y="188",**{"text-anchor": "right","font-style": "italic","font-size": "9", "fill": "red"}).text = "Activo"
+        
+        return coach
+
+    def offline_coach(self, coach_id: str, index: int):
+        from xml.etree.ElementTree import Element, SubElement
+
+        coach = Element("g")
+
+        SubElement(coach, "rect", x="0", y="0", width="100", height="305", fill="black", opacity="0.5")
+        
+        SubElement(
+            coach,
+            "line",
+            x1="100", y1="0", x2="100", y2="315",
+            stroke="black",
+            **{"stroke-width": "1", "stroke-dasharray": "5, 5"},
+            opacity="0.35"
+        )
+        SubElement(
+            coach,
+            "text",
+            x="50", y="292",
+            **{"text-anchor": "middle", "font-style": "italic", "font-size": "10"}
+        ).text = f"Coche {index+1}"
+
+        SubElement(
+            coach,
+            "text",
+            x="50", y="162.5",
+            fill="white",
+            **{
+                "text-anchor": "middle",
+                "dominant-baseline": "central",
+                "font-style": "italic",
+                "font-size": "30",
+                "transform": "rotate(-90, 50, 152.5)"
+            }
+        ).text = "OFFLINE"
+
+        return coach
+
 class DiagnosticWindow(QMainWindow):
     closed = Signal()
 
@@ -3748,7 +4666,7 @@ class TSC_Diag_Window(DiagnosticWindow):
 
             for endpoint_id, data in snapshot.get("tsc_diag", {}).items():
                 diag_vals = (data or {}).get("values") or {}
-
+                
                 # lista = [
                 #     'BCU_MVB2_DS_30D.bDIBA_Train_S2',
                 #     'BCU_MVB2_DS_30D.bDIMGA_Train_S2',
@@ -3800,10 +4718,10 @@ class TSC_Diag_Window(DiagnosticWindow):
 
                     var_short = var_full.split(".")[-1]
 
-                    if value != "1" or value!= '0':
+                    if value != "1" and value!= "0":
                         continue
                     
-                    if value == 0 and var_short not in self.inverted_diagnostic_vars:
+                    if value == "0" and var_short not in self.inverted_diagnostic_vars:
                         continue
 
                     bcu_hit = self._bcu_diag_dict.get(var_short)
@@ -3938,6 +4856,231 @@ class TSC_Diag_Window(DiagnosticWindow):
         except Exception:
             pass
 
+class Doors_Diag_Window(DiagnosticWindow):
+
+    def __init__(self, *, project, endpoint_ids, project_coach_types,
+                 fixed_w: int, fixed_h: int, valid_ips: list, parent=None):
+
+        self.project = project
+        self.endpoint_ids = endpoint_ids
+        self.project_coach_types = project_coach_types
+
+        super().__init__(
+            title="Errores activos en puertas",
+            fixed_w=fixed_w,
+            fixed_h=fixed_h,
+            parent=parent
+        )
+
+        # ---- TCMS Vars / diccionarios ----
+        self._tcms = TCMS_vars()
+
+        menubar = self.menuBar()
+        export_menu = menubar.addMenu("Exportar")
+
+        self.export_diag_action = QAction("Exportar tabla a Excel (.xlsx)", self)
+        export_menu.addAction(self.export_diag_action)
+        self.export_diag_action.triggered.connect(self._export_table_to_excel)
+
+        # Dict BCU: keys SOLO desde el '.' en adelante
+        self._dcu_diag_dict = getattr(self._tcms, "DCU_DIAGNOSIS_DICT", {})
+
+        # ---- UI tabla ----
+        self.table = QTableWidget(80, 4, self)
+        self.table.setHorizontalHeaderLabels([
+            "Coche",
+            "IP",
+            "Derecha/Izquierda",
+            "Código de error",
+            "Descripción"
+        ])
+
+        central = QWidget()
+        self.layout = QVBoxLayout(central)
+        self.layout.setContentsMargins(10, 10, 10, 10)
+        self.layout.setSpacing(8)
+
+        self.table.setAlternatingRowColors(True)
+        self.table.setSortingEnabled(True)
+        self.table.setShowGrid(True)
+        self.table.setWordWrap(False)
+        self.table.verticalHeader().setVisible(False)
+        self.table.setFocusPolicy(Qt.StrongFocus)
+
+        vh = self.table.verticalHeader()
+        vh.setDefaultSectionSize(26)
+
+        hh = self.table.horizontalHeader()
+        hh.setStretchLastSection(False)
+        hh.setDefaultAlignment(Qt.AlignCenter | Qt.AlignVCenter)
+        hh.setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        hh.setSectionResizeMode(1, QHeaderView.ResizeToContents)
+        hh.setSectionResizeMode(2, QHeaderView.ResizeToContents)
+        hh.setSectionResizeMode(3, QHeaderView.ResizeToContents)
+        hh.setSectionResizeMode(4, QHeaderView.Stretch)
+
+        self.layout.addWidget(self.table)
+        self.setCentralWidget(central)
+
+        # self.inverted_diagnostic_vars = [
+        # 'bDNRA_Notlocked2',
+        # 'bDNRA_Notlocked1',
+        # 'bDNRA_Notlocked',
+        # 'bDNRA_OK'
+        # ]
+
+        self._default_sort_applied = False
+
+    def _on_toggled(self, checked):
+        
+        if checked:
+            self.show()
+            self.raise_()
+            self.activateWindow()
+            screen = QApplication.primaryScreen()
+            max_width = screen.availableGeometry().width()  
+            max_height = screen.availableGeometry().height() 
+            self.move(int((max_width - min(self.size().width(), max_width))/2),int((max_height - min(self.size().height(), max_height))/2))
+
+        else:
+            self.close()
+
+    def set_snapshot(self, snapshot: dict):
+            
+            header = self.table.horizontalHeader()
+            sort_col = header.sortIndicatorSection()
+            sort_order = header.sortIndicatorOrder()
+
+            # print("TSC_Diag_Window: Actualizando snapshot...")
+            # print(f"Columna de ordenación actual: {sort_col}, Orden: {'Ascendente' if sort_order == Qt.AscendingOrder else 'Descendente'}")
+            
+            coach_types_by_endpoint = {}
+            for endpoint_id, data in snapshot.get("doors", {}).items():
+                vals = (data or {}).get("values") or {}
+                coach_types_by_endpoint[endpoint_id] = vals.get(
+                    "oVCUCH_TRDP_DS_A000.COM_Vehicle_Type"
+                )
+
+            if self.project == "DB" and len(self.endpoint_ids) >= 2:
+                last = self.endpoint_ids[-1]
+                prev = self.endpoint_ids[-2]
+                coach_types_by_endpoint[last] = coach_types_by_endpoint.get(prev)
+
+            rows = []
+
+            for endpoint_id, data in snapshot.get("doors_diag", {}).items():
+                diag_vals = (data or {}).get("values") or {}
+
+                # lista = [
+                #     'BCU_MVB2_DS_30D.bDIBA_Train_S2',
+                #     'BCU_MVB2_DS_30D.bDIMGA_Train_S2',
+                #     'BCU_MVB2_DS_30D.bDNRA_Notlocked',
+                #     'BCU_MVB2_DS_30D.bDIMGA',
+                #     'BCU_MVB2_DS_30D.bPBA_Speed',
+                #     'BCUCH2_MVB1_DS_30F.bDIMGA_NOK',
+                #     'BCUCH2_MVB1_DS_30F.bPBA_Speed_NOK',
+                #     'BCUCH2_MVB1_DS_30F.bDIBA_Train_S2_NOK',
+                #     'BCUCH1_MVB2_DS_30F.bDIBA_Train_S2_NOK',
+                #     'BCUCH1_MVB2_DS_30F.bPBA_Speed_NOK',
+                #     'BCUCH1_MVB2_DS_30F.bDIMGA_NOK',
+                #     'BCU_MVB1_DS_06E.bDIBA_Train_S2',
+                #     'BCU_MVB1_DS_06E.bDIMGA_Train_S2',
+                #     'BCUCH1_MVB2_DS_310.bDNRA_OK',
+                #     'BCUCH2_MVB1_DS_310.bDNRA_OK',
+                #     'BCU_MVB1_DS_06E.bDIMGA',
+                #     'BCU_MVB1_DS_06E.bPBA_Speed',
+                #     'BCUCH1_MVB2_DS_310.bDNRA_Notlocked2',
+                #     'BCUCH1_MVB2_DS_310.bDNRA_Notlocked1',
+                #     'BCUCH2_MVB1_DS_310.bDNRA_Notlocked2',
+                #     'BCUCH2_MVB1_DS_310.bDNRA_Notlocked1',
+                # ]
+
+                # if endpoint_id == "EP1":
+                #     test = {k: diag_vals[k] for k in lista}
+                    # print(test)
+                 
+                try:
+                    coach_idx = self.endpoint_ids.index(endpoint_id) + 1
+                except ValueError:
+                    coach_idx = "?"
+
+                coach_type = coach_types_by_endpoint.get(endpoint_id)
+                coach_type_str = ""
+                try:
+                    if coach_type is not None:
+                        coach_type_str = self.project_coach_types.get(
+                            int(float(coach_type)), str(coach_type)
+                        )
+                except Exception:
+                    coach_type_str = str(coach_type) if coach_type is not None else ""
+
+                coach_label = f"{coach_idx}"
+                if coach_type_str:
+                    coach_label += f" ({coach_type_str})"
+
+                for var_full, value in diag_vals.items():
+
+                    var_short = var_full.split(".")[-1]
+
+                    if value != "1":
+                        continue
+                    
+                    dcu_hit = self._dcu_diag_dict.get(var_short)
+                    if dcu_hit:
+                        code = dcu_hit.get("Error Code", var_short)
+                        desc = dcu_hit.get("Description", "Descripción no disponible")
+                    else:
+                        code = var_short
+                        desc = "Descripción no disponible"
+
+                    rows.append((coach_label, endpoint_id, "Derecha", code, desc))
+
+            self.table.setSortingEnabled(False)
+            self.table.clearContents()
+
+            if not rows:
+                self.table.setRowCount(1)
+                self.table.setItem(0, 0, QTableWidgetItem("-"))
+                self.table.setItem(0, 1, QTableWidgetItem("-"))
+                self.table.setItem(0, 2, QTableWidgetItem("-"))
+                self.table.setItem(0, 3, QTableWidgetItem("-"))
+                self.table.setItem(0, 4, QTableWidgetItem(
+                    "Sin causas activas (TREN DISPUESTO)"
+                ))
+            else:
+                self.table.setRowCount(len(rows))
+                for r, (coach_label, ip, side, code, desc) in enumerate(rows):
+
+                    # ---- Columna 0: Coach label (orden numérico) ----
+                    label_str = str(coach_label)
+                    label_item = QTableWidgetItem()
+                    label_item.setData(Qt.DisplayRole, label_str)  # lo que se ve
+
+                    # coge el número del inicio: "10 (C4301)" -> 10
+                    m = re.match(r"\s*(\d+)", label_str)
+                    label_num = int(m.group(1)) if m else 10**9
+                    label_item.setData(Qt.EditRole, label_num)     # lo que usa Qt para ordenar
+
+                    self.table.setItem(r, 0, label_item)
+
+                    # ---- Resto de columnas igual ----
+                    self.table.setItem(r, 1, QTableWidgetItem(str(ip)))
+                    self.table.setItem(r, 2, QTableWidgetItem(str(side)))
+                    self.table.setItem(r, 3, QTableWidgetItem(str(code)))
+                    self.table.setItem(r, 4, QTableWidgetItem(str(desc)))
+
+            self.table.setSortingEnabled(True)
+
+            header = self.table.horizontalHeader()
+            sort_col = header.sortIndicatorSection()
+            sort_order = header.sortIndicatorOrder()
+
+            if not self._default_sort_applied:
+                self.table.sortItems(0, Qt.AscendingOrder)  # IP ascendente
+                self._default_sort_applied = True
+            else:
+                self.table.sortItems(sort_col, sort_order)  # mantener lo que eligió el usuario
+
 class ResetFailuresWorker(QObject):
     log = Signal(str)
     finished = Signal(bool)
@@ -4039,6 +5182,55 @@ class ResetFailuresWorker(QObject):
             # último paso, finalizar
             self._run_next_step()
 
+class DOORWindow(DiagnosticWindow):
+
+    def __init__(self, *, project, endpoint_ids, doors_vars, project_coach_types,
+            fixed_w: int, fixed_h: int, valid_ips: list, parent=None): #El asterisco indica que los argumentos siguientes deben ser pasados como palabras clave, es decir (project = x, endpoint_ids = y, etc) y no como argumentos posicionales (x, y, etc)
+    
+        super().__init__(title="Lazo de puertas", fixed_w=fixed_w, fixed_h=fixed_h, parent=parent)
+
+
+        central = QWidget()
+        lay = QVBoxLayout(central)
+        lay.setContentsMargins(6, 6, 6, 6)
+
+        self.valid_ips = valid_ips
+        self.project = project
+
+        menubar = self.menuBar()
+        export_menu = menubar.addMenu("Exportar")
+
+        self.export_Doors_loop_action = QAction("Guardar como PNG...", self)
+        export_menu.addAction(self.export_Doors_loop_action)
+
+        self.scroll = QScrollArea()
+        self.scroll.setWidgetResizable(False)
+        self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+
+        self.doors = DoorsGenerator(
+            project=project,
+            endpoint_ids=endpoint_ids,
+            doors_vars=doors_vars,
+            project_coach_types=project_coach_types
+        )
+
+        self.export_Doors_loop_action.triggered.connect(self.doors.save_as_png)
+
+        self.scroll.setWidget(self.doors)
+
+        lay.addWidget(self.scroll)
+
+        self.setCentralWidget(central)
+
+        screen = QApplication.primaryScreen()
+        self.max_width = screen.availableGeometry().width() - 10  # Deja un margen de 100 píxeles
+        self.max_height = screen.availableGeometry().height() - 50  # Deja un margen de 100 píxeles
+     
+    def set_snapshot(self, snapshot: dict):
+            self.doors.set_snapshot(snapshot)
+            self.setFixedSize(min(self.doors.scaled_doors_width, self.max_width), min(self.doors.scaled_doors_height + 110, self.max_height))
+
 class MainWindow(QMainWindow):
     
     scan_progress_signal = Signal(int)
@@ -4081,17 +5273,21 @@ class MainWindow(QMainWindow):
             "TSC_CC_DB": self.TCMS_vars.TSC_CC_VARS_DB,
             "TSC_DIAG_VARS": self.TCMS_vars.TSC_DIAG_VARS,
             "BCU_DIAG_VARS": self.TCMS_vars.BCU_DIAGNOSIS,
-            "BCU_DIAG_VARS_CC": self.TCMS_vars.BCU_DIAGNOSIS_CC
+            "BCU_DIAG_VARS_CC": self.TCMS_vars.BCU_DIAGNOSIS_CC,
+            "DOORS": self.TCMS_vars.DOORS_LOOP_VARS,
+            "DOORS_DIAG_VARS": self.TCMS_vars.DCU_DIAGNOSIS
         }
 
         self.diag_enabled = {
-            "TSC": False
+            "TSC": False,
+            "DOORS": False
         }
                     
         self.default_width = 800
         self.default_height = 434
 
         self.tsc_window = None
+        self.doors_window = None
         
         self.setWindowTitle("Herramienta de diagnóstico PES")
         self.setFixedSize(self.default_width, self.default_height)
@@ -4215,11 +5411,16 @@ class MainWindow(QMainWindow):
         self.check_TSC_action.toggled.connect(self.on_toggle_tsc)
         self.check_TSC_action.setEnabled(False)
 
+        self.check_doors_action = QAction("Comprobar estado lazo de puertas", self)
+        self.check_doors_action.setCheckable(True)
+        self.check_doors_action.toggled.connect(self.on_toggle_doors)
+        self.check_doors_action.setEnabled(False)
+
         self.massive_ping_action=QAction("Comprobar estado de comunicación de equipos", self)
         self.massive_ping_action.triggered.connect(self.massive_ping)
         self.massive_ping_action.setEnabled(False)
         
-        diag_menu.addActions([self.check_TSC_action, self.massive_ping_action])
+        diag_menu.addActions([self.check_TSC_action, self.check_doors_action, self.massive_ping_action])
         
         ######### MENÚ EXPORTAR ##########
         
@@ -4514,7 +5715,7 @@ class MainWindow(QMainWindow):
                         
         self.project = project_value
     
-        self.max_initial_ips = 21 if self.project == "DB" else 15 if self.project == "DSB" else 1
+        self.max_initial_ips = 9 if self.project == "DB" else 15 if self.project == "DSB" else 1
         
         self.progress_title.setText(f"Escaneando composición: {self.project}")
         self.detected_label.setText(f"Coches detectados: {0 + self.max_initial_ips} de {len(self.ip_data[self.project])} posibles.")
@@ -4550,6 +5751,7 @@ class MainWindow(QMainWindow):
         self.create_table()
 
         self.check_TSC_action.setEnabled(True)
+        self.check_doors_action.setEnabled(True)
         self.massive_ping_action.setEnabled(True)
 
         screen = QApplication.primaryScreen()
@@ -4622,6 +5824,8 @@ class MainWindow(QMainWindow):
             self.diagnosis_config_signal.connect(w._update_config)
             w.on_tsc_data.connect(self.vars_warehouse.on_tsc_data)
             w.on_tsc_diag_data.connect(self.vars_warehouse.on_tsc_diag_data)
+            w.on_door_data.connect(self.vars_warehouse.on_doors_data)
+            w.on_door_diag_data.connect(self.vars_warehouse.on_door_diag_data)
             w.status.connect(self.vars_warehouse.on_status)
 
             self.vars_threads[eid] = th
@@ -4635,12 +5839,25 @@ class MainWindow(QMainWindow):
 
         # 2) si la ventana TSC existe, actualizamos
         if self.check_TSC_action.isChecked() and self.tsc_window is not None:
-            svg_snapshot = self.build_svg_snapshot(snapshot)
-            self.tsc_window.set_snapshot(svg_snapshot)
+            tsc_svg_snapshot = self.build_svg_snapshot(snapshot)
+            self.tsc_window.set_snapshot(tsc_svg_snapshot)
             self.tsc_window.TSC_Diag_window.set_snapshot(snapshot)
+        if self.check_doors_action.isChecked() and self.doors_window is not None:
+            self.doors_window.set_snapshot(snapshot)
 
     def update_table_from_snapshot(self, snapshot: dict):
-        coaches = snapshot.get("tsc", {})
+
+        # print(f"Diagnóstico tsc activo: {snapshot.get("tsc").get(self.endpoint_ids[0]).get("active")}")
+
+        # print(f"Diagnóstico doors activo: {snapshot.get("doors").get(self.endpoint_ids[0]).get("active")}")
+        
+        if snapshot.get("tsc").get(self.endpoint_ids[0], {}).get("active", False) is not False:
+            coaches = snapshot.get("tsc", {})
+        if snapshot.get("doors").get(self.endpoint_ids[0], {}).get("active", False) is not False:
+            coaches = snapshot.get("doors", {})
+        else:
+            coaches = snapshot.get("tsc", {})
+
         type_var = self.TCMS_vars.COACH_TYPE[0]  # incluido en tsc_vars
 
         cab_main_col = len(self.endpoint_ids) - 2 if (self.project == "DB" and len(self.endpoint_ids) >= 2) else None
@@ -4795,10 +6012,18 @@ class MainWindow(QMainWindow):
             window_size = self.tsc_window.size()
             self.tsc_window.move(int((max_width - min(window_size.width(), max_width))/2),int((max_height - min(window_size.height(), max_height))/2))
 
+            print(f"Estado de actividad de tsc_state: {self.vars_warehouse.tsc_state["EP1"]["active"]}")
+
 
         else:
             self.diag_enabled["TSC"] = False
             self.diagnosis_config_signal.emit(self.diag_enabled)
+            
+            if self.vars_warehouse is not None:
+                for ep_data in self.vars_warehouse.tsc_state.values():
+                    ep_data["active"] = False
+            
+            print(f"Estado de actividad de tsc_state: {self.vars_warehouse.tsc_state["EP1"]["active"]}")
 
             # Cerrar ventana si está abierta
             if self.tsc_window is not None:
@@ -4807,6 +6032,88 @@ class MainWindow(QMainWindow):
                 except Exception:
                     pass
                 self.tsc_window = None
+
+    def on_toggle_doors(self, checked: bool):
+        if checked:
+            self.diag_enabled["DOORS"] = True
+            self.diagnosis_config_signal.emit(self.diag_enabled)
+
+            # Crear ventana si no existe (o si fue cerrada)
+            if self.doors_window is None:
+                # tamaño fijo definido por ti:
+                FIX_W = 1300
+                FIX_H = 350
+               
+                doors_vars = self.TCMS_vars.DOORS_LOOP_VARS + self.TCMS_vars.COACH_TYPE
+
+                if self.project == "DB":
+                    coach_types = self.TCMS_vars.COACH_TYPES_DB
+                else:
+                    coach_types = self.TCMS_vars.COACH_TYPES_DSB
+
+                
+
+                self.doors_window = DOORWindow(
+                    project=self.project,
+                    endpoint_ids=self.endpoint_ids,
+                    doors_vars=doors_vars,
+                    project_coach_types=coach_types,
+                    fixed_w=FIX_W,
+                    fixed_h=FIX_H,
+                    valid_ips=self.valid_ips,
+                    parent=self,
+                )
+
+                # Si el usuario cierra la ventana -> equivale a desmarcar el check
+                self.doors_window.closed.connect(lambda: self.check_doors_action.setChecked(False))
+
+            self.doors_window.show()
+            self.doors_window.raise_()
+            self.doors_window.activateWindow()
+
+            # Render inmediato (sin esperar al siguiente snapshot)
+            if self.vars_warehouse is not None:
+                snapshot = {
+                    "doors": {
+                        eid: {"online": bool(st.get("online", False)), "values": dict(st.get("values", {}) or {})}
+                        for eid, st in self.vars_warehouse.doors_state.items()
+                    },
+                    "doors_diag": {
+                        eid: {"online": bool(st.get("online", False)), "values": dict(st.get("values", {}) or {})}
+                        for eid, st in self.vars_warehouse.door_diag_state.items()
+                    }
+                }
+
+
+                self.doors_window.set_snapshot(snapshot)                
+
+            screen = QApplication.primaryScreen()
+            max_width = screen.availableGeometry().width()  
+            max_height = screen.availableGeometry().height() 
+
+            window_size = self.doors_window.size()
+            self.doors_window.move(int((max_width - min(window_size.width(), max_width))/2),int((max_height - min(window_size.height(), max_height))/2))
+
+            print(f"Estado de actividad de doors: {self.vars_warehouse.doors_state["EP1"]["active"]}")
+
+
+        else:
+            self.diag_enabled["DOORS"] = False
+            self.diagnosis_config_signal.emit(self.diag_enabled)
+
+            if self.vars_warehouse is not None:
+                for ep_data in self.vars_warehouse.doors_state.values():
+                    ep_data["active"] = False
+
+            print(f"Estado de actividad de doors: {self.vars_warehouse.doors_state["EP1"]["active"]}")
+
+            # Cerrar ventana si está abierta
+            if self.doors_window is not None:
+                try:
+                    self.doors_window.close()
+                except Exception:
+                    pass
+                self.doors_window = None
 
     def create_table(self):
         
@@ -4860,6 +6167,7 @@ class MainWindow(QMainWindow):
         self.layout.addWidget(self.table)
         
         self.check_TSC_action.setEnabled(True)
+        self.check_doors_action.setEnabled(True)
         self.massive_ping_action.setEnabled(True)
 
     def export_to_excel(self, table):
