@@ -1806,7 +1806,7 @@ class Worker(QObject):
                 # ################################ LECTURA DE TSC O NINGUNO ACTIVO #######################################
 
                 if self.tsc_enabled or not self._at_least_one_read:
-                    print(f"TSC activo: {self.tsc_enabled}, al menos una lectura: {self._at_least_one_read} -> leyendo TSC y diag aunque no estén activos para mantener alive la tabla")
+                    # print(f"TSC activo: {self.tsc_enabled}, al menos una lectura: {self._at_least_one_read} -> leyendo TSC y diag aunque no estén activos para mantener alive la tabla")
                     if not self.is_cc:
                         # print("Reading normal TSC vars:", self.tsc_normal_vars)
                         online, ts_ms, tsc_values = self.client.read_vars(self.tsc_normal_vars, wait_time=self.wait_time)
@@ -1836,7 +1836,7 @@ class Worker(QObject):
 
                 if self.doors_enabled:
                     
-                    print(f"Doors diag activo: {self.doors_enabled} -> leyendo puertas y diag")
+                    # print(f"Doors diag activo: {self.doors_enabled} -> leyendo puertas y diag")
                     online, ts_ms, door_values = self.client.read_vars(self.doors_vars, wait_time=self.wait_time)
                     online, ts_ms, door_diag_values = self.client.read_vars(self.doors_diag_vars, wait_time=self.wait_time)
 
@@ -4558,17 +4558,20 @@ class DoorsGenerator(QSvgWidget):
         SubElement(coach, "line", x1="100", y1="0", x2="100", y2="115", stroke="black", **{"stroke-width": "1", "stroke-dasharray": "5, 5"},opacity="0.35") #Línea de separación entre coches
         SubElement(coach, "text", x="50", y="92",**{"text-anchor": "middle","font-style": "italic","font-size": "10"}).text = f"Coche {coach_pos+1}: {coach_name}" #Etiqueta con el nombre del coche y su posición   
         
-        SubElement(coach, "line", x1="95", y1="40", x2="100", y2="40", stroke="black", stroke_width="1") #Líneas muelles 
-        SubElement(coach, "line", x1="95", y1="60", x2="100", y2="60", stroke="black", stroke_width="1") #Líneas muelles
+        SubElement(coach, "line", x1="0", y1="40", x2="5", y2="40", stroke="black", stroke_width="1") #Líneas muelles 
+        SubElement(coach, "line", x1="0", y1="60", x2="5", y2="60", stroke="black", stroke_width="1") #Líneas muelles
         
-        SubElement(coach, "line", x1="95", y1="40", x2="95", y2="30", stroke="black", stroke_width="1") #Líneas muelles
-        SubElement(coach, "line", x1="95", y1="60", x2="95", y2="70", stroke="black", stroke_width="1") #Líneas muelles
+        SubElement(coach, "line", x1="5", y1="40", x2="5", y2="30", stroke="black", stroke_width="1") #Líneas muelles
+        SubElement(coach, "line", x1="5", y1="60", x2="5", y2="70", stroke="black", stroke_width="1") #Líneas muelles
 
-        SubElement(coach, "line", x1="35", y1="30", x2="95", y2="30", stroke="black", stroke_width="1") #Líneas horizontales
-        SubElement(coach, "line", x1="35", y1="70", x2="95", y2="70", stroke="black", stroke_width="1") #Líneas horizontales
+        SubElement(coach, "line", x1="5", y1="30", x2="65", y2="30", stroke="black", stroke_width="1") #Líneas horizontales
+        SubElement(coach, "line", x1="5", y1="70", x2="65", y2="70", stroke="black", stroke_width="1") #Líneas horizontales
 
-        SubElement(coach, "line", x1="17.5", y1="45", x2="35", y2="30", stroke="black", stroke_width="1") #Líneas diagonales
-        SubElement(coach, "line", x1="17.5", y1="55", x2="35", y2="70", stroke="black", stroke_width="1") #Líneas diagonales
+        SubElement(coach, "line", x1="65", y1="30", x2="95", y2="45", stroke="black", stroke_width="1") #Líneas diagonales
+        SubElement(coach, "line", x1="65", y1="70", x2="95", y2="55", stroke="black", stroke_width="1") #Líneas diagonales
+
+        SubElement(coach, "line", x1="95", y1="45", x2="95", y2="55", stroke="black", stroke_width="1") #Líneas diagonales
+
 
         return coach
 
@@ -4579,17 +4582,19 @@ class DoorsGenerator(QSvgWidget):
         SubElement(coach, "line", x1="100", y1="0", x2="100", y2="115", stroke="black", **{"stroke-width": "1", "stroke-dasharray": "5, 5"},opacity="0.35") #Línea de separación entre coches
         SubElement(coach, "text", x="50", y="92",**{"text-anchor": "middle","font-style": "italic","font-size": "10"}).text = f"Coche {coach_pos+1}: {coach_name}" #Etiqueta con el nombre del coche y su posición   
         
-        SubElement(coach, "line", x1="0", y1="40", x2="5", y2="40", stroke="black", stroke_width="1") #Líneas muelles
-        SubElement(coach, "line", x1="0", y1="60", x2="5", y2="60", stroke="black", stroke_width="1") #Líneas muelles
+        SubElement(coach, "line", x1="95", y1="40", x2="100", y2="40", stroke="black", stroke_width="1") #Líneas muelles
+        SubElement(coach, "line", x1="95", y1="60", x2="100", y2="60", stroke="black", stroke_width="1") #Líneas muelles
         
-        SubElement(coach, "line", x1="5", y1="40", x2="5", y2="30", stroke="black", stroke_width="1") #Líneas muelles
-        SubElement(coach, "line", x1="5", y1="60", x2="5", y2="70", stroke="black", stroke_width="1") #Líneas muelles
-        SubElement(coach, "line", x1="95", y1="30", x2="95", y2="70", stroke="black", stroke_width="1") #Líneas muelles
+        SubElement(coach, "line", x1="95", y1="40", x2="95", y2="30", stroke="black", stroke_width="1") #Líneas muelles
+        SubElement(coach, "line", x1="95", y1="60", x2="95", y2="70", stroke="black", stroke_width="1") #Líneas muelles
 
-        SubElement(coach, "line", x1="5", y1="30", x2="65", y2="30", stroke="black", stroke_width="1") #Líneas horizontales
-        SubElement(coach, "line", x1="5", y1="70", x2="65", y2="70", stroke="black", stroke_width="1") #Líneas horizontales
-        SubElement(coach, "line", x1="85", y1="30", x2="95", y2="30", stroke="black", stroke_width="1") #Líneas horizontales
-        SubElement(coach, "line", x1="85", y1="70", x2="95", y2="70", stroke="black", stroke_width="1") #Líneas horizontales
+        SubElement(coach, "line", x1="95", y1="30", x2="45", y2="30", stroke="black", stroke_width="1") #Líneas horizontales
+        SubElement(coach, "line", x1="5", y1="30", x2="25", y2="30", stroke="black", stroke_width="1") #Líneas horizontales
+        SubElement(coach, "line", x1="95", y1="70", x2="45", y2="70", stroke="black", stroke_width="1") #Líneas horizontales
+        SubElement(coach, "line", x1="5", y1="70", x2="25", y2="70", stroke="black", stroke_width="1") #Líneas horizontales
+
+        SubElement(coach, "line", x1="5", y1="70", x2="5", y2="30", stroke="black", stroke_width="1") #Líneas diagonales
+
 
         if int(Failure_rate_R) > 240:
             door_r_off = 1
@@ -4601,8 +4606,8 @@ class DoorsGenerator(QSvgWidget):
             door_l_off = 0
              
         # puerta
-        upper_door = SubElement(coach, "g", transform="translate(75, 30)")
-        lower_door = SubElement(coach, "g", transform="translate(75, 70)")
+        upper_door = SubElement(coach, "g", transform="translate(25, 30)")
+        lower_door = SubElement(coach, "g", transform="translate(25, 70)")
         upper_door.append(self.create_door_svg(0, int(closed_and_locked_R),int(step_closed_R),int(door_open_R), int(step_open_R), int(fail_type_a_R), int(fail_type_b_R), int(door_r_off), "R", int(oos_r), int(step_oos_r), x_offset=0, label=""))
         lower_door.append(self.create_door_svg(0, int(closed_and_locked_L),int(step_closed_L),int(door_open_L), int(step_open_L), int(fail_type_a_L), int(fail_type_b_L), int(door_l_off), "L", int(oos_l), int(step_oos_l), x_offset=0, label=""))
 
@@ -6139,6 +6144,7 @@ class MainWindow(QMainWindow):
             self.tsc_window.TSC_Diag_window.set_snapshot(snapshot)
         if self.check_doors_action.isChecked() and self.doors_window is not None:
             self.doors_window.set_snapshot(snapshot)
+            self.doors_window.Door_diag_window.set_snapshot(snapshot)
 
     def update_table_from_snapshot(self, snapshot: dict):
 
