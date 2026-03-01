@@ -1701,9 +1701,9 @@ class CoachClient:
 
 class Worker(QObject):
 
-    on_tsc_data = Signal(str, object, dict, bool)    # endpoint_id, ts_ms, values
+    on_tsc_data = Signal(str, object, dict)    # endpoint_id, ts_ms, values
     on_tsc_diag_data = Signal(str, object, dict)    # endpoint_id, ts_ms, values
-    on_door_data = Signal(str, object, dict, bool)    # endpoint_id, ts_ms, values
+    on_door_data = Signal(str, object, dict)    # endpoint_id, ts_ms, values
     on_door_diag_data = Signal(str, object, dict)    # endpoint_id, ts_ms, values
     status = Signal(str, bool, str, object)    # endpoint_id, online, msg, ts_ms
 
@@ -1806,6 +1806,7 @@ class Worker(QObject):
                 # ################################ LECTURA DE TSC O NINGUNO ACTIVO #######################################
 
                 if self.tsc_enabled or not self._at_least_one_read:
+                    print(f"TSC activo: {self.tsc_enabled}, al menos una lectura: {self._at_least_one_read} -> leyendo TSC y diag aunque no estén activos para mantener alive la tabla")
                     if not self.is_cc:
                         # print("Reading normal TSC vars:", self.tsc_normal_vars)
                         online, ts_ms, tsc_values = self.client.read_vars(self.tsc_normal_vars, wait_time=self.wait_time)
@@ -1825,7 +1826,7 @@ class Worker(QObject):
                         if ts_ms >= self._last_ts:
                             self._last_ts = ts_ms
                             reformat_tsc_values = {k: self._to_str_value(v) for k, v in (tsc_values or {}).items()}
-                            self.on_tsc_data.emit(self.endpoint_id, ts_ms, reformat_tsc_values, True)
+                            self.on_tsc_data.emit(self.endpoint_id, ts_ms, reformat_tsc_values)
                             reformat_diag_values = {k: self._to_str_value(v) for k, v in (tsc_diag_values or {}).items()}
                             self.on_tsc_diag_data.emit(self.endpoint_id, ts_ms, reformat_diag_values)
 
@@ -1835,20 +1836,12 @@ class Worker(QObject):
 
                 if self.doors_enabled:
                     
+                    print(f"Doors diag activo: {self.doors_enabled} -> leyendo puertas y diag")
                     online, ts_ms, door_values = self.client.read_vars(self.doors_vars, wait_time=self.wait_time)
                     online, ts_ms, door_diag_values = self.client.read_vars(self.doors_diag_vars, wait_time=self.wait_time)
 
                     if not online:
                         self.status.emit(self.endpoint_id, False, "offline (READ_ERROR)", ts_ms)
-                        # for k in door_values:
-                        #     door_values[k] = random.choice(['0', '1'])
-                        # door_values['oVCUCH_TRDP_DS_A000.COM_Vehicle_Type'] = '3'
-                        # door_values['DCU_CAN_DS_19A_Failure_Rate'] = random.choice(['0', '255'])
-                        # door_values['DCU_CAN_DS_19C_Failure_Rate']  = random.choice(['0', '255'])
-            
-                        # # print(door_values)
-                        # online = True
-                        # self.on_door_data.emit(self.endpoint_id, ts_ms, door_values, True)
                         
                     else:
                         self.status.emit(self.endpoint_id, True, "ok", ts_ms)
@@ -1856,7 +1849,7 @@ class Worker(QObject):
                         if ts_ms >= self._last_ts:
                             self._last_ts = ts_ms
                             reformat_door_values = {k: self._to_str_value(v) for k, v in (door_values or {}).items()}
-                            self.on_door_data.emit(self.endpoint_id, ts_ms, reformat_door_values, True)
+                            self.on_door_data.emit(self.endpoint_id, ts_ms, reformat_door_values)
                             reformat_door_diag_values = {k: self._to_str_value(v) for k, v in (door_diag_values or {}).items()}
                             self.on_door_diag_data.emit(self.endpoint_id, ts_ms, reformat_door_diag_values)
 
@@ -1918,9 +1911,9 @@ class Vars_Warehouse(QObject):
 
     def __init__(self, endpoint_ids, render_hz=1):
         super().__init__()
-        self.tsc_state = {eid: {"online": False, "values": {}, "active": False} for eid in endpoint_ids}
+        self.tsc_state = {eid: {"online": False, "values": {}} for eid in endpoint_ids}
         self.tsc_diag_state = {eid: {"online": False, "values": {}} for eid in endpoint_ids}
-        self.doors_state = {eid: {"online": False, "values": {}, "active": False} for eid in endpoint_ids}
+        self.doors_state = {eid: {"online": False, "values": {}} for eid in endpoint_ids}
         self.door_diag_state = {eid: {"online": False, "values": {}} for eid in endpoint_ids}
         self._dirty = True
 
@@ -1936,7 +1929,7 @@ class Vars_Warehouse(QObject):
     def stop(self):
         self._timer.stop()
 
-    def on_tsc_data(self, endpoint_id, ts_ms, values, active):
+    def on_tsc_data(self, endpoint_id, ts_ms, values):
         st = self.tsc_state.get(endpoint_id)
         if st is None:
             return
@@ -1944,15 +1937,14 @@ class Vars_Warehouse(QObject):
         values = values or {}
 
         # Si ya estaba online y los valores son iguales -> no hay cambio real
-        if st["online"] and st["values"] == values and st['active'] == active:
+        if st["online"] and st["values"] == values:
             return
 
         st["online"] = True
         st["values"] = values
-        st["active"] = active
         self._dirty = True
 
-    def on_doors_data(self, endpoint_id, ts_ms, values, active):
+    def on_doors_data(self, endpoint_id, ts_ms, values):
         st = self.doors_state.get(endpoint_id)
         if st is None:
             return
@@ -1960,12 +1952,11 @@ class Vars_Warehouse(QObject):
         values = values or {}
 
         # Si ya estaba online y los valores son iguales -> no hay cambio real
-        if st["online"] and st["values"] == values and st["active"] == active:
+        if st["online"] and st["values"] == values:
             return
 
         st["online"] = True
         st["values"] = values
-        st["active"] = active
         self._dirty = True
 
     def on_status(self, endpoint_id, online, msg, ts_ms):
@@ -2010,7 +2001,7 @@ class Vars_Warehouse(QObject):
 
         snapshot = {
             "tsc": {
-                eid: {"online": bool(st["online"]), "values": dict(st["values"]), "active": bool(st["active"])}
+                eid: {"online": bool(st["online"]), "values": dict(st["values"])}
                 for eid, st in self.tsc_state.items()
             },
             "tsc_diag": {
@@ -2018,7 +2009,7 @@ class Vars_Warehouse(QObject):
                 for eid, st in self.tsc_diag_state.items()
             },
             "doors": {
-                eid: {"online": bool(st["online"]), "values": dict(st["values"]), "active": bool(st["active"])}
+                eid: {"online": bool(st["online"]), "values": dict(st["values"])}
                 for eid, st in self.doors_state.items()
             },
             "doors_diag": {
@@ -4113,9 +4104,16 @@ class DoorsGenerator(QSvgWidget):
         n3_fb_r = g(doors_data, 90)
         n3_fb_l = g(doors_data, 91)
         
-        if coach_type in ['3','4','5','6','8','9','10', '11']:
+        if coach_type in ['3','4','6','8','9','10']:
                 coach = self.normal_coach(label, index, closed_n_locked_r, step_closed_r, door_open_r, step_open_r, uic_15_r, uic_14_r, uic_9_r, tbo_mode_r, obb_mode_r, uic_lat_mode_r, failure_rate_r, code_a_r, code_b_r, door_oos_r, step_oos_r, closed_n_locked_l, step_closed_l, door_open_l, step_open_l, uic_15_l, uic_14_l, uic_9_l, tbo_mode_l, obb_mode_l, uic_lat_mode_l, failure_rate_l, code_a_l, code_b_l, door_oos_l, step_oos_l)
-            
+        elif coach_type in ['5']:
+                coach = self.pmr_coach(label, index, closed_n_locked_r, step_closed_r, door_open_r, step_open_r, uic_15_r, uic_14_r, uic_9_r, tbo_mode_r, obb_mode_r, uic_lat_mode_r, failure_rate_r, code_a_r, code_b_r, door_oos_r, step_oos_r, closed_n_locked_l, step_closed_l, door_open_l, step_open_l, uic_15_l, uic_14_l, uic_9_l, tbo_mode_l, obb_mode_l, uic_lat_mode_l, failure_rate_l, code_a_l, code_b_l, door_oos_l, step_oos_l)
+        elif coach_type in ['2'] and self.project == "DB":
+                coach = self.cabcar_coach(label, index)
+        elif coach_type in ['7']:
+                coach = self.family_coach(label, index)
+        elif coach_type in ['11']:
+                coach = self.end_coach(label, index, closed_n_locked_r, step_closed_r, door_open_r, step_open_r, uic_15_r, uic_14_r, uic_9_r, tbo_mode_r, obb_mode_r, uic_lat_mode_r, failure_rate_r, code_a_r, code_b_r, door_oos_r, step_oos_r, closed_n_locked_l, step_closed_l, door_open_l, step_open_l, uic_15_l, uic_14_l, uic_9_l, tbo_mode_l, obb_mode_l, uic_lat_mode_l, failure_rate_l, code_a_l, code_b_l, door_oos_l, step_oos_l)
         else:
             return self.offline_coach(coach_id, index), False
 
@@ -4169,7 +4167,7 @@ class DoorsGenerator(QSvgWidget):
         else:
             QMessageBox.critical(self, "Error", f"No se pudo guardar el PNG:\n{filename}")
             
-    def create_door_svg(self, closed_and_locked, step_closed, door_open, step_open, code_a, code_b, failure_rate, side, oos, step_oos, x_offset=0, label=""):
+    def create_door_svg(self, pmr, closed_and_locked, step_closed, door_open, step_open, code_a, code_b, failure_rate, side, oos, step_oos, x_offset=0, label=""):
         """
         Representa el estado de un contacto con una etiqueta.
         - opened=True para contacto abierto, False para cerrado.
@@ -4194,25 +4192,26 @@ class DoorsGenerator(QSvgWidget):
                 elif door_open:
                     SubElement(door, "rect", x="-10", y="-3", width="20", height="6", fill="blue")
                 else:
-                    SubElement(door, "rect", x="-10", y="-3", width="20", height="6", fill="purple")
+                    SubElement(door, "rect", x="-10", y="-3", width="20", height="6", fill="magenta")
 
-                # if step_oos:
-                #     if side == "R":
-                #         SubElement(door, "rect", x="-7", y="-7", width="14", height="4", fill="orange")
-                #     elif side == "L":
-                #         SubElement(door, "rect", x="-7", y="3", width="14", height="4", fill="orange")
-                # if step_closed:
-                #     if side == "R":
-                #         SubElement(door, "rect", x="-7", y="-7", width="14", height="4", fill="black")
-                #     elif side == "L":
-                #         SubElement(door, "rect", x="-7", y="3", width="14", height="4", fill="black")
-                # elif step_open:
-                #     if side == "R":
-                #         SubElement(door, "rect", x="-7", y="-7", width="14", height="4", fill="blue")
-                #     elif side == "L":
-                #         SubElement(door, "rect", x="-7", y="3", width="14", height="4", fill="blue")
-                # else:
-                #     SubElement(door, "rect", x="-7", y="-7", width="14", height="4", fill="purple")
+                if pmr: 
+                    if step_oos:
+                        if side == "R":
+                            SubElement(door, "rect", x="-7", y="-7", width="14", height="4", fill="orange")
+                        elif side == "L":
+                            SubElement(door, "rect", x="-7", y="3", width="14", height="4", fill="orange")
+                    if step_closed:
+                        if side == "R":
+                            SubElement(door, "rect", x="-7", y="-7", width="14", height="4", fill="black")
+                        elif side == "L":
+                            SubElement(door, "rect", x="-7", y="3", width="14", height="4", fill="black")
+                    elif step_open:
+                        if side == "R":
+                            SubElement(door, "rect", x="-7", y="-7", width="14", height="4", fill="blue")
+                        elif side == "L":
+                            SubElement(door, "rect", x="-7", y="3", width="14", height="4", fill="blue")
+                    else:
+                        SubElement(door, "rect", x="-7", y="-7", width="14", height="4", fill="magenta")
 
         
         
@@ -4258,8 +4257,8 @@ class DoorsGenerator(QSvgWidget):
         # puerta
         upper_door = SubElement(coach, "g", transform="translate(75, 30)")
         lower_door = SubElement(coach, "g", transform="translate(75, 70)")
-        upper_door.append(self.create_door_svg(int(closed_and_locked_R),int(step_closed_R),int(door_open_R), int(step_open_R), int(fail_type_a_R), int(fail_type_b_R), int(door_r_off), "R", int(oos_r), int(step_oos_r), x_offset=0, label=""))
-        lower_door.append(self.create_door_svg(int(closed_and_locked_L),int(step_closed_L),int(door_open_L), int(step_open_L), int(fail_type_a_L), int(fail_type_b_L), int(door_l_off), "L", int(oos_l), int(step_oos_l), x_offset=0, label=""))
+        upper_door.append(self.create_door_svg(0, int(closed_and_locked_R),int(step_closed_R),int(door_open_R), int(step_open_R), int(fail_type_a_R), int(fail_type_b_R), int(door_r_off), "R", int(oos_r), int(step_oos_r), x_offset=0, label=""))
+        lower_door.append(self.create_door_svg(0, int(closed_and_locked_L),int(step_closed_L),int(door_open_L), int(step_open_L), int(fail_type_a_L), int(fail_type_b_L), int(door_l_off), "L", int(oos_l), int(step_oos_l), x_offset=0, label=""))
 
 
         # #Determina si el comportamiento de las RIOMS es correcto
@@ -4386,6 +4385,249 @@ class DoorsGenerator(QSvgWidget):
         # else:
         #     SubElement(coach, "text", x="72", y="188",**{"text-anchor": "right","font-style": "italic","font-size": "9", "fill": "red"}).text = "Activo"
         
+        return coach
+
+    def pmr_coach(self, coach_name, coach_pos, closed_and_locked_R, step_closed_R, door_open_R, step_open_R, UIC15_R, UIC14_R, UIC9_R, TB0_R, OBB_R, LAT_R, Failure_rate_R, fail_type_a_R, fail_type_b_R, oos_r, step_oos_r, closed_and_locked_L, step_closed_L, door_open_L, step_open_L, UIC15_L, UIC14_L, UIC9_L, TB0_L, OBB_L, LAT_L, Failure_rate_L, fail_type_a_L, fail_type_b_L, oos_l, step_oos_l):
+
+        coach = Element("g")
+
+        SubElement(coach, "line", x1="100", y1="0", x2="100", y2="115", stroke="black", **{"stroke-width": "1", "stroke-dasharray": "5, 5"},opacity="0.35") #Línea de separación entre coches
+        SubElement(coach, "text", x="50", y="92",**{"text-anchor": "middle","font-style": "italic","font-size": "10"}).text = f"Coche {coach_pos+1}: {coach_name}" #Etiqueta con el nombre del coche y su posición   
+        
+        SubElement(coach, "line", x1="0", y1="40", x2="5", y2="40", stroke="black", stroke_width="1") #Líneas muelles
+        SubElement(coach, "line", x1="0", y1="60", x2="5", y2="60", stroke="black", stroke_width="1") #Líneas muelles
+        SubElement(coach, "line", x1="95", y1="40", x2="100", y2="40", stroke="black", stroke_width="1") #Líneas muelles 
+        SubElement(coach, "line", x1="95", y1="60", x2="100", y2="60", stroke="black", stroke_width="1") #Líneas muelles
+        
+        SubElement(coach, "line", x1="5", y1="40", x2="5", y2="30", stroke="black", stroke_width="1") #Líneas muelles
+        SubElement(coach, "line", x1="5", y1="60", x2="5", y2="70", stroke="black", stroke_width="1") #Líneas muelles
+        SubElement(coach, "line", x1="95", y1="40", x2="95", y2="30", stroke="black", stroke_width="1") #Líneas muelles
+        SubElement(coach, "line", x1="95", y1="60", x2="95", y2="70", stroke="black", stroke_width="1") #Líneas muelles
+
+        SubElement(coach, "line", x1="5", y1="30", x2="65", y2="30", stroke="black", stroke_width="1") #Líneas horizontales
+        SubElement(coach, "line", x1="5", y1="70", x2="65", y2="70", stroke="black", stroke_width="1") #Líneas horizontales
+        SubElement(coach, "line", x1="85", y1="30", x2="95", y2="30", stroke="black", stroke_width="1") #Líneas horizontales
+        SubElement(coach, "line", x1="85", y1="70", x2="95", y2="70", stroke="black", stroke_width="1") #Líneas horizontales
+
+        if int(Failure_rate_R) > 240:
+            door_r_off = 1
+        else: 
+            door_r_off = 0
+        if int(Failure_rate_L) > 240:
+            door_l_off = 1
+        else:
+            door_l_off = 0
+             
+        # puerta
+        upper_door = SubElement(coach, "g", transform="translate(75, 30)")
+        lower_door = SubElement(coach, "g", transform="translate(75, 70)")
+        upper_door.append(self.create_door_svg(1, int(closed_and_locked_R),int(step_closed_R),int(door_open_R), int(step_open_R), int(fail_type_a_R), int(fail_type_b_R), int(door_r_off), "R", int(oos_r), int(step_oos_r), x_offset=0, label=""))
+        lower_door.append(self.create_door_svg(1, int(closed_and_locked_L),int(step_closed_L),int(door_open_L), int(step_open_L), int(fail_type_a_L), int(fail_type_b_L), int(door_l_off), "L", int(oos_l), int(step_oos_l), x_offset=0, label=""))
+
+
+        # #Determina si el comportamiento de las RIOMS es correcto
+        # if int(fr_riom_sc1)>240:
+        #     SubElement(coach, "text", x="50", y="75",**{"text-anchor": "middle","font-style": "italic","font-size": "6.5", "fill": "red"}).text = "RIOM SC APAGADA"
+        # elif int(fr_riom_sc1r)>240:
+        #     SubElement(coach, "text", x="50", y="75",**{"text-anchor": "middle","font-style": "italic","font-size": "6.5", "fill": "red"}).text = "RIOM SCr APAGADA"
+        # elif k800_state and k802_state and not k801_state:
+        #     SubElement(coach, "text", x="50", y="75",**{"text-anchor": "middle","font-style": "italic","font-size": "6.5", "fill": "green"}).text = "CERRADO POR REDUNDANTE"
+        # elif k801_state and not k800_state:
+        #     SubElement(coach, "text", x="50", y="75",**{"text-anchor": "middle","font-style": "italic","font-size": "6.5", "fill": "green"}).text = "CERRADO POR PRINCIPAL"
+        # elif k800_state and not k801_state and not k802_state:
+        #     SubElement(coach, "text", x="50", y="75",**{"text-anchor": "middle","font-style": "italic","font-size": "6.5", "fill": "red"}).text = "ABIERTO"
+        # else:
+        #     SubElement(coach, "text", x="50", y="75",**{"text-anchor": "middle","font-style": "italic","font-size": "6.5", "fill": "red"}).text = "ERROR DE CABLEADO"
+
+        # # Conexión horizontal después de bifurcación y contacto (ajustada)
+        # SubElement(coach, "line", x1="90", y1="30", x2="100", y2="30", stroke="black", stroke_width="1")  # Salida
+
+            
+        # # Determinar el color de fondo del coche
+        # if k801_state or (k800_state and k802_state):
+        #     background_color = "green"
+        # else:
+        #     background_color = "red"
+            
+        # SubElement(coach, "rect", x="0", y="0", width="100", height="95", fill=background_color, opacity="0.15") 
+            
+        # SubElement(coach, "circle", cx="100",cy="30",r="2",fill="black")
+        # SubElement(coach, "circle", cx="100",cy="90",r="2",fill="black")
+        
+        # if pmr_index is not None and coach_pos<pmr_index:
+        #     SubElement(coach, "text", x="60", y="37.5", transform="rotate(270 90 30)", **{"text-anchor": "right","font-style": "italic","font-size": "7"}).text = "XM06:24"
+        #     SubElement(coach, "text", x="60", y="-52.5", transform="rotate(270 90 30)", **{"text-anchor": "right","font-style": "italic","font-size": "7"}).text = "XH06:24"
+        #     SubElement(coach, "text", x="67.5", y="85",**{"text-anchor": "right","font-style": "italic","font-size": "7"}).text = "XM06:25"
+        #     SubElement(coach, "text", x="5", y="85",**{"text-anchor": "left","font-style": "italic","font-size": "7"}).text = "XH06:25"
+            
+        #     SubElement(coach, "text", x="5", y="235", **{"text-anchor": "left","font-style": "italic","font-size": "7"}).text = "XH06:17"
+        #     SubElement(coach, "text", x="5", y="270", **{"text-anchor": "left","font-style": "italic","font-size": "7"}).text = "XH06:18"    
+        #     SubElement(coach, "text", x="67.5", y="235", **{"text-anchor": "right","font-style": "italic","font-size": "7"}).text = "XM06:17"
+        #     SubElement(coach, "text", x="67.5", y="270", **{"text-anchor": "right","font-style": "italic","font-size": "7"}).text = "XM06:18"
+            
+        #     SubElement(coach, "text", x="5", y="125", **{"text-anchor": "left","font-style": "italic","font-size": "7"}).text = "XH06:7"
+        #     SubElement(coach, "text", x="5", y="160", **{"text-anchor": "left","font-style": "italic","font-size": "7"}).text = "XH06:8"    
+        #     SubElement(coach, "text", x="70", y="125", **{"text-anchor": "right","font-style": "italic","font-size": "7"}).text = "XM06:7"
+        #     SubElement(coach, "text", x="70", y="160", **{"text-anchor": "right","font-style": "italic","font-size": "7"}).text = "XM06:8"
+            
+        # elif pmr_index is not None and coach_pos>pmr_index:
+        #     SubElement(coach, "text", x="60", y="37.5", transform="rotate(270 90 30)", **{"text-anchor": "right","font-style": "italic","font-size": "7"}).text = "XH06:24"
+        #     SubElement(coach, "text", x="60", y="-52.5", transform="rotate(270 90 30)", **{"text-anchor": "right","font-style": "italic","font-size": "7"}).text = "XM06:24"
+        #     SubElement(coach, "text", x="67.5", y="85",**{"text-anchor": "right","font-style": "italic","font-size": "7"}).text = "XH06:25"
+        #     SubElement(coach, "text", x="5", y="85",**{"text-anchor": "left","font-style": "italic","font-size": "7"}).text = "XM06:25"
+            
+        #     SubElement(coach, "text", x="67.5", y="235", **{"text-anchor": "right","font-style": "italic","font-size": "7"}).text = "XH06:17"
+        #     SubElement(coach, "text", x="67.5", y="270", **{"text-anchor": "right","font-style": "italic","font-size": "7"}).text = "XH06:18"    
+        #     SubElement(coach, "text", x="5", y="235", **{"text-anchor": "left","font-style": "italic","font-size": "7"}).text = "XM06:17"
+        #     SubElement(coach, "text", x="5", y="270", **{"text-anchor": "left","font-style": "italic","font-size": "7"}).text = "XM06:18"
+            
+        #     SubElement(coach, "text", x="70", y="125", **{"text-anchor": "right","font-style": "italic","font-size": "7"}).text = "XH06:7"
+        #     SubElement(coach, "text", x="70", y="160", **{"text-anchor": "right","font-style": "italic","font-size": "7"}).text = "XH06:8"    
+        #     SubElement(coach, "text", x="5", y="125", **{"text-anchor": "left","font-style": "italic","font-size": "7"}).text = "XM06:7"
+        #     SubElement(coach, "text", x="5", y="160", **{"text-anchor": "left","font-style": "italic","font-size": "7"}).text = "XM06:8"
+        
+        # SubElement(coach, "line", x1="0", y1="115", x2="40", y2="115", stroke="black", stroke_width="1")
+        # SubElement(coach, "line", x1="60", y1="115", x2="100", y2="115", stroke="black", stroke_width="1")
+        # SubElement(coach, "line", x1="0", y1="165", x2="100", y2="165", stroke="black", stroke_width="1") 
+        
+        # if int(k804_state)==1:
+        #     k804_state=0
+        # else:
+        #     k804_state=1
+        
+        # bypass = SubElement(coach, "g", transform="translate(40, 115)")
+        # bypass.append(self.create_contact_svg(k804_state, x_offset=0, label="K804"))
+        
+        # if k804_state:
+        #     background_color = "green"
+        # else:
+        #     background_color = "red"
+            
+        # SubElement(coach, "rect", x="0", y="95", width="100", height="100", fill=background_color, opacity="0.15")
+        # SubElement(coach, "line", x1="0", y1="95", x2="100", y2="95", stroke="black", **{"stroke-width": "4"}, opacity="0.35")
+
+        # SubElement(coach, "line", x1="0", y1="225", x2="100", y2="225", stroke="black", stroke_width="1")
+        # SubElement(coach, "line", x1="0", y1="275", x2="100", y2="275", stroke="black", stroke_width="1")
+
+        
+        # SubElement(coach, "circle", cx="100",cy="225",r="2",fill="black")
+        # SubElement(coach, "circle", cx="100",cy="275",r="2",fill="black")
+        
+        # SubElement(coach, "circle", cx="100",cy="115",r="2",fill="black")
+        # SubElement(coach, "circle", cx="100",cy="165",r="2",fill="black")
+
+        # SubElement(coach, "text", x="5", y="176",**{"text-anchor": "right","font-style": "italic","font-size": "9"}).text = "S60:"
+        # SubElement(coach, "text", x="5", y="188",**{"text-anchor": "right","font-style": "italic","font-size": "9"}).text = "S62:"
+        # # SubElement(coach, "text", x="50", y="176",**{"text-anchor": "right","font-style": "italic","font-size": "9"}).text = "S255:"
+        # SubElement(coach, "text", x="50", y="188",**{"text-anchor": "right","font-style": "italic","font-size": "9"}).text = "S256:"
+
+        # if s60 != s60_r:
+        #     SubElement(coach, "text", x="22", y="176",**{"text-anchor": "right","font-style": "italic","font-size": "9", "fill": "yellow"}).text = "Error"
+        # elif s60 == "0":
+        #     SubElement(coach, "text", x="22", y="176",**{"text-anchor": "right","font-style": "italic","font-size": "9",  "fill": "green"}).text = "Off"
+        # else:
+        #     SubElement(coach, "text", x="22", y="176",**{"text-anchor": "right","font-style": "italic","font-size": "9", "fill": "red"}).text = "Activo"
+
+        # if s62 != s62_r:
+        #     SubElement(coach, "text", x="22", y="188",**{"text-anchor": "right","font-style": "italic","font-size": "9", "fill": "yellow"}).text = "Error"
+        # elif s62 == "0":
+        #     SubElement(coach, "text", x="22", y="188",**{"text-anchor": "right","font-style": "italic","font-size": "9", "fill": "green"}).text = "Off"
+        # else:
+        #     SubElement(coach, "text", x="22", y="188",**{"text-anchor": "right","font-style": "italic","font-size": "9", "fill": "red"}).text = "Activo"
+
+        # # if s255 != s255_r:
+        # #     SubElement(coach, "text", x="72", y="176",**{"text-anchor": "right","font-style": "italic","font-size": "9", "fill": "yellow"}).text = "Error"
+        # # elif s255 == "0":
+        # #     SubElement(coach, "text", x="72", y="176",**{"text-anchor": "right","font-style": "italic","font-size": "9", "fill": "green"}).text = "Off"
+        # # else:
+        #     # SubElement(coach, "text", x="72", y="176",**{"text-anchor": "right","font-style": "italic","font-size": "9", "fill": "red"}).text = "Activo"
+
+        # if s256 != s256_r:
+        #     SubElement(coach, "text", x="72", y="188",**{"text-anchor": "right","font-style": "italic","font-size": "9", "fill": "yellow"}).text = "Error"
+        # elif s256 == "0":
+        #     SubElement(coach, "text", x="72", y="188",**{"text-anchor": "right","font-style": "italic","font-size": "9", "fill": "green"}).text = "Off"
+        # else:
+        #     SubElement(coach, "text", x="72", y="188",**{"text-anchor": "right","font-style": "italic","font-size": "9", "fill": "red"}).text = "Activo"
+        
+        return coach
+
+    def cabcar_coach(self, coach_name, coach_pos):
+
+        coach = Element("g")
+
+        SubElement(coach, "line", x1="100", y1="0", x2="100", y2="115", stroke="black", **{"stroke-width": "1", "stroke-dasharray": "5, 5"},opacity="0.35") #Línea de separación entre coches
+        SubElement(coach, "text", x="50", y="92",**{"text-anchor": "middle","font-style": "italic","font-size": "10"}).text = f"Coche {coach_pos+1}: {coach_name}" #Etiqueta con el nombre del coche y su posición   
+        
+        SubElement(coach, "line", x1="95", y1="40", x2="100", y2="40", stroke="black", stroke_width="1") #Líneas muelles 
+        SubElement(coach, "line", x1="95", y1="60", x2="100", y2="60", stroke="black", stroke_width="1") #Líneas muelles
+        
+        SubElement(coach, "line", x1="95", y1="40", x2="95", y2="30", stroke="black", stroke_width="1") #Líneas muelles
+        SubElement(coach, "line", x1="95", y1="60", x2="95", y2="70", stroke="black", stroke_width="1") #Líneas muelles
+
+        SubElement(coach, "line", x1="35", y1="30", x2="95", y2="30", stroke="black", stroke_width="1") #Líneas horizontales
+        SubElement(coach, "line", x1="35", y1="70", x2="95", y2="70", stroke="black", stroke_width="1") #Líneas horizontales
+
+        SubElement(coach, "line", x1="17.5", y1="45", x2="35", y2="30", stroke="black", stroke_width="1") #Líneas diagonales
+        SubElement(coach, "line", x1="17.5", y1="55", x2="35", y2="70", stroke="black", stroke_width="1") #Líneas diagonales
+
+        return coach
+
+    def end_coach(self, coach_name, coach_pos, closed_and_locked_R, step_closed_R, door_open_R, step_open_R, UIC15_R, UIC14_R, UIC9_R, TB0_R, OBB_R, LAT_R, Failure_rate_R, fail_type_a_R, fail_type_b_R, oos_r, step_oos_r, closed_and_locked_L, step_closed_L, door_open_L, step_open_L, UIC15_L, UIC14_L, UIC9_L, TB0_L, OBB_L, LAT_L, Failure_rate_L, fail_type_a_L, fail_type_b_L, oos_l, step_oos_l):
+
+        coach = Element("g")
+
+        SubElement(coach, "line", x1="100", y1="0", x2="100", y2="115", stroke="black", **{"stroke-width": "1", "stroke-dasharray": "5, 5"},opacity="0.35") #Línea de separación entre coches
+        SubElement(coach, "text", x="50", y="92",**{"text-anchor": "middle","font-style": "italic","font-size": "10"}).text = f"Coche {coach_pos+1}: {coach_name}" #Etiqueta con el nombre del coche y su posición   
+        
+        SubElement(coach, "line", x1="0", y1="40", x2="5", y2="40", stroke="black", stroke_width="1") #Líneas muelles
+        SubElement(coach, "line", x1="0", y1="60", x2="5", y2="60", stroke="black", stroke_width="1") #Líneas muelles
+        
+        SubElement(coach, "line", x1="5", y1="40", x2="5", y2="30", stroke="black", stroke_width="1") #Líneas muelles
+        SubElement(coach, "line", x1="5", y1="60", x2="5", y2="70", stroke="black", stroke_width="1") #Líneas muelles
+        SubElement(coach, "line", x1="95", y1="30", x2="95", y2="70", stroke="black", stroke_width="1") #Líneas muelles
+
+        SubElement(coach, "line", x1="5", y1="30", x2="65", y2="30", stroke="black", stroke_width="1") #Líneas horizontales
+        SubElement(coach, "line", x1="5", y1="70", x2="65", y2="70", stroke="black", stroke_width="1") #Líneas horizontales
+        SubElement(coach, "line", x1="85", y1="30", x2="95", y2="30", stroke="black", stroke_width="1") #Líneas horizontales
+        SubElement(coach, "line", x1="85", y1="70", x2="95", y2="70", stroke="black", stroke_width="1") #Líneas horizontales
+
+        if int(Failure_rate_R) > 240:
+            door_r_off = 1
+        else: 
+            door_r_off = 0
+        if int(Failure_rate_L) > 240:
+            door_l_off = 1
+        else:
+            door_l_off = 0
+             
+        # puerta
+        upper_door = SubElement(coach, "g", transform="translate(75, 30)")
+        lower_door = SubElement(coach, "g", transform="translate(75, 70)")
+        upper_door.append(self.create_door_svg(0, int(closed_and_locked_R),int(step_closed_R),int(door_open_R), int(step_open_R), int(fail_type_a_R), int(fail_type_b_R), int(door_r_off), "R", int(oos_r), int(step_oos_r), x_offset=0, label=""))
+        lower_door.append(self.create_door_svg(0, int(closed_and_locked_L),int(step_closed_L),int(door_open_L), int(step_open_L), int(fail_type_a_L), int(fail_type_b_L), int(door_l_off), "L", int(oos_l), int(step_oos_l), x_offset=0, label=""))
+
+        return coach
+
+    def family_coach(self, coach_name, coach_pos):
+        
+        coach = Element("g")
+
+        SubElement(coach, "line", x1="100", y1="0", x2="100", y2="115", stroke="black", **{"stroke-width": "1", "stroke-dasharray": "5, 5"},opacity="0.35") #Línea de separación entre coches
+        SubElement(coach, "text", x="50", y="92",**{"text-anchor": "middle","font-style": "italic","font-size": "10"}).text = f"Coche {coach_pos+1}: {coach_name}" #Etiqueta con el nombre del coche y su posición   
+        
+        SubElement(coach, "line", x1="0", y1="40", x2="5", y2="40", stroke="black", stroke_width="1") #Líneas muelles
+        SubElement(coach, "line", x1="0", y1="60", x2="5", y2="60", stroke="black", stroke_width="1") #Líneas muelles
+        SubElement(coach, "line", x1="95", y1="40", x2="100", y2="40", stroke="black", stroke_width="1") #Líneas muelles 
+        SubElement(coach, "line", x1="95", y1="60", x2="100", y2="60", stroke="black", stroke_width="1") #Líneas muelles
+        
+        SubElement(coach, "line", x1="5", y1="40", x2="5", y2="30", stroke="black", stroke_width="1") #Líneas muelles
+        SubElement(coach, "line", x1="5", y1="60", x2="5", y2="70", stroke="black", stroke_width="1") #Líneas muelles
+        SubElement(coach, "line", x1="95", y1="40", x2="95", y2="30", stroke="black", stroke_width="1") #Líneas muelles
+        SubElement(coach, "line", x1="95", y1="60", x2="95", y2="70", stroke="black", stroke_width="1") #Líneas muelles
+
+        SubElement(coach, "line", x1="5", y1="30", x2="95", y2="30", stroke="black", stroke_width="1") #Líneas horizontales
+        SubElement(coach, "line", x1="5", y1="70", x2="95", y2="70", stroke="black", stroke_width="1") #Líneas horizontales
+
         return coach
 
     def offline_coach(self, coach_id: str, index: int):
@@ -4856,7 +5098,7 @@ class TSC_Diag_Window(DiagnosticWindow):
         except Exception:
             pass
 
-class Doors_Diag_Window(DiagnosticWindow):
+class Door_Diag_Window(DiagnosticWindow):
 
     def __init__(self, *, project, endpoint_ids, project_coach_types,
                  fixed_w: int, fixed_h: int, valid_ips: list, parent=None):
@@ -4866,7 +5108,7 @@ class Doors_Diag_Window(DiagnosticWindow):
         self.project_coach_types = project_coach_types
 
         super().__init__(
-            title="Errores activos en puertas",
+            title="Problemas activos en las puertas",
             fixed_w=fixed_w,
             fixed_h=fixed_h,
             parent=parent
@@ -4886,11 +5128,11 @@ class Doors_Diag_Window(DiagnosticWindow):
         self._dcu_diag_dict = getattr(self._tcms, "DCU_DIAGNOSIS_DICT", {})
 
         # ---- UI tabla ----
-        self.table = QTableWidget(80, 4, self)
+        self.table = QTableWidget(80, 5, self)
         self.table.setHorizontalHeaderLabels([
             "Coche",
             "IP",
-            "Derecha/Izquierda",
+            "Puerta",
             "Código de error",
             "Descripción"
         ])
@@ -4922,14 +5164,10 @@ class Doors_Diag_Window(DiagnosticWindow):
         self.layout.addWidget(self.table)
         self.setCentralWidget(central)
 
-        # self.inverted_diagnostic_vars = [
-        # 'bDNRA_Notlocked2',
-        # 'bDNRA_Notlocked1',
-        # 'bDNRA_Notlocked',
-        # 'bDNRA_OK'
-        # ]
-
         self._default_sort_applied = False
+
+        self.right_side_telegrams = ['49A', '19B']
+        self.left_side_telegrams = ['49C', '19D']
 
     def _on_toggled(self, checked):
         
@@ -4951,9 +5189,6 @@ class Doors_Diag_Window(DiagnosticWindow):
             sort_col = header.sortIndicatorSection()
             sort_order = header.sortIndicatorOrder()
 
-            # print("TSC_Diag_Window: Actualizando snapshot...")
-            # print(f"Columna de ordenación actual: {sort_col}, Orden: {'Ascendente' if sort_order == Qt.AscendingOrder else 'Descendente'}")
-            
             coach_types_by_endpoint = {}
             for endpoint_id, data in snapshot.get("doors", {}).items():
                 vals = (data or {}).get("values") or {}
@@ -4970,34 +5205,6 @@ class Doors_Diag_Window(DiagnosticWindow):
 
             for endpoint_id, data in snapshot.get("doors_diag", {}).items():
                 diag_vals = (data or {}).get("values") or {}
-
-                # lista = [
-                #     'BCU_MVB2_DS_30D.bDIBA_Train_S2',
-                #     'BCU_MVB2_DS_30D.bDIMGA_Train_S2',
-                #     'BCU_MVB2_DS_30D.bDNRA_Notlocked',
-                #     'BCU_MVB2_DS_30D.bDIMGA',
-                #     'BCU_MVB2_DS_30D.bPBA_Speed',
-                #     'BCUCH2_MVB1_DS_30F.bDIMGA_NOK',
-                #     'BCUCH2_MVB1_DS_30F.bPBA_Speed_NOK',
-                #     'BCUCH2_MVB1_DS_30F.bDIBA_Train_S2_NOK',
-                #     'BCUCH1_MVB2_DS_30F.bDIBA_Train_S2_NOK',
-                #     'BCUCH1_MVB2_DS_30F.bPBA_Speed_NOK',
-                #     'BCUCH1_MVB2_DS_30F.bDIMGA_NOK',
-                #     'BCU_MVB1_DS_06E.bDIBA_Train_S2',
-                #     'BCU_MVB1_DS_06E.bDIMGA_Train_S2',
-                #     'BCUCH1_MVB2_DS_310.bDNRA_OK',
-                #     'BCUCH2_MVB1_DS_310.bDNRA_OK',
-                #     'BCU_MVB1_DS_06E.bDIMGA',
-                #     'BCU_MVB1_DS_06E.bPBA_Speed',
-                #     'BCUCH1_MVB2_DS_310.bDNRA_Notlocked2',
-                #     'BCUCH1_MVB2_DS_310.bDNRA_Notlocked1',
-                #     'BCUCH2_MVB1_DS_310.bDNRA_Notlocked2',
-                #     'BCUCH2_MVB1_DS_310.bDNRA_Notlocked1',
-                # ]
-
-                # if endpoint_id == "EP1":
-                #     test = {k: diag_vals[k] for k in lista}
-                    # print(test)
                  
                 try:
                     coach_idx = self.endpoint_ids.index(endpoint_id) + 1
@@ -5019,21 +5226,27 @@ class Doors_Diag_Window(DiagnosticWindow):
                     coach_label += f" ({coach_type_str})"
 
                 for var_full, value in diag_vals.items():
-
+                    if any(telegram in var_full for telegram in self.right_side_telegrams):
+                        door_side = "Derecha"
+                    elif any(telegram in var_full for telegram in self.left_side_telegrams):
+                        door_side = "Izquierda"
+                    else:
+                        door_side = "Desconocida"        
                     var_short = var_full.split(".")[-1]
 
-                    if value != "1":
+                    if value != "1" and value!= "0":
                         continue
-                    
-                    dcu_hit = self._dcu_diag_dict.get(var_short)
-                    if dcu_hit:
-                        code = dcu_hit.get("Error Code", var_short)
-                        desc = dcu_hit.get("Description", "Descripción no disponible")
-                    else:
-                        code = var_short
-                        desc = "Descripción no disponible"
 
-                    rows.append((coach_label, endpoint_id, "Derecha", code, desc))
+                    if value == "1":
+                        dcu_hit = self._dcu_diag_dict.get(var_short)
+                        if dcu_hit:
+                            code = dcu_hit.get("Error Code", var_short)
+                            desc = dcu_hit.get("Description", "Descripción no disponible")
+                        else:
+                            code = var_short
+                            desc = "Descripción no disponible"
+
+                        rows.append((coach_label, endpoint_id, door_side, code, desc))
 
             self.table.setSortingEnabled(False)
             self.table.clearContents()
@@ -5080,6 +5293,80 @@ class Doors_Diag_Window(DiagnosticWindow):
                 self._default_sort_applied = True
             else:
                 self.table.sortItems(sort_col, sort_order)  # mantener lo que eligió el usuario
+
+    def _export_table_to_excel(self):
+        
+        table = self.table
+
+        options = QFileDialog.Options()
+        file_path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Guardar tabla como...",
+            "",
+            "Archivos Excel (*.xlsx);;Todos los archivos (*)",
+            options=options
+        )
+        if not file_path:
+            return
+        if not file_path.lower().endswith(".xlsx"):
+            file_path += ".xlsx"
+        
+        workbook = xlsxwriter.Workbook(file_path)
+        worksheet = workbook.add_worksheet("Diagnóstico TSC")
+
+        header_format = workbook.add_format({
+            "bold": True,
+            "bg_color": "#2F5496",
+            "font_color": "#FFFFFF",
+            "border": 1,
+            "align": "center",
+            "valign": "vcenter"
+        })
+        cell_format = workbook.add_format({
+            "border": 1,
+            "text_wrap": True,
+            "valign": "top",
+            "align": "left"
+        })
+
+        col_count = table.columnCount()
+        headers = []
+        
+        for c in range(col_count):
+            hitem = table.horizontalHeaderItem(c)
+            headers.append(hitem.text() if hitem else f"Columna {c}")
+
+        worksheet.write_row(0, 0, headers, header_format)
+
+        rows_for_width = [headers]
+        row_count = table.rowCount()
+
+        for r in range(row_count):
+            row_values = []
+            for c in range(col_count):
+                item = table.item(r, c)
+                row_values.append(item.text() if item else "")
+            worksheet.write_row(r + 1, 0, row_values, cell_format)
+            rows_for_width.append(row_values)
+
+        if row_count > 0:
+            worksheet.autofilter(0, 0, row_count, col_count - 1)
+        worksheet.freeze_panes(1, 0)
+
+        max_widths = [0] * col_count
+        for rv in rows_for_width:
+            for c, val in enumerate(rv):
+                max_widths[c] = max(max_widths[c], len(str(val)))
+        for c, max_ch in enumerate(max_widths):
+            width = min(max(10, max_ch + 4), 80)
+            worksheet.set_column(c, c, width)
+
+        workbook.close()
+
+        try:
+            QMessageBox.information(self, "Exportado", f"Tabla exportada correctamente a:\n{file_path}")
+        except Exception:
+            pass
 
 class ResetFailuresWorker(QObject):
     log = Signal(str)
@@ -5203,6 +5490,8 @@ class DOORWindow(DiagnosticWindow):
         self.export_Doors_loop_action = QAction("Guardar como PNG...", self)
         export_menu.addAction(self.export_Doors_loop_action)
 
+        self.Door_diag_window = Door_Diag_Window(project=self.project, endpoint_ids=endpoint_ids, project_coach_types=project_coach_types,fixed_w=800, fixed_h=400, valid_ips=self.valid_ips)
+
         self.scroll = QScrollArea()
         self.scroll.setWidgetResizable(False)
         self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
@@ -5219,7 +5508,13 @@ class DOORWindow(DiagnosticWindow):
 
         self.scroll.setWidget(self.doors)
 
+        self.btn_diag = QPushButton("Mostrar errores de puertas")
+        self.btn_diag.setCheckable(True)
+        self.btn_diag.toggled.connect(self.Door_diag_window._on_toggled)
+        self.Door_diag_window.closed.connect(lambda: self.btn_diag.setChecked(False))  # Para que el botón se desactive si se cierra la ventana de diagnóstico
+
         lay.addWidget(self.scroll)
+        lay.addWidget(self.btn_diag)
 
         self.setCentralWidget(central)
 
@@ -5229,7 +5524,7 @@ class DOORWindow(DiagnosticWindow):
      
     def set_snapshot(self, snapshot: dict):
             self.doors.set_snapshot(snapshot)
-            self.setFixedSize(min(self.doors.scaled_doors_width, self.max_width), min(self.doors.scaled_doors_height + 110, self.max_height))
+            self.setFixedSize(min(self.doors.scaled_doors_width, self.max_width), min(self.doors.scaled_doors_height + 80, self.max_height))
 
 class MainWindow(QMainWindow):
     
@@ -5847,13 +6142,10 @@ class MainWindow(QMainWindow):
 
     def update_table_from_snapshot(self, snapshot: dict):
 
-        # print(f"Diagnóstico tsc activo: {snapshot.get("tsc").get(self.endpoint_ids[0]).get("active")}")
+        show_tsc = bool(self.check_TSC_action.isChecked())
+        show_doors = bool(self.check_doors_action.isChecked())
 
-        # print(f"Diagnóstico doors activo: {snapshot.get("doors").get(self.endpoint_ids[0]).get("active")}")
-        
-        if snapshot.get("tsc").get(self.endpoint_ids[0], {}).get("active", False) is not False:
-            coaches = snapshot.get("tsc", {})
-        if snapshot.get("doors").get(self.endpoint_ids[0], {}).get("active", False) is not False:
+        if show_doors:
             coaches = snapshot.get("doors", {})
         else:
             coaches = snapshot.get("tsc", {})
@@ -6012,19 +6304,10 @@ class MainWindow(QMainWindow):
             window_size = self.tsc_window.size()
             self.tsc_window.move(int((max_width - min(window_size.width(), max_width))/2),int((max_height - min(window_size.height(), max_height))/2))
 
-            print(f"Estado de actividad de tsc_state: {self.vars_warehouse.tsc_state["EP1"]["active"]}")
-
-
         else:
             self.diag_enabled["TSC"] = False
             self.diagnosis_config_signal.emit(self.diag_enabled)
             
-            if self.vars_warehouse is not None:
-                for ep_data in self.vars_warehouse.tsc_state.values():
-                    ep_data["active"] = False
-            
-            print(f"Estado de actividad de tsc_state: {self.vars_warehouse.tsc_state["EP1"]["active"]}")
-
             # Cerrar ventana si está abierta
             if self.tsc_window is not None:
                 try:
@@ -6085,7 +6368,9 @@ class MainWindow(QMainWindow):
                 }
 
 
-                self.doors_window.set_snapshot(snapshot)                
+                self.doors_window.set_snapshot(snapshot)   
+                self.doors_window.Door_diag_window.set_snapshot(snapshot)
+
 
             screen = QApplication.primaryScreen()
             max_width = screen.availableGeometry().width()  
@@ -6094,18 +6379,9 @@ class MainWindow(QMainWindow):
             window_size = self.doors_window.size()
             self.doors_window.move(int((max_width - min(window_size.width(), max_width))/2),int((max_height - min(window_size.height(), max_height))/2))
 
-            print(f"Estado de actividad de doors: {self.vars_warehouse.doors_state["EP1"]["active"]}")
-
-
         else:
             self.diag_enabled["DOORS"] = False
             self.diagnosis_config_signal.emit(self.diag_enabled)
-
-            if self.vars_warehouse is not None:
-                for ep_data in self.vars_warehouse.doors_state.values():
-                    ep_data["active"] = False
-
-            print(f"Estado de actividad de doors: {self.vars_warehouse.doors_state["EP1"]["active"]}")
 
             # Cerrar ventana si está abierta
             if self.doors_window is not None:
