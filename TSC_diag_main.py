@@ -1391,8 +1391,6 @@ class TCMS_vars:
             'DCU_CAN_DS_29D.CycleCountDoor',
             'DCU_CAN_DS_29B.CycleCountStep',
             'DCU_CAN_DS_29D.CycleCountStep',
-            'DCU_CAN_DS_19A.LifeSignal',
-            'DCU_CAN_DS_19C.LifeSignal',
             'DCU_CAN_DS_19A_Failure_Rate',
             'DCU_CAN_DS_19C_Failure_Rate',
             'VCUCH_CAN_DS_21A.N3_par',
@@ -1960,16 +1958,16 @@ class Vars_Warehouse(QObject):
         self._dirty = True
 
     def on_status(self, endpoint_id, online, msg, ts_ms):
-        st = self.tsc_state.get(endpoint_id)
-        if st is None:
-            return
-
         online = bool(online)
-        if st["online"] != online:
-            st["online"] = online
-            if not online:
-                st["values"] = {}
-            self._dirty = True
+        for state_dict in [self.tsc_state, self.doors_state]:
+            st = state_dict.get(endpoint_id)
+            if st is None:
+                continue
+            if st["online"] != online:
+                st["online"] = online
+                if not online:
+                    st["values"] = {}
+                self._dirty = True
 
     def on_tsc_diag_data(self, endpoint_id, ts_ms, values):
         st = self.tsc_diag_state.get(endpoint_id)
@@ -4096,14 +4094,12 @@ class DoorsGenerator(QSvgWidget):
         cycle_count_door_l = g(doors_data, 81)
         cycle_count_step_r = g(doors_data, 82)
         cycle_count_step_l = g(doors_data, 83)
-        life_signal_r = g(doors_data, 84)
-        life_signal_l = g(doors_data, 85)
-        failure_rate_r = g(doors_data, 86)
-        failure_rate_l = g(doors_data, 87)
-        n3_order_r = g(doors_data, 88)
-        n3_order_l = g(doors_data, 89)
-        n3_fb_r = g(doors_data, 90)
-        n3_fb_l = g(doors_data, 91)
+        failure_rate_r = g(doors_data, 84)
+        failure_rate_l = g(doors_data, 85)
+        n3_order_r = g(doors_data, 86)
+        n3_order_l = g(doors_data, 87)
+        n3_fb_r = g(doors_data, 88)
+        n3_fb_l = g(doors_data, 89)
         
         if coach_type in ['3','4','6','8','9','10']:
                 coach = self.normal_coach(label, index, closed_n_locked_r, step_closed_r, door_open_r, step_open_r, uic_15_r, uic_14_r, uic_9_r, tbo_mode_r, obb_mode_r, uic_lat_mode_r, failure_rate_r, code_a_r, code_b_r, door_oos_r, step_oos_r, closed_n_locked_l, step_closed_l, door_open_l, step_open_l, uic_15_l, uic_14_l, uic_9_l, tbo_mode_l, obb_mode_l, uic_lat_mode_l, failure_rate_l, code_a_l, code_b_l, door_oos_l, step_oos_l)
@@ -4874,6 +4870,8 @@ class TSC_Diag_Window(DiagnosticWindow):
 
         self._default_sort_applied = False
 
+        self._last_tsc_diag = {}
+
     def _on_toggled(self, checked):
         
         if checked:
@@ -4889,6 +4887,13 @@ class TSC_Diag_Window(DiagnosticWindow):
             self.close()
 
     def set_snapshot(self, snapshot: dict):
+            
+            tsc_diag = snapshot.get("tsc_diag", {})
+
+            if hasattr(self, "_last_tsc_diag") and self._last_tsc_diag == tsc_diag:
+                return
+        
+            self._last_tsc_diag = tsc_diag
             
             header = self.table.horizontalHeader()
             sort_col = header.sortIndicatorSection()
@@ -4912,7 +4917,7 @@ class TSC_Diag_Window(DiagnosticWindow):
             rows = []
 
 
-            for endpoint_id, data in snapshot.get("tsc_diag", {}).items():
+            for endpoint_id, data in tsc_diag.items():
                 diag_vals = (data or {}).get("values") or {}
                 
                 # lista = [
@@ -5175,6 +5180,8 @@ class Door_Diag_Window(DiagnosticWindow):
         self.right_side_telegrams = ['49A', '19B']
         self.left_side_telegrams = ['49C', '19D']
 
+        self._last_door_diag = {}
+
     def _on_toggled(self, checked):
         
         if checked:
@@ -5190,13 +5197,20 @@ class Door_Diag_Window(DiagnosticWindow):
             self.close()
 
     def set_snapshot(self, snapshot: dict):
+
+            doors_diag = snapshot.get("doors_diag", {})
+
+            if hasattr(self, "_last_door_diag") and self._last_door_diag == doors_diag:
+                return
+
+            self._last_door_diag = doors_diag
             
             header = self.table.horizontalHeader()
             sort_col = header.sortIndicatorSection()
             sort_order = header.sortIndicatorOrder()
 
             coach_types_by_endpoint = {}
-            for endpoint_id, data in snapshot.get("doors", {}).items():
+            for endpoint_id, data in doors_diag.items():
                 vals = (data or {}).get("values") or {}
                 coach_types_by_endpoint[endpoint_id] = vals.get(
                     "oVCUCH_TRDP_DS_A000.COM_Vehicle_Type"
