@@ -3989,6 +3989,7 @@ class DoorsGenerator(QSvgWidget):
             coach_g.set("transform", f"translate({x_pos}, 0)")
             svg_root.append(coach_g)
 
+
         return tostring(svg_root, encoding="unicode")
 
     def process_coach_from_values(self, coach_id, index, coach_type, values, online=True):
@@ -4589,9 +4590,9 @@ class DoorsGenerator(QSvgWidget):
         SubElement(coach, "line", x1="95", y1="60", x2="95", y2="70", stroke="black", stroke_width="1") #Líneas muelles
 
         SubElement(coach, "line", x1="95", y1="30", x2="45", y2="30", stroke="black", stroke_width="1") #Líneas horizontales
-        SubElement(coach, "line", x1="5", y1="30", x2="25", y2="30", stroke="black", stroke_width="1") #Líneas horizontales
+        SubElement(coach, "line", x1="5", y1="30", x2="30", y2="30", stroke="black", stroke_width="1") #Líneas horizontales
         SubElement(coach, "line", x1="95", y1="70", x2="45", y2="70", stroke="black", stroke_width="1") #Líneas horizontales
-        SubElement(coach, "line", x1="5", y1="70", x2="25", y2="70", stroke="black", stroke_width="1") #Líneas horizontales
+        SubElement(coach, "line", x1="5", y1="70", x2="30", y2="70", stroke="black", stroke_width="1") #Líneas horizontales
 
         SubElement(coach, "line", x1="5", y1="70", x2="5", y2="30", stroke="black", stroke_width="1") #Líneas diagonales
 
@@ -4606,8 +4607,8 @@ class DoorsGenerator(QSvgWidget):
             door_l_off = 0
              
         # puerta
-        upper_door = SubElement(coach, "g", transform="translate(25, 30)")
-        lower_door = SubElement(coach, "g", transform="translate(25, 70)")
+        upper_door = SubElement(coach, "g", transform="translate(35, 30)")
+        lower_door = SubElement(coach, "g", transform="translate(35, 70)")
         upper_door.append(self.create_door_svg(0, int(closed_and_locked_R),int(step_closed_R),int(door_open_R), int(step_open_R), int(fail_type_a_R), int(fail_type_b_R), int(door_r_off), "R", int(oos_r), int(step_oos_r), x_offset=0, label=""))
         lower_door.append(self.create_door_svg(0, int(closed_and_locked_L),int(step_closed_L),int(door_open_L), int(step_open_L), int(fail_type_a_L), int(fail_type_b_L), int(door_l_off), "L", int(oos_l), int(step_oos_l), x_offset=0, label=""))
 
