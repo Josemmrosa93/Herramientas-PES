@@ -1511,7 +1511,7 @@ class TCMS_vars:
         'bCdiagCode10': {'Error Code': 'bCdiagCode10', 'Description': 'Internal safety channel on board “B” of the DCU fails'},
         # No hay bCdiagCode11 en la tabla original
         'bCdiagCode12': {'Error Code': 'bCdiagCode12', 'Description': 'Short circuit on 5 VDC power supply of the DCU'},
-        'bCdiagCode13': {'Error Code': 'bCdiagCode13', 'Description': 'Malfunction at DCU output O001: Green loop (TIL)'},
+        'bCdiagCode13': {'Error Code': 'bCdiagCode13', 'Description': 'Spare'},
         'bCdiagCode14': {'Error Code': 'bCdiagCode14', 'Description': 'Malfunction at DCU output O002: crew switch: position I “central close”'},
         'bCdiagCode15': {'Error Code': 'bCdiagCode15', 'Description': 'Malfunction at DCU output O003: power supply: elements entrance area {H1, H2, S11, S12, S21, S22, S47, S61}'},
         'bCdiagCode16': {'Error Code': 'bCdiagCode16', 'Description': 'Malfunction at DCU output O004: Decoupling emergency egress device Y4'},
@@ -1526,7 +1526,7 @@ class TCMS_vars:
         'bCdiagCode25': {'Error Code': 'bCdiagCode25', 'Description': 'Malfunction at DCU output O103: Power supply: push buttons PRM + close, elements step {S14, S26, S27}'},
         'bCdiagCode26': {'Error Code': 'bCdiagCode26', 'Description': 'Malfunction at DCU output O104: Armature stop brake step Y3'},
         # No hay bCdiagCode27 en la tabla original
-        'bCdiagCode28': {'Error Code': 'bCdiagCode28', 'Description': 'Malfunction at DCU output O110: illumination push button close portal inside + outside: LEDs green {S26, S27}'},
+        'bCdiagCode28': {'Error Code': 'bCdiagCode28', 'Description': 'Malfunction at DCU output O106: power supply: crew switch S47'},
         'bCdiagCode29': {'Error Code': 'bCdiagCode29', 'Description': 'Malfunction at DCU output O107: illumination push button PRM portal inside + outside: LEDs green {-} {S52.1, S55, S56.1}'},
         'bCdiagCode30': {'Error Code': 'bCdiagCode30', 'Description': 'Malfunction at DCU output O108: illumination push button PRM portal inside + outside: LEDs red {-} {S14, S26, S27, S31, S32}'},
         'bCdiagCode31': {'Error Code': 'bCdiagCode31', 'Description': 'Push button open portal inside S22 fails'},
@@ -1544,8 +1544,8 @@ class TCMS_vars:
         'bCdiagCode43': {'Error Code': 'bCdiagCode43', 'Description': 'Can Bus communication fails'},
         'bCdiagCode44': {'Error Code': 'bCdiagCode44', 'Description': 'Door leaves the closed&locked position without permission'},
         'bCdiagCode45': {'Error Code': 'bCdiagCode45', 'Description': 'Signals of the limit switches are different'},
-        'bCdiagCode46': {'Error Code': 'bCdiagCode46', 'Description': 'Relay function fails on board “A”'},
-        'bCdiagCode47': {'Error Code': 'bCdiagCode47', 'Description': 'Relay function fails on board “B”'},
+        'bCdiagCode46': {'Error Code': 'bCdiagCode46', 'Description': 'Relay function fails (TIL001/002 board A)'},
+        'bCdiagCode47': {'Error Code': 'bCdiagCode47', 'Description': 'Relay function fails (TIL101/102 board B)'},
         'bCdiagCode48': {'Error Code': 'bCdiagCode48', 'Description': 'Door coding faulty'},
         'bCdiagCode49': {'Error Code': 'bCdiagCode49', 'Description': 'Door coding faulty'},
         'bCdiagCode50': {'Error Code': 'bCdiagCode50', 'Description': 'Push button close inside S27 fails'},
