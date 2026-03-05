@@ -25,7 +25,11 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QCheckBox,
     QSpinBox,
-    QHeaderView
+    QHeaderView,
+    QGridLayout,
+    QPlainTextEdit,
+    QFrame,
+    QSlider,
 )
 from PySide6.QtGui import (
     QAction,
@@ -72,7 +76,7 @@ from isagrafInterface import isagrafInterface
 
 
 APP_VERSION = "1.0.3"
-DEV_MODE = False  # True → lazo de puertas con datos simulados, sin conexión al tren
+DEV_MODE = True  # True → lazo de puertas con datos simulados, sin conexión al tren
 GITHUB_OWNER = "Josemmrosa93"
 GITHUB_REPO = "Herramientas-PES"
 
@@ -2129,7 +2133,7 @@ class TSCGenerator(QSvgWidget):
 
         # Si no hay nada, dibuja un SVG vacío mínimo (alto antiguo)
         if self.num_coaches == 0:
-            root = Element("svg", xmlns="http://www.w3.org/2000/svg", width="800", height="300")
+            root = Element("svg", xmlns="http://www.w3.org/2000/svg", width="800", height="115")
             return tostring(root, encoding="unicode")
 
         # Tipos y online por coach (para offsets como el antiguo)
@@ -2166,8 +2170,8 @@ class TSCGenerator(QSvgWidget):
             "svg",
             xmlns="http://www.w3.org/2000/svg",
             width=str(corrected_svg_width),
-            height="300",
-            viewBox = f"0 0 {corrected_svg_width} 300"
+            height="115",
+            viewBox = f"0 0 {corrected_svg_width} 115"
         )
 
         self.setFixedSize(int(corrected_svg_width * self.scale_factor), int(300 * self.scale_factor))
@@ -3855,11 +3859,11 @@ class TSCGenerator(QSvgWidget):
 
         coach = Element("g")
 
-        SubElement(coach, "rect", x="0", y="0", width="100", height="305", fill="black", opacity="0.5")
+        SubElement(coach, "rect", x="0", y="0", width="100", height="130", fill="black", opacity="0.5")
         SubElement(
             coach,
             "line",
-            x1="100", y1="0", x2="100", y2="315",
+            x1="100", y1="0", x2="100", y2="130",
             stroke="black",
             **{"stroke-width": "1", "stroke-dasharray": "5, 5"},
             opacity="0.35"
@@ -3867,21 +3871,21 @@ class TSCGenerator(QSvgWidget):
         SubElement(
             coach,
             "text",
-            x="50", y="292",
-            **{"text-anchor": "middle", "font-style": "italic", "font-size": "10"}
+            x="50", y="123",
+            **{"text-anchor": "middle", "font-style": "italic", "font-size": "9"}
         ).text = f"Coche {index+1}"
 
         SubElement(
             coach,
             "text",
-            x="50", y="162.5",
+            x="50", y="65",
             fill="white",
             **{
                 "text-anchor": "middle",
                 "dominant-baseline": "central",
                 "font-style": "italic",
-                "font-size": "30",
-                "transform": "rotate(-90, 50, 152.5)"
+                "font-size": "18",
+                "transform": "rotate(-90, 50, 65)"
             }
         ).text = "OFFLINE"
 
@@ -3909,13 +3913,20 @@ class DoorsGenerator(QSvgWidget):
         # snapshot actual (lo alimenta vars_warehouse -> build_svg_snapshot)
         self.snapshot = {"doors": {}}
 
+        # Puertas con MaintMode activo (set de tuplas (endpoint_id, 'R'|'L'))
+        self._maint_doors = set()
+
         self.scale_factor = float(scale_factor)
         self.scaled_doors_width = int(800 * self.scale_factor)
-        self.scaled_doors_height = int(300 * self.scale_factor)
-      
+        self.scaled_doors_height = int(130 * self.scale_factor)
+
     def set_snapshot(self, snapshot: dict):
-        
         self.snapshot = snapshot or {"doors": {}}
+        self.render_from_snapshot()
+
+    def set_maint_doors(self, doors):
+        """Actualiza las puertas en MaintMode y redibuja el SVG."""
+        self._maint_doors = set(doors)
         self.render_from_snapshot()
 
     def render_from_snapshot(self):
@@ -3925,15 +3936,14 @@ class DoorsGenerator(QSvgWidget):
     def generate_svg_from_snapshot(self) -> str:
 
         coaches_dict = (self.snapshot or {}).get("doors", {}) or {}
-        
 
         # Orden estable: el orden de endpoint_ids, pero solo los que existan en snapshot
         coach_ids = [eid for eid in self.endpoint_ids[:-1] if eid in coaches_dict]
         self.num_coaches = len(coach_ids)
 
-        # Si no hay nada, dibuja un SVG vacío mínimo (alto antiguo)
+        # Si no hay nada, dibuja un SVG vacío mínimo
         if self.num_coaches == 0:
-            root = Element("svg", xmlns="http://www.w3.org/2000/svg", width="800", height="300")
+            root = Element("svg", xmlns="http://www.w3.org/2000/svg", width="800", height="130")
             return tostring(root, encoding="unicode")
 
         # Tipos y online por coach (para offsets como el antiguo)
@@ -3962,13 +3972,13 @@ class DoorsGenerator(QSvgWidget):
             "svg",
             xmlns="http://www.w3.org/2000/svg",
             width=str(corrected_svg_width),
-            height="300",
-            viewBox = f"0 0 {corrected_svg_width} 300"
+            height="130",
+            viewBox = f"0 0 {corrected_svg_width} 130"
         )
 
-        self.setFixedSize(int(corrected_svg_width * self.scale_factor), int(300 * self.scale_factor))
+        self.setFixedSize(int(corrected_svg_width * self.scale_factor), int(130 * self.scale_factor))
         self.scaled_doors_width = int(corrected_svg_width * self.scale_factor)
-        self.scaled_doors_height = int(300 * self.scale_factor)
+        self.scaled_doors_height = int(130 * self.scale_factor)
         # print(f"Adjusted SVG width: {corrected_svg_width}, scaled size: {self.scaled_tsc_width}x{self.scaled_tsc_height}")
 
         # Genera cada coche (grupo <g>) y lo traslada en X
@@ -4105,25 +4115,30 @@ class DoorsGenerator(QSvgWidget):
         n3_fb_r = g(doors_data, 88)
         n3_fb_l = g(doors_data, 89)
         
+        maint_r = (coach_id, 'R') in self._maint_doors
+        maint_l = (coach_id, 'L') in self._maint_doors
+        _burnin_r = (burn_in_active_r, last_burn_in_ok_r, last_burn_in_nok_r, burn_in_ready_r)
+        _burnin_l = (burn_in_active_l, last_burn_in_ok_l, last_burn_in_nok_l, burn_in_ready_l)
+
         if coach_type in ['3','4','6','8','9','10']:
-                coach = self.normal_coach(label, index, closed_n_locked_r, step_closed_r, door_open_r, step_open_r, uic_15_r, uic_14_r, uic_9_r, tbo_mode_r, obb_mode_r, uic_lat_mode_r, failure_rate_r, code_a_r, code_b_r, door_oos_r, step_oos_r, closed_n_locked_l, step_closed_l, door_open_l, step_open_l, uic_15_l, uic_14_l, uic_9_l, tbo_mode_l, obb_mode_l, uic_lat_mode_l, failure_rate_l, code_a_l, code_b_l, door_oos_l, step_oos_l, burnin_r=(burn_in_active_r, last_burn_in_ok_r, last_burn_in_nok_r), burnin_l=(burn_in_active_l, last_burn_in_ok_l, last_burn_in_nok_l), safe_st_r=safe_st_r, safe_st_l=safe_st_l)
+                coach = self.normal_coach(label, index, closed_n_locked_r, step_closed_r, door_open_r, step_open_r, uic_15_r, uic_14_r, uic_9_r, tbo_mode_r, obb_mode_r, uic_lat_mode_r, failure_rate_r, code_a_r, code_b_r, door_oos_r, step_oos_r, closed_n_locked_l, step_closed_l, door_open_l, step_open_l, uic_15_l, uic_14_l, uic_9_l, tbo_mode_l, obb_mode_l, uic_lat_mode_l, failure_rate_l, code_a_l, code_b_l, door_oos_l, step_oos_l, burnin_r=_burnin_r, burnin_l=_burnin_l, safe_st_r=safe_st_r, safe_st_l=safe_st_l, maint_r=maint_r, maint_l=maint_l, n3_fb_r=n3_fb_r, n3_fb_l=n3_fb_l)
         elif coach_type in ['5']:
-                coach = self.pmr_coach(label, index, closed_n_locked_r, step_closed_r, door_open_r, step_open_r, uic_15_r, uic_14_r, uic_9_r, tbo_mode_r, obb_mode_r, uic_lat_mode_r, failure_rate_r, code_a_r, code_b_r, door_oos_r, step_oos_r, closed_n_locked_l, step_closed_l, door_open_l, step_open_l, uic_15_l, uic_14_l, uic_9_l, tbo_mode_l, obb_mode_l, uic_lat_mode_l, failure_rate_l, code_a_l, code_b_l, door_oos_l, step_oos_l, burnin_r=(burn_in_active_r, last_burn_in_ok_r, last_burn_in_nok_r), burnin_l=(burn_in_active_l, last_burn_in_ok_l, last_burn_in_nok_l), safe_st_r=safe_st_r, safe_st_l=safe_st_l)
+                coach = self.pmr_coach(label, index, closed_n_locked_r, step_closed_r, door_open_r, step_open_r, uic_15_r, uic_14_r, uic_9_r, tbo_mode_r, obb_mode_r, uic_lat_mode_r, failure_rate_r, code_a_r, code_b_r, door_oos_r, step_oos_r, closed_n_locked_l, step_closed_l, door_open_l, step_open_l, uic_15_l, uic_14_l, uic_9_l, tbo_mode_l, obb_mode_l, uic_lat_mode_l, failure_rate_l, code_a_l, code_b_l, door_oos_l, step_oos_l, burnin_r=_burnin_r, burnin_l=_burnin_l, safe_st_r=safe_st_r, safe_st_l=safe_st_l, maint_r=maint_r, maint_l=maint_l, n3_fb_r=n3_fb_r, n3_fb_l=n3_fb_l)
         elif coach_type in ['2'] and self.project == "DB":
                 coach = self.cabcar_coach(label, index)
         elif coach_type in ['7']:
                 coach = self.family_coach(label, index)
         elif coach_type in ['11']:
-                coach = self.end_coach(label, index, closed_n_locked_r, step_closed_r, door_open_r, step_open_r, uic_15_r, uic_14_r, uic_9_r, tbo_mode_r, obb_mode_r, uic_lat_mode_r, failure_rate_r, code_a_r, code_b_r, door_oos_r, step_oos_r, closed_n_locked_l, step_closed_l, door_open_l, step_open_l, uic_15_l, uic_14_l, uic_9_l, tbo_mode_l, obb_mode_l, uic_lat_mode_l, failure_rate_l, code_a_l, code_b_l, door_oos_l, step_oos_l, burnin_r=(burn_in_active_r, last_burn_in_ok_r, last_burn_in_nok_r), burnin_l=(burn_in_active_l, last_burn_in_ok_l, last_burn_in_nok_l), safe_st_r=safe_st_r, safe_st_l=safe_st_l)
+                coach = self.end_coach(label, index, closed_n_locked_r, step_closed_r, door_open_r, step_open_r, uic_15_r, uic_14_r, uic_9_r, tbo_mode_r, obb_mode_r, uic_lat_mode_r, failure_rate_r, code_a_r, code_b_r, door_oos_r, step_oos_r, closed_n_locked_l, step_closed_l, door_open_l, step_open_l, uic_15_l, uic_14_l, uic_9_l, tbo_mode_l, obb_mode_l, uic_lat_mode_l, failure_rate_l, code_a_l, code_b_l, door_oos_l, step_oos_l, burnin_r=_burnin_r, burnin_l=_burnin_l, safe_st_r=safe_st_r, safe_st_l=safe_st_l, maint_r=maint_r, maint_l=maint_l, n3_fb_r=n3_fb_r, n3_fb_l=n3_fb_l)
         else:
             return self.offline_coach(coach_id, index), False
 
         return coach, True
 
-    def _burnin_bg(self, active, ok, nok) -> str:
+    def _burnin_bg(self, active, ok, nok, ready=0) -> str:
         """
         Devuelve el color de fondo SVG para una mitad del coche según el estado burnin.
-        Prioridad: activo > NOK > OK > '' (sin fondo).
+        Prioridad: activo > NOK > OK > ready > '' (sin fondo).
         Acepta int o str "0"/"1".
         """
         def _on(v):
@@ -4131,12 +4146,10 @@ class DoorsGenerator(QSvgWidget):
                 return int(v) == 1
             except (ValueError, TypeError):
                 return False
-        if _on(active):
-            return "#87CEEB"   # azul celeste — burnin en marcha
-        if _on(nok):
-            return "#FF6666"   # rojo claro   — burnin NOK
-        if _on(ok):
-            return "#90EE90"   # verde claro  — burnin OK
+        if _on(active): return "#87CEEB"   # azul celeste — burnin en marcha
+        if _on(nok):    return "#FF6666"   # rojo claro   — burnin NOK
+        if _on(ok):     return "#90EE90"   # verde claro  — burnin OK
+        if _on(ready):  return "#FFA040"   # naranja      — listo para burnin
         return ""
 
     def _mode_grid(self, parent, safe, tb0, lat, obb, uic15, uic14, x_col1, y_row1):
@@ -4282,7 +4295,11 @@ class DoorsGenerator(QSvgWidget):
 
         return door
         
-    def normal_coach(self, coach_name, coach_pos, closed_and_locked_R, step_closed_R, door_open_R, step_open_R, UIC15_R, UIC14_R, UIC9_R, TB0_R, OBB_R, LAT_R, Failure_rate_R, fail_type_a_R, fail_type_b_R, oos_r, step_oos_r, closed_and_locked_L, step_closed_L, door_open_L, step_open_L, UIC15_L, UIC14_L, UIC9_L, TB0_L, OBB_L, LAT_L, Failure_rate_L, fail_type_a_L, fail_type_b_L, oos_l, step_oos_l, burnin_r=(0,0,0), burnin_l=(0,0,0), safe_st_r="0", safe_st_l="0"):
+    def normal_coach(self, coach_name, coach_pos, closed_and_locked_R, step_closed_R, door_open_R, step_open_R, UIC15_R, UIC14_R, UIC9_R, TB0_R, OBB_R, LAT_R, Failure_rate_R, fail_type_a_R, fail_type_b_R, oos_r, step_oos_r, closed_and_locked_L, step_closed_L, door_open_L, step_open_L, UIC15_L, UIC14_L, UIC9_L, TB0_L, OBB_L, LAT_L, Failure_rate_L, fail_type_a_L, fail_type_b_L, oos_l, step_oos_l, burnin_r=(0,0,0), burnin_l=(0,0,0), safe_st_r="0", safe_st_l="0", maint_r=False, maint_l=False, n3_fb_r="0", n3_fb_l="0"):
+
+        def _active(v):
+            try: return int(v) == 1
+            except (ValueError, TypeError): return False
 
         coach = Element("g")
 
@@ -4294,26 +4311,26 @@ class DoorsGenerator(QSvgWidget):
         if bg_l:
             SubElement(coach, "rect", x="0", y="50", width="100", height="50", fill=bg_l, opacity="0.30")
 
-        SubElement(coach, "line", x1="100", y1="0", x2="100", y2="115", stroke="black", **{"stroke-width": "1", "stroke-dasharray": "5, 5"},opacity="0.35") #Línea de separación entre coches
-        SubElement(coach, "text", x="50", y="112",**{"text-anchor": "middle","font-style": "italic","font-size": "9"}).text = f"Coche {coach_pos+1}: {coach_name}" #Etiqueta con el nombre del coche y su posición
+        SubElement(coach, "line", x1="100", y1="0", x2="100", y2="130", stroke="black", **{"stroke-width": "1", "stroke-dasharray": "5, 5"}, opacity="0.35")
+        SubElement(coach, "text", x="50", y="125", **{"text-anchor": "middle", "font-style": "italic", "font-size": "9"}).text = f"Coche {coach_pos+1}: {coach_name}"
 
-        # Matriz 2x2 de modos — Puerta D (arriba del coche, y=0..30)
+        # Matriz de modos — Puerta D (arriba)
         self._mode_grid(coach, safe_st_r, TB0_R, LAT_R, OBB_R, UIC15_R, UIC14_R, x_col1=10, y_row1=10)
 
-        SubElement(coach, "line", x1="0", y1="40", x2="5", y2="40", stroke="black", stroke_width="1") #Líneas muelles
-        SubElement(coach, "line", x1="0", y1="60", x2="5", y2="60", stroke="black", stroke_width="1") #Líneas muelles
-        SubElement(coach, "line", x1="95", y1="40", x2="100", y2="40", stroke="black", stroke_width="1") #Líneas muelles
-        SubElement(coach, "line", x1="95", y1="60", x2="100", y2="60", stroke="black", stroke_width="1") #Líneas muelles
+        SubElement(coach, "line", x1="0", y1="40", x2="5", y2="40", stroke="black", stroke_width="1")
+        SubElement(coach, "line", x1="0", y1="60", x2="5", y2="60", stroke="black", stroke_width="1")
+        SubElement(coach, "line", x1="95", y1="40", x2="100", y2="40", stroke="black", stroke_width="1")
+        SubElement(coach, "line", x1="95", y1="60", x2="100", y2="60", stroke="black", stroke_width="1")
 
-        SubElement(coach, "line", x1="5", y1="40", x2="5", y2="30", stroke="black", stroke_width="1") #Líneas muelles
-        SubElement(coach, "line", x1="5", y1="60", x2="5", y2="70", stroke="black", stroke_width="1") #Líneas muelles
-        SubElement(coach, "line", x1="95", y1="40", x2="95", y2="30", stroke="black", stroke_width="1") #Líneas muelles
-        SubElement(coach, "line", x1="95", y1="60", x2="95", y2="70", stroke="black", stroke_width="1") #Líneas muelles
+        SubElement(coach, "line", x1="5", y1="40", x2="5", y2="30", stroke="black", stroke_width="1")
+        SubElement(coach, "line", x1="5", y1="60", x2="5", y2="70", stroke="black", stroke_width="1")
+        SubElement(coach, "line", x1="95", y1="40", x2="95", y2="30", stroke="black", stroke_width="1")
+        SubElement(coach, "line", x1="95", y1="60", x2="95", y2="70", stroke="black", stroke_width="1")
 
-        SubElement(coach, "line", x1="5", y1="30", x2="65", y2="30", stroke="black", stroke_width="1") #Líneas horizontales
-        SubElement(coach, "line", x1="5", y1="70", x2="65", y2="70", stroke="black", stroke_width="1") #Líneas horizontales
-        SubElement(coach, "line", x1="85", y1="30", x2="95", y2="30", stroke="black", stroke_width="1") #Líneas horizontales
-        SubElement(coach, "line", x1="85", y1="70", x2="95", y2="70", stroke="black", stroke_width="1") #Líneas horizontales
+        SubElement(coach, "line", x1="5", y1="30", x2="65", y2="30", stroke="black", stroke_width="1")
+        SubElement(coach, "line", x1="5", y1="70", x2="65", y2="70", stroke="black", stroke_width="1")
+        SubElement(coach, "line", x1="85", y1="30", x2="95", y2="30", stroke="black", stroke_width="1")
+        SubElement(coach, "line", x1="85", y1="70", x2="95", y2="70", stroke="black", stroke_width="1")
 
         if int(Failure_rate_R) > 240:
             door_r_off = 1
@@ -4324,22 +4341,44 @@ class DoorsGenerator(QSvgWidget):
         else:
             door_l_off = 0
 
-        # puerta
+        # Contador de ciclos burnin (solo cuando el burnin está activo)
+        if _active(burnin_r[0] if burnin_r else 0):
+            SubElement(coach, "text", x="37", y="42",
+                       **{"text-anchor": "middle", "font-size": "7", "font-family": "sans-serif", "fill": "#005080"}
+                       ).text = f"Ciclos: {n3_fb_r}"
+        if _active(burnin_l[0] if burnin_l else 0):
+            SubElement(coach, "text", x="37", y="60",
+                       **{"text-anchor": "middle", "font-size": "7", "font-family": "sans-serif", "fill": "#005080"}
+                       ).text = f"Ciclos: {n3_fb_l}"
+
+        # Puerta
         upper_door = SubElement(coach, "g", transform="translate(75, 30)")
         lower_door = SubElement(coach, "g", transform="translate(75, 70)")
-        upper_door.append(self.create_door_svg(0, int(closed_and_locked_R),int(step_closed_R),int(door_open_R), int(step_open_R), int(fail_type_a_R), int(fail_type_b_R), int(door_r_off), "R", int(oos_r), int(step_oos_r), x_offset=0, label=""))
-        lower_door.append(self.create_door_svg(0, int(closed_and_locked_L),int(step_closed_L),int(door_open_L), int(step_open_L), int(fail_type_a_L), int(fail_type_b_L), int(door_l_off), "L", int(oos_l), int(step_oos_l), x_offset=0, label=""))
+        upper_door.append(self.create_door_svg(0, int(closed_and_locked_R), int(step_closed_R), int(door_open_R), int(step_open_R), int(fail_type_a_R), int(fail_type_b_R), int(door_r_off), "R", int(oos_r), int(step_oos_r), x_offset=0, label=""))
+        lower_door.append(self.create_door_svg(0, int(closed_and_locked_L), int(step_closed_L), int(door_open_L), int(step_open_L), int(fail_type_a_L), int(fail_type_b_L), int(door_l_off), "L", int(oos_l), int(step_oos_l), x_offset=0, label=""))
 
-        # Matriz 2x2 de modos — Puerta I (debajo del coche, y=70..112)
+        # Matriz de modos — Puerta I (abajo)
         self._mode_grid(coach, safe_st_l, TB0_L, LAT_L, OBB_L, UIC15_L, UIC14_L, x_col1=10, y_row1=86)
+
+        # Indicador de Modo Mantenimiento
+        if maint_r or maint_l:
+            maint_text = "Mantenimiento D+I" if (maint_r and maint_l) else ("Mantenimiento D" if maint_r else "Mantenimiento I")
+            SubElement(coach, "rect", x="2", y="103", width="96", height="14",
+                       fill="#FFD580", stroke="#CC9900", **{"stroke-width": "0.5"})
+            SubElement(coach, "text", x="50", y="113",
+                       **{"text-anchor": "middle", "font-size": "7", "font-family": "sans-serif", "fill": "#664400"}
+                       ).text = maint_text
 
         return coach
 
-    def pmr_coach(self, coach_name, coach_pos, closed_and_locked_R, step_closed_R, door_open_R, step_open_R, UIC15_R, UIC14_R, UIC9_R, TB0_R, OBB_R, LAT_R, Failure_rate_R, fail_type_a_R, fail_type_b_R, oos_r, step_oos_r, closed_and_locked_L, step_closed_L, door_open_L, step_open_L, UIC15_L, UIC14_L, UIC9_L, TB0_L, OBB_L, LAT_L, Failure_rate_L, fail_type_a_L, fail_type_b_L, oos_l, step_oos_l, burnin_r=(0,0,0), burnin_l=(0,0,0), safe_st_r="0", safe_st_l="0"):
+    def pmr_coach(self, coach_name, coach_pos, closed_and_locked_R, step_closed_R, door_open_R, step_open_R, UIC15_R, UIC14_R, UIC9_R, TB0_R, OBB_R, LAT_R, Failure_rate_R, fail_type_a_R, fail_type_b_R, oos_r, step_oos_r, closed_and_locked_L, step_closed_L, door_open_L, step_open_L, UIC15_L, UIC14_L, UIC9_L, TB0_L, OBB_L, LAT_L, Failure_rate_L, fail_type_a_L, fail_type_b_L, oos_l, step_oos_l, burnin_r=(0,0,0), burnin_l=(0,0,0), safe_st_r="0", safe_st_l="0", maint_r=False, maint_l=False, n3_fb_r="0", n3_fb_l="0"):
+
+        def _active(v):
+            try: return int(v) == 1
+            except (ValueError, TypeError): return False
 
         coach = Element("g")
 
-        # Fondo de color burnin — mitad superior (puerta R) y mitad inferior (puerta L)
         bg_r = self._burnin_bg(*burnin_r)
         if bg_r:
             SubElement(coach, "rect", x="0", y="0", width="100", height="50", fill=bg_r, opacity="0.30")
@@ -4347,26 +4386,25 @@ class DoorsGenerator(QSvgWidget):
         if bg_l:
             SubElement(coach, "rect", x="0", y="50", width="100", height="50", fill=bg_l, opacity="0.30")
 
-        SubElement(coach, "line", x1="100", y1="0", x2="100", y2="115", stroke="black", **{"stroke-width": "1", "stroke-dasharray": "5, 5"},opacity="0.35") #Línea de separación entre coches
-        SubElement(coach, "text", x="50", y="112",**{"text-anchor": "middle","font-style": "italic","font-size": "9"}).text = f"Coche {coach_pos+1}: {coach_name}" #Etiqueta con el nombre del coche y su posición
+        SubElement(coach, "line", x1="100", y1="0", x2="100", y2="130", stroke="black", **{"stroke-width": "1", "stroke-dasharray": "5, 5"}, opacity="0.35")
+        SubElement(coach, "text", x="50", y="125", **{"text-anchor": "middle", "font-style": "italic", "font-size": "9"}).text = f"Coche {coach_pos+1}: {coach_name}"
 
-        # Matriz 2x2 de modos — Puerta D (arriba del coche, y=0..30)
         self._mode_grid(coach, safe_st_r, TB0_R, LAT_R, OBB_R, UIC15_R, UIC14_R, x_col1=10, y_row1=10)
 
-        SubElement(coach, "line", x1="0", y1="40", x2="5", y2="40", stroke="black", stroke_width="1") #Líneas muelles
-        SubElement(coach, "line", x1="0", y1="60", x2="5", y2="60", stroke="black", stroke_width="1") #Líneas muelles
-        SubElement(coach, "line", x1="95", y1="40", x2="100", y2="40", stroke="black", stroke_width="1") #Líneas muelles
-        SubElement(coach, "line", x1="95", y1="60", x2="100", y2="60", stroke="black", stroke_width="1") #Líneas muelles
+        SubElement(coach, "line", x1="0", y1="40", x2="5", y2="40", stroke="black", stroke_width="1")
+        SubElement(coach, "line", x1="0", y1="60", x2="5", y2="60", stroke="black", stroke_width="1")
+        SubElement(coach, "line", x1="95", y1="40", x2="100", y2="40", stroke="black", stroke_width="1")
+        SubElement(coach, "line", x1="95", y1="60", x2="100", y2="60", stroke="black", stroke_width="1")
 
-        SubElement(coach, "line", x1="5", y1="40", x2="5", y2="30", stroke="black", stroke_width="1") #Líneas muelles
-        SubElement(coach, "line", x1="5", y1="60", x2="5", y2="70", stroke="black", stroke_width="1") #Líneas muelles
-        SubElement(coach, "line", x1="95", y1="40", x2="95", y2="30", stroke="black", stroke_width="1") #Líneas muelles
-        SubElement(coach, "line", x1="95", y1="60", x2="95", y2="70", stroke="black", stroke_width="1") #Líneas muelles
+        SubElement(coach, "line", x1="5", y1="40", x2="5", y2="30", stroke="black", stroke_width="1")
+        SubElement(coach, "line", x1="5", y1="60", x2="5", y2="70", stroke="black", stroke_width="1")
+        SubElement(coach, "line", x1="95", y1="40", x2="95", y2="30", stroke="black", stroke_width="1")
+        SubElement(coach, "line", x1="95", y1="60", x2="95", y2="70", stroke="black", stroke_width="1")
 
-        SubElement(coach, "line", x1="5", y1="30", x2="65", y2="30", stroke="black", stroke_width="1") #Líneas horizontales
-        SubElement(coach, "line", x1="5", y1="70", x2="65", y2="70", stroke="black", stroke_width="1") #Líneas horizontales
-        SubElement(coach, "line", x1="85", y1="30", x2="95", y2="30", stroke="black", stroke_width="1") #Líneas horizontales
-        SubElement(coach, "line", x1="85", y1="70", x2="95", y2="70", stroke="black", stroke_width="1") #Líneas horizontales
+        SubElement(coach, "line", x1="5", y1="30", x2="65", y2="30", stroke="black", stroke_width="1")
+        SubElement(coach, "line", x1="5", y1="70", x2="65", y2="70", stroke="black", stroke_width="1")
+        SubElement(coach, "line", x1="85", y1="30", x2="95", y2="30", stroke="black", stroke_width="1")
+        SubElement(coach, "line", x1="85", y1="70", x2="95", y2="70", stroke="black", stroke_width="1")
 
         if int(Failure_rate_R) > 240:
             door_r_off = 1
@@ -4377,14 +4415,29 @@ class DoorsGenerator(QSvgWidget):
         else:
             door_l_off = 0
 
-        # puerta
+        if _active(burnin_r[0] if burnin_r else 0):
+            SubElement(coach, "text", x="37", y="42",
+                       **{"text-anchor": "middle", "font-size": "7", "font-family": "sans-serif", "fill": "#005080"}
+                       ).text = f"Ciclos: {n3_fb_r}"
+        if _active(burnin_l[0] if burnin_l else 0):
+            SubElement(coach, "text", x="37", y="60",
+                       **{"text-anchor": "middle", "font-size": "7", "font-family": "sans-serif", "fill": "#005080"}
+                       ).text = f"Ciclos: {n3_fb_l}"
+
         upper_door = SubElement(coach, "g", transform="translate(75, 30)")
         lower_door = SubElement(coach, "g", transform="translate(75, 70)")
-        upper_door.append(self.create_door_svg(1, int(closed_and_locked_R),int(step_closed_R),int(door_open_R), int(step_open_R), int(fail_type_a_R), int(fail_type_b_R), int(door_r_off), "R", int(oos_r), int(step_oos_r), x_offset=0, label=""))
-        lower_door.append(self.create_door_svg(1, int(closed_and_locked_L),int(step_closed_L),int(door_open_L), int(step_open_L), int(fail_type_a_L), int(fail_type_b_L), int(door_l_off), "L", int(oos_l), int(step_oos_l), x_offset=0, label=""))
+        upper_door.append(self.create_door_svg(1, int(closed_and_locked_R), int(step_closed_R), int(door_open_R), int(step_open_R), int(fail_type_a_R), int(fail_type_b_R), int(door_r_off), "R", int(oos_r), int(step_oos_r), x_offset=0, label=""))
+        lower_door.append(self.create_door_svg(1, int(closed_and_locked_L), int(step_closed_L), int(door_open_L), int(step_open_L), int(fail_type_a_L), int(fail_type_b_L), int(door_l_off), "L", int(oos_l), int(step_oos_l), x_offset=0, label=""))
 
-        # Matriz 2x2 de modos — Puerta I (debajo del coche, y=70..112)
         self._mode_grid(coach, safe_st_l, TB0_L, LAT_L, OBB_L, UIC15_L, UIC14_L, x_col1=10, y_row1=86)
+
+        if maint_r or maint_l:
+            maint_text = "Mantenimiento D+I" if (maint_r and maint_l) else ("Mantenimiento D" if maint_r else "Mantenimiento I")
+            SubElement(coach, "rect", x="2", y="103", width="96", height="14",
+                       fill="#FFD580", stroke="#CC9900", **{"stroke-width": "0.5"})
+            SubElement(coach, "text", x="50", y="113",
+                       **{"text-anchor": "middle", "font-size": "7", "font-family": "sans-serif", "fill": "#664400"}
+                       ).text = maint_text
 
         return coach
 
@@ -4392,8 +4445,8 @@ class DoorsGenerator(QSvgWidget):
 
         coach = Element("g")
 
-        SubElement(coach, "line", x1="100", y1="0", x2="100", y2="115", stroke="black", **{"stroke-width": "1", "stroke-dasharray": "5, 5"},opacity="0.35") #Línea de separación entre coches
-        SubElement(coach, "text", x="50", y="92",**{"text-anchor": "middle","font-style": "italic","font-size": "10"}).text = f"Coche {coach_pos+1}: {coach_name}" #Etiqueta con el nombre del coche y su posición   
+        SubElement(coach, "line", x1="100", y1="0", x2="100", y2="130", stroke="black", **{"stroke-width": "1", "stroke-dasharray": "5, 5"}, opacity="0.35")
+        SubElement(coach, "text", x="50", y="92", **{"text-anchor": "middle", "font-style": "italic", "font-size": "10"}).text = f"Coche {coach_pos+1}: {coach_name}"
         
         SubElement(coach, "line", x1="0", y1="40", x2="5", y2="40", stroke="black", stroke_width="1") #Líneas muelles 
         SubElement(coach, "line", x1="0", y1="60", x2="5", y2="60", stroke="black", stroke_width="1") #Líneas muelles
@@ -4412,11 +4465,14 @@ class DoorsGenerator(QSvgWidget):
 
         return coach
 
-    def end_coach(self, coach_name, coach_pos, closed_and_locked_R, step_closed_R, door_open_R, step_open_R, UIC15_R, UIC14_R, UIC9_R, TB0_R, OBB_R, LAT_R, Failure_rate_R, fail_type_a_R, fail_type_b_R, oos_r, step_oos_r, closed_and_locked_L, step_closed_L, door_open_L, step_open_L, UIC15_L, UIC14_L, UIC9_L, TB0_L, OBB_L, LAT_L, Failure_rate_L, fail_type_a_L, fail_type_b_L, oos_l, step_oos_l, burnin_r=(0,0,0), burnin_l=(0,0,0), safe_st_r="0", safe_st_l="0"):
+    def end_coach(self, coach_name, coach_pos, closed_and_locked_R, step_closed_R, door_open_R, step_open_R, UIC15_R, UIC14_R, UIC9_R, TB0_R, OBB_R, LAT_R, Failure_rate_R, fail_type_a_R, fail_type_b_R, oos_r, step_oos_r, closed_and_locked_L, step_closed_L, door_open_L, step_open_L, UIC15_L, UIC14_L, UIC9_L, TB0_L, OBB_L, LAT_L, Failure_rate_L, fail_type_a_L, fail_type_b_L, oos_l, step_oos_l, burnin_r=(0,0,0), burnin_l=(0,0,0), safe_st_r="0", safe_st_l="0", maint_r=False, maint_l=False, n3_fb_r="0", n3_fb_l="0"):
+
+        def _active(v):
+            try: return int(v) == 1
+            except (ValueError, TypeError): return False
 
         coach = Element("g")
 
-        # Fondo de color burnin — mitad superior (puerta R) y mitad inferior (puerta L)
         bg_r = self._burnin_bg(*burnin_r)
         if bg_r:
             SubElement(coach, "rect", x="0", y="0", width="100", height="50", fill=bg_r, opacity="0.30")
@@ -4424,24 +4480,23 @@ class DoorsGenerator(QSvgWidget):
         if bg_l:
             SubElement(coach, "rect", x="0", y="50", width="100", height="50", fill=bg_l, opacity="0.30")
 
-        SubElement(coach, "line", x1="100", y1="0", x2="100", y2="115", stroke="black", **{"stroke-width": "1", "stroke-dasharray": "5, 5"},opacity="0.35") #Línea de separación entre coches
-        SubElement(coach, "text", x="50", y="112",**{"text-anchor": "middle","font-style": "italic","font-size": "9"}).text = f"Coche {coach_pos+1}: {coach_name}" #Etiqueta con el nombre del coche y su posición
+        SubElement(coach, "line", x1="100", y1="0", x2="100", y2="130", stroke="black", **{"stroke-width": "1", "stroke-dasharray": "5, 5"}, opacity="0.35")
+        SubElement(coach, "text", x="50", y="125", **{"text-anchor": "middle", "font-style": "italic", "font-size": "9"}).text = f"Coche {coach_pos+1}: {coach_name}"
 
-        # Matriz 2x2 de modos — Puerta D (arriba del coche, y=0..30)
         self._mode_grid(coach, safe_st_r, TB0_R, LAT_R, OBB_R, UIC15_R, UIC14_R, x_col1=10, y_row1=10)
 
-        SubElement(coach, "line", x1="95", y1="40", x2="100", y2="40", stroke="black", stroke_width="1") #Líneas muelles
-        SubElement(coach, "line", x1="95", y1="60", x2="100", y2="60", stroke="black", stroke_width="1") #Líneas muelles
+        SubElement(coach, "line", x1="95", y1="40", x2="100", y2="40", stroke="black", stroke_width="1")
+        SubElement(coach, "line", x1="95", y1="60", x2="100", y2="60", stroke="black", stroke_width="1")
 
-        SubElement(coach, "line", x1="95", y1="40", x2="95", y2="30", stroke="black", stroke_width="1") #Líneas muelles
-        SubElement(coach, "line", x1="95", y1="60", x2="95", y2="70", stroke="black", stroke_width="1") #Líneas muelles
+        SubElement(coach, "line", x1="95", y1="40", x2="95", y2="30", stroke="black", stroke_width="1")
+        SubElement(coach, "line", x1="95", y1="60", x2="95", y2="70", stroke="black", stroke_width="1")
 
-        SubElement(coach, "line", x1="95", y1="30", x2="45", y2="30", stroke="black", stroke_width="1") #Líneas horizontales
-        SubElement(coach, "line", x1="5", y1="30", x2="30", y2="30", stroke="black", stroke_width="1") #Líneas horizontales
-        SubElement(coach, "line", x1="95", y1="70", x2="45", y2="70", stroke="black", stroke_width="1") #Líneas horizontales
-        SubElement(coach, "line", x1="5", y1="70", x2="30", y2="70", stroke="black", stroke_width="1") #Líneas horizontales
+        SubElement(coach, "line", x1="95", y1="30", x2="45", y2="30", stroke="black", stroke_width="1")
+        SubElement(coach, "line", x1="5", y1="30", x2="30", y2="30", stroke="black", stroke_width="1")
+        SubElement(coach, "line", x1="95", y1="70", x2="45", y2="70", stroke="black", stroke_width="1")
+        SubElement(coach, "line", x1="5", y1="70", x2="30", y2="70", stroke="black", stroke_width="1")
 
-        SubElement(coach, "line", x1="5", y1="70", x2="5", y2="30", stroke="black", stroke_width="1") #Líneas diagonales
+        SubElement(coach, "line", x1="5", y1="70", x2="5", y2="30", stroke="black", stroke_width="1")
 
         if int(Failure_rate_R) > 240:
             door_r_off = 1
@@ -4452,23 +4507,38 @@ class DoorsGenerator(QSvgWidget):
         else:
             door_l_off = 0
 
-        # puerta
+        if _active(burnin_r[0] if burnin_r else 0):
+            SubElement(coach, "text", x="37", y="42",
+                       **{"text-anchor": "middle", "font-size": "7", "font-family": "sans-serif", "fill": "#005080"}
+                       ).text = f"Ciclos: {n3_fb_r}"
+        if _active(burnin_l[0] if burnin_l else 0):
+            SubElement(coach, "text", x="37", y="60",
+                       **{"text-anchor": "middle", "font-size": "7", "font-family": "sans-serif", "fill": "#005080"}
+                       ).text = f"Ciclos: {n3_fb_l}"
+
         upper_door = SubElement(coach, "g", transform="translate(35, 30)")
         lower_door = SubElement(coach, "g", transform="translate(35, 70)")
-        upper_door.append(self.create_door_svg(0, int(closed_and_locked_R),int(step_closed_R),int(door_open_R), int(step_open_R), int(fail_type_a_R), int(fail_type_b_R), int(door_r_off), "R", int(oos_r), int(step_oos_r), x_offset=0, label=""))
-        lower_door.append(self.create_door_svg(0, int(closed_and_locked_L),int(step_closed_L),int(door_open_L), int(step_open_L), int(fail_type_a_L), int(fail_type_b_L), int(door_l_off), "L", int(oos_l), int(step_oos_l), x_offset=0, label=""))
+        upper_door.append(self.create_door_svg(0, int(closed_and_locked_R), int(step_closed_R), int(door_open_R), int(step_open_R), int(fail_type_a_R), int(fail_type_b_R), int(door_r_off), "R", int(oos_r), int(step_oos_r), x_offset=0, label=""))
+        lower_door.append(self.create_door_svg(0, int(closed_and_locked_L), int(step_closed_L), int(door_open_L), int(step_open_L), int(fail_type_a_L), int(fail_type_b_L), int(door_l_off), "L", int(oos_l), int(step_oos_l), x_offset=0, label=""))
 
-        # Matriz 2x2 de modos — Puerta I (debajo del coche, y=70..112)
         self._mode_grid(coach, safe_st_l, TB0_L, LAT_L, OBB_L, UIC15_L, UIC14_L, x_col1=10, y_row1=86)
+
+        if maint_r or maint_l:
+            maint_text = "Mantenimiento D+I" if (maint_r and maint_l) else ("Mantenimiento D" if maint_r else "Mantenimiento I")
+            SubElement(coach, "rect", x="2", y="103", width="96", height="14",
+                       fill="#FFD580", stroke="#CC9900", **{"stroke-width": "0.5"})
+            SubElement(coach, "text", x="50", y="113",
+                       **{"text-anchor": "middle", "font-size": "7", "font-family": "sans-serif", "fill": "#664400"}
+                       ).text = maint_text
 
         return coach
 
     def family_coach(self, coach_name, coach_pos):
-        
+
         coach = Element("g")
 
-        SubElement(coach, "line", x1="100", y1="0", x2="100", y2="115", stroke="black", **{"stroke-width": "1", "stroke-dasharray": "5, 5"},opacity="0.35") #Línea de separación entre coches
-        SubElement(coach, "text", x="50", y="112",**{"text-anchor": "middle","font-style": "italic","font-size": "9"}).text = f"Coche {coach_pos+1}: {coach_name}" #Etiqueta con el nombre del coche y su posición
+        SubElement(coach, "line", x1="100", y1="0", x2="100", y2="130", stroke="black", **{"stroke-width": "1", "stroke-dasharray": "5, 5"}, opacity="0.35")
+        SubElement(coach, "text", x="50", y="125", **{"text-anchor": "middle", "font-style": "italic", "font-size": "9"}).text = f"Coche {coach_pos+1}: {coach_name}"
 
         SubElement(coach, "line", x1="0", y1="40", x2="5", y2="40", stroke="black", stroke_width="1") #Líneas muelles
         SubElement(coach, "line", x1="0", y1="60", x2="5", y2="60", stroke="black", stroke_width="1") #Líneas muelles
@@ -4490,36 +4560,16 @@ class DoorsGenerator(QSvgWidget):
 
         coach = Element("g")
 
-        SubElement(coach, "rect", x="0", y="0", width="100", height="305", fill="black", opacity="0.5")
-        
-        SubElement(
-            coach,
-            "line",
-            x1="100", y1="0", x2="100", y2="315",
-            stroke="black",
-            **{"stroke-width": "1", "stroke-dasharray": "5, 5"},
-            opacity="0.35"
-        )
-        SubElement(
-            coach,
-            "text",
-            x="50", y="292",
-            **{"text-anchor": "middle", "font-style": "italic", "font-size": "10"}
-        ).text = f"Coche {index+1}"
-
-        SubElement(
-            coach,
-            "text",
-            x="50", y="162.5",
-            fill="white",
-            **{
-                "text-anchor": "middle",
-                "dominant-baseline": "central",
-                "font-style": "italic",
-                "font-size": "30",
-                "transform": "rotate(-90, 50, 152.5)"
-            }
-        ).text = "OFFLINE"
+        SubElement(coach, "rect", x="0", y="0", width="100", height="130", fill="black", opacity="0.5")
+        SubElement(coach, "line", x1="100", y1="0", x2="100", y2="130",
+                   stroke="black", **{"stroke-width": "1", "stroke-dasharray": "5, 5"}, opacity="0.35")
+        SubElement(coach, "text", x="50", y="123",
+                   **{"text-anchor": "middle", "font-style": "italic", "font-size": "9"}
+                   ).text = f"Coche {index+1}"
+        SubElement(coach, "text", x="50", y="65", fill="white",
+                   **{"text-anchor": "middle", "dominant-baseline": "central",
+                      "font-style": "italic", "font-size": "18", "transform": "rotate(-90, 50, 65)"}
+                   ).text = "OFFLINE"
 
         return coach
 
@@ -4573,9 +4623,11 @@ class DoorLegendSvg(QSvgWidget):
                 parent = parent.parent()
         super().mousePressEvent(event)
 
+    MIN_EXPANDED_H = 335  # altura mínima cuando la leyenda está expandida
+
     def _render(self):
         w = self.CONTENT_W if self._expanded else self.TAB_W
-        h = self._h
+        h = max(self._h, self.MIN_EXPANDED_H) if self._expanded else self._h
         self.setFixedSize(w, h)
 
         root = Element(
@@ -4657,6 +4709,7 @@ class DoorLegendSvg(QSvgWidget):
             y += 8
 
             BURNIN_ITEMS = [
+                ("#FFA040", "Listo para Burnin (Ready)"),
                 ("#87CEEB", "Burnin en marcha"),
                 ("#90EE90", "Burnin finalizado OK"),
                 ("#FF6666", "Burnin finalizado NOK"),
@@ -5506,12 +5559,389 @@ class ResetFailuresWorker(QObject):
             # último paso, finalizar
             self._run_next_step()
 
+class BurninWorker(QObject):
+    """
+    Gestiona la secuencia de escritura del Burnin Test de forma asíncrona.
+
+    Secuencia:
+      1. start_maint()  → bSW_MaintMode = 1 en puertas seleccionadas
+      2. start_burnin() → bSW_BurnInOn  = 1 (llamar cuando BurninReady = 1)
+      3. stop()         → BurnInOn = 0, MaintMode = 0
+
+    La supervisión del estado (BurninReady, BurninActive…) se realiza desde el
+    hilo principal a través de BurninPanel.refresh_from_snapshot().
+    """
+
+    log      = Signal(str)
+    finished = Signal(bool)
+
+    _ENDPOINT_R = "VCUCH_CAN_DS_21A"   # endpoint CAN para puerta derecha
+    _ENDPOINT_L = "VCUCH_CAN_DS_21C"   # endpoint CAN para puerta izquierda
+
+    def __init__(self, selected_doors: list, endpoint_clients: dict, wait_time: float = 1.0, n3_par: int = 1000):
+        """
+        Args:
+            selected_doors:   lista de (endpoint_id, side) donde side ∈ {'R','L'}
+            endpoint_clients: dict {endpoint_id: client}
+            wait_time:        tiempo de espera por escritura (s)
+            n3_par:           número de ciclos a escribir en N3_par antes de BurnInOn
+        """
+        super().__init__()
+        self.selected_doors   = list(selected_doors)
+        self.endpoint_clients = endpoint_clients
+        self.wait_time        = float(wait_time)
+        self.n3_par           = int(n3_par)
+        self._cancel          = False
+
+    def cancel(self):
+        self._cancel = True
+
+    def _can_ep(self, side: str) -> str:
+        return self._ENDPOINT_R if side == "R" else self._ENDPOINT_L
+
+    def _write(self, endpoint_id: str, var_name: str, value: int):
+        client = self.endpoint_clients.get(endpoint_id)
+        if client is None:
+            self.log.emit(f"  {endpoint_id}: sin cliente")
+            return
+        ok, ts, st = client.write_vars({var_name: value}, lock=True, wait_time=self.wait_time)
+        self.log.emit(f"  {endpoint_id} {var_name}={value}: {'OK' if ok else 'FAIL'} ts={ts}")
+
+    def start_maint(self):
+        """Paso 1: activa MaintMode en las puertas seleccionadas."""
+        self.log.emit("Activando MaintMode…")
+        for eid, side in self.selected_doors:
+            if self._cancel:
+                self.log.emit("Cancelado.")
+                return
+            self._write(eid, f"{self._can_ep(side)}.bSW_MaintMode", 1)
+        self.log.emit("MaintMode activado. Esperando BurninReady…")
+
+    def start_burnin(self):
+        """Paso 2: escribe N3_par y activa BurnInOn en las puertas seleccionadas."""
+        self.log.emit(f"Escribiendo N3_par={self.n3_par}…")
+        for eid, side in self.selected_doors:
+            if self._cancel:
+                self.log.emit("Cancelado.")
+                self.finished.emit(False)
+                return
+            self._write(eid, f"{self._can_ep(side)}.N3_par", self.n3_par)
+        self.log.emit("Activando BurnInOn…")
+        for eid, side in self.selected_doors:
+            if self._cancel:
+                self.log.emit("Cancelado.")
+                self.finished.emit(False)
+                return
+            self._write(eid, f"{self._can_ep(side)}.bSW_BurnInOn", 1)
+        self.log.emit("Burnin Test iniciado.")
+        self.finished.emit(True)
+
+    def stop(self):
+        """Detiene el Burnin Test y desactiva MaintMode."""
+        self.log.emit("Deteniendo Burnin Test…")
+        for eid, side in self.selected_doors:
+            self._write(eid, f"{self._can_ep(side)}.bSW_BurnInOn",  0)
+            self._write(eid, f"{self._can_ep(side)}.bSW_MaintMode", 0)
+        self.log.emit("Burnin Test detenido.")
+        self.finished.emit(False)
+
+class BurninPanel(QWidget):
+    """
+    Panel colapsable para lanzar el Burnin Test sobre las puertas seleccionadas.
+
+    Layout (expandido):
+      ┌─[▼ BURNIN TEST]────────────────────────────────┐
+      │  Selección de puertas:                          │
+      │  [✓ D] [✓ I]  Coche 1   [✓ D] [✓ I]  Coche 2 … │
+      │  [Sel. todo D]  [Sel. todo I]  [Sel. todo]      │
+      │  ─────────────────────────────────────────────  │
+      │  Prereqs  MaintMode: ●  BurninReady: ●          │
+      │           BurninActive: ●  LastOK: ●  LastNOK:● │
+      │  ─────────────────────────────────────────────  │
+      │  [  Iniciar Maint  ]   [  Iniciar Burnin  ]      │
+      │  [        Detener        ]                       │
+      │  Log: ─────────────────────────────────────────  │
+      │  …                                               │
+      └────────────────────────────────────────────────┘
+    """
+
+    toggled      = Signal()         # expandir/colapsar → DOORWindow redimensiona
+    maint_changed = Signal(object)  # set de (eid, side) en MaintMode activo
+
+    def __init__(self, endpoint_ids: list, endpoint_clients: dict, parent=None):
+        """
+        Args:
+            endpoint_ids:     lista ordenada de IDs de endpoint (coches, sin agregado)
+            endpoint_clients: dict {endpoint_id: client}
+        """
+        super().__init__(parent)
+        self.endpoint_ids     = list(endpoint_ids)
+        self.endpoint_clients = endpoint_clients
+        self._expanded        = False
+        self._worker          = None
+        self._thread          = None
+        self._maint_active    = set()   # (eid, side) con MaintMode activo
+
+        self._build_ui()
+        self._collapse()
+
+    # ------------------------------------------------------------------
+    # Construcción de la UI
+    # ------------------------------------------------------------------
+
+    def _build_ui(self):
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(2)
+
+        # ---- Cabecera (botón colapsar/expandir) ----
+        self._btn_header = QPushButton("▶  BURNIN TEST")
+        self._btn_header.setCheckable(True)
+        self._btn_header.setStyleSheet(
+            "QPushButton { text-align:left; font-weight:bold; padding:4px 8px; }"
+        )
+        self._btn_header.clicked.connect(self._toggle)
+        main_layout.addWidget(self._btn_header)
+
+        # ---- Contenido colapsable ----
+        self._content = QWidget()
+        content_layout = QVBoxLayout(self._content)
+        content_layout.setContentsMargins(6, 4, 6, 4)
+        content_layout.setSpacing(4)
+
+        # -- Selección de puertas --
+        content_layout.addWidget(QLabel("Selección de puertas:"))
+        grid_widget = QWidget()
+        self._grid_layout = QGridLayout(grid_widget)
+        self._grid_layout.setSpacing(3)
+        self._checkboxes = {}   # {(endpoint_id, side): QCheckBox}
+        for col, eid in enumerate(self.endpoint_ids):
+            coach_num = col + 1
+            cb_r = QCheckBox(f"D")
+            cb_l = QCheckBox(f"I")
+            cb_r.setChecked(True)
+            cb_l.setChecked(True)
+            self._grid_layout.addWidget(QLabel(f"C{coach_num}"), 0, col * 3)
+            self._grid_layout.addWidget(cb_r,                    1, col * 3)
+            self._grid_layout.addWidget(cb_l,                    1, col * 3 + 1)
+            self._checkboxes[(eid, "R")] = cb_r
+            self._checkboxes[(eid, "L")] = cb_l
+        content_layout.addWidget(grid_widget)
+
+        # -- Botones de selección rápida --
+        sel_layout = QHBoxLayout()
+        btn_all_r = QPushButton("Todas D")
+        btn_all_l = QPushButton("Todas I")
+        btn_all   = QPushButton("Todas")
+        btn_none  = QPushButton("Ninguna")
+        btn_all_r.clicked.connect(lambda: self._quick_select("R", True))
+        btn_all_l.clicked.connect(lambda: self._quick_select("L", True))
+        btn_all.clicked.connect(lambda: self._quick_select(None, True))
+        btn_none.clicked.connect(lambda: self._quick_select(None, False))
+        for b in (btn_all_r, btn_all_l, btn_all, btn_none):
+            b.setFixedHeight(22)
+            sel_layout.addWidget(b)
+        content_layout.addLayout(sel_layout)
+
+        content_layout.addWidget(self._make_separator())
+
+        # -- Estado: MaintMode (local) y BurninReady (desde snapshot) --
+        prereq_layout = QHBoxLayout()
+        self._dot_maint = QLabel("●")
+        self._dot_ready = QLabel("●")
+        self._dot_maint.setStyleSheet("color: #AAAAAA; font-size: 14px;")
+        self._dot_ready.setStyleSheet("color: #AAAAAA; font-size: 14px;")
+        prereq_layout.addWidget(QLabel("MaintMode:"))
+        prereq_layout.addWidget(self._dot_maint)
+        prereq_layout.addSpacing(16)
+        prereq_layout.addWidget(QLabel("Ready:"))
+        prereq_layout.addWidget(self._dot_ready)
+        prereq_layout.addStretch()
+        content_layout.addLayout(prereq_layout)
+
+        content_layout.addWidget(self._make_separator())
+
+        # -- Selector de ciclos N3 --
+        cycles_layout = QHBoxLayout()
+        cycles_layout.addWidget(QLabel("Ciclos N3:"))
+        self._slider_cycles = QSlider(Qt.Horizontal)
+        self._slider_cycles.setRange(500, 2000)
+        self._slider_cycles.setValue(1000)
+        self._slider_cycles.setSingleStep(100)
+        self._slider_cycles.setPageStep(100)
+        self._slider_cycles.setTickInterval(500)
+        self._slider_cycles.setTickPosition(QSlider.TicksBelow)
+        self._lbl_cycles = QLabel("1000")
+        self._lbl_cycles.setFixedWidth(36)
+        self._slider_cycles.valueChanged.connect(lambda v: self._lbl_cycles.setText(str(v)))
+        cycles_layout.addWidget(self._slider_cycles)
+        cycles_layout.addWidget(self._lbl_cycles)
+        content_layout.addLayout(cycles_layout)
+
+        content_layout.addWidget(self._make_separator())
+
+        # -- Botones de control --
+        ctrl_layout = QHBoxLayout()
+        self._btn_maint  = QPushButton("1. Iniciar Maint")
+        self._btn_burnin = QPushButton("2. Iniciar Burnin")
+        self._btn_stop   = QPushButton("Detener")
+        self._btn_maint.clicked.connect(self._on_start_maint)
+        self._btn_burnin.clicked.connect(self._on_start_burnin)
+        self._btn_stop.clicked.connect(self._on_stop)
+        self._btn_burnin.setEnabled(False)
+        self._btn_stop.setEnabled(False)
+        for b in (self._btn_maint, self._btn_burnin, self._btn_stop):
+            ctrl_layout.addWidget(b)
+        content_layout.addLayout(ctrl_layout)
+
+        # -- Log --
+        content_layout.addWidget(QLabel("Log:"))
+        self._log = QPlainTextEdit()
+        self._log.setReadOnly(True)
+        self._log.setFixedHeight(80)
+        self._log.setStyleSheet("font-size: 10px; font-family: monospace;")
+        content_layout.addWidget(self._log)
+
+        main_layout.addWidget(self._content)
+
+    def _make_separator(self):
+        sep = QFrame()
+        sep.setFrameShape(QFrame.HLine)
+        sep.setFrameShadow(QFrame.Sunken)
+        return sep
+
+    # ------------------------------------------------------------------
+    # Colapsar / expandir
+    # ------------------------------------------------------------------
+
+    def _toggle(self, checked):
+        if checked:
+            self._expand()
+        else:
+            self._collapse()
+        self.toggled.emit()
+
+    def _collapse(self):
+        self._expanded = False
+        self._content.hide()
+        self._btn_header.setText("▶  BURNIN TEST")
+        self._btn_header.setChecked(False)
+
+    def _expand(self):
+        self._expanded = True
+        self._content.show()
+        self._btn_header.setText("▼  BURNIN TEST")
+        self._btn_header.setChecked(True)
+
+    # ------------------------------------------------------------------
+    # Selección rápida
+    # ------------------------------------------------------------------
+
+    def _quick_select(self, side, checked: bool):
+        for (_, s), cb in self._checkboxes.items():
+            if side is None or s == side:
+                cb.setChecked(checked)
+
+    def _selected_doors(self) -> list:
+        return [(eid, s) for (eid, s), cb in self._checkboxes.items() if cb.isChecked()]
+
+    # ------------------------------------------------------------------
+    # Actualización de estado desde snapshot
+    # ------------------------------------------------------------------
+
+    def refresh_from_snapshot(self, snapshot: dict, doors_vars: list):
+        """
+        Actualiza los indicadores de prerrequisitos con los datos del último snapshot.
+        BurninReady R/L → índices 30/31.
+        BurninActive R/L → índices 24/25 (solo para bloquear botón si ya activo).
+        """
+        coaches = snapshot.get("doors", snapshot)   # acepta tanto {doors:{}} como dict plano
+
+        def _any_active(idx_r, idx_l):
+            for eid, side in self._selected_doors():
+                coach = coaches.get(eid, {})
+                vals  = coach.get("values", {})
+                idx   = idx_r if side == "R" else idx_l
+                try:
+                    if int(vals.get(doors_vars[idx], "0")) == 1:
+                        return True
+                except (ValueError, TypeError):
+                    pass
+            return False
+
+        ready  = _any_active(30, 31)
+        active = _any_active(24, 25)
+
+        self._dot_ready.setStyleSheet(
+            "color: #FFA040; font-size: 14px;" if ready else "color: #AAAAAA; font-size: 14px;"
+        )
+
+        # Habilitar "Iniciar Burnin" solo si BurninReady activo y burnin no en marcha
+        self._btn_burnin.setEnabled(ready and not active)
+
+    # ------------------------------------------------------------------
+    # Acciones de los botones
+    # ------------------------------------------------------------------
+
+    def _on_start_maint(self):
+        selected = self._selected_doors()
+        if not selected:
+            self._log.appendPlainText("⚠ No hay puertas seleccionadas.")
+            return
+        self._maint_active = set(selected)
+        self._dot_maint.setStyleSheet("color: #00BB00; font-size: 14px;")
+        self.maint_changed.emit(frozenset(self._maint_active))
+        self._start_worker_action("maint", selected)
+        self._btn_maint.setEnabled(False)
+        self._btn_stop.setEnabled(True)
+
+    def _on_start_burnin(self):
+        selected = self._selected_doors()
+        if not selected:
+            self._log.appendPlainText("⚠ No hay puertas seleccionadas.")
+            return
+        n3_par = self._slider_cycles.value()
+        self._start_worker_action("burnin", selected, n3_par=n3_par)
+        self._btn_burnin.setEnabled(False)
+
+    def _on_stop(self):
+        selected = self._selected_doors()
+        self._maint_active = set()
+        self._dot_maint.setStyleSheet("color: #AAAAAA; font-size: 14px;")
+        self.maint_changed.emit(frozenset())
+        self._start_worker_action("stop", selected)
+        self._btn_maint.setEnabled(True)
+        self._btn_burnin.setEnabled(False)
+        self._btn_stop.setEnabled(False)
+
+    def _start_worker_action(self, action: str, selected: list, n3_par: int = 1000):
+        # Detener worker anterior si sigue activo
+        if self._thread and self._thread.isRunning():
+            if self._worker:
+                self._worker.cancel()
+            self._thread.quit()
+            self._thread.wait(2000)
+
+        self._worker = BurninWorker(selected, self.endpoint_clients, n3_par=n3_par)
+        self._thread = QThread()
+        self._worker.moveToThread(self._thread)
+        self._worker.log.connect(self._log.appendPlainText)
+        self._worker.finished.connect(self._on_worker_finished)
+        method_name = {"maint": "start_maint", "burnin": "start_burnin"}.get(action, action)
+        self._thread.started.connect(getattr(self._worker, method_name))
+        self._thread.start()
+
+    def _on_worker_finished(self, success: bool):
+        if self._thread:
+            self._thread.quit()
+
 class DOORWindow(DiagnosticWindow):
 
     def __init__(self, *, project, endpoint_ids, doors_vars, project_coach_types,
-            fixed_w: int, fixed_h: int, valid_ips: list, parent=None): #El asterisco indica que los argumentos siguientes deben ser pasados como palabras clave, es decir (project = x, endpoint_ids = y, etc) y no como argumentos posicionales (x, y, etc)
-    
+            fixed_w: int, fixed_h: int, valid_ips: list, endpoint_clients=None, parent=None): #El asterisco indica que los argumentos siguientes deben ser pasados como palabras clave, es decir (project = x, endpoint_ids = y, etc) y no como argumentos posicionales (x, y, etc)
+
         super().__init__(title="Lazo de puertas", fixed_w=fixed_w, fixed_h=fixed_h, parent=parent)
+        self._endpoint_clients = endpoint_clients or {}
 
 
         self.valid_ips = valid_ips
@@ -5548,12 +5978,20 @@ class DOORWindow(DiagnosticWindow):
         # ---- Panel de leyenda ----
         self.legend = DoorLegendSvg()
 
-        # ---- Layout: puertas (scroll + botón) a la izquierda, leyenda a la derecha ----
+        # ---- Panel de burnin ----
+        _burnin_ids = self.doors.endpoint_ids[:-1]  # coches sin el agregado DB
+        self.burnin_panel = BurninPanel(
+            endpoint_ids=_burnin_ids,
+            endpoint_clients=self._endpoint_clients,
+        )
+
+        # ---- Layout: puertas (scroll + burnin + botón) a la izquierda, leyenda a la derecha ----
         content_widget = QWidget()
         lay = QVBoxLayout(content_widget)
         lay.setContentsMargins(0, 0, 0, 0)
         lay.setSpacing(8)
         lay.addWidget(self.scroll)
+        lay.addWidget(self.burnin_panel)
         lay.addWidget(self.btn_diag)
 
         central = QWidget()
@@ -5569,15 +6007,23 @@ class DOORWindow(DiagnosticWindow):
         self.max_width  = screen.availableGeometry().width()  - 10
         self.max_height = screen.availableGeometry().height() - 50
 
+        self.burnin_panel.toggled.connect(self._resize_window)
+        self.burnin_panel.maint_changed.connect(self.doors.set_maint_doors)
+
     def _on_legend_toggled(self):
         """Llamado por DoorLegendSvg al expandir/colapsar para reajustar la ventana."""
         self._resize_window()
 
     def _resize_window(self):
         doors_w = min(self.doors.scaled_doors_width, self.max_width)
-        doors_h = min(self.doors.scaled_doors_height + 80, self.max_height)
+        doors_h = self.doors.scaled_doors_height
+        burnin_h = self.burnin_panel.sizeHint().height()
+        btn_h = self.btn_diag.sizeHint().height()
+        content_h = doors_h + burnin_h + btn_h + 30
+        legend_h = self.legend.height()
+        total_h = min(max(content_h, legend_h), self.max_height)
         total_w = min(doors_w + self.legend.panel_width() + 16, self.max_width)
-        self.setFixedSize(total_w, doors_h)
+        self.setFixedSize(total_w, total_h)
 
     def _load_dev_snapshot(self):
         """
@@ -5677,16 +6123,16 @@ class DOORWindow(DiagnosticWindow):
 
         # ---- Carga y refresco de la ventana ----
         self.doors.set_snapshot({"doors": coaches})
-        doors_h = min(self.doors.scaled_doors_height + 80, self.max_height)
-        self.legend.set_height(doors_h)
+        self.burnin_panel.refresh_from_snapshot({"doors": coaches}, self.doors.doors_vars)
+        self.legend.set_height(self.doors.scaled_doors_height)
         self._resize_window()
 
     def set_snapshot(self, snapshot: dict):
         if DEV_MODE:
             return
         self.doors.set_snapshot(snapshot)
-        doors_h = min(self.doors.scaled_doors_height + 80, self.max_height)
-        self.legend.set_height(doors_h)
+        self.burnin_panel.refresh_from_snapshot(snapshot, self.doors.doors_vars)
+        self.legend.set_height(self.doors.scaled_doors_height)
         self._resize_window()
 
 class MainWindow(QMainWindow):
@@ -6173,7 +6619,7 @@ class MainWindow(QMainWindow):
                         
         self.project = project_value
     
-        self.max_initial_ips = 9 if self.project == "DB" else 15 if self.project == "DSB" else 1
+        self.max_initial_ips = 21 if self.project == "DB" else 15 if self.project == "DSB" else 1
         
         self.progress_title.setText(f"Escaneando composición: {self.project}")
         self.detected_label.setText(f"Coches detectados: {0 + self.max_initial_ips} de {len(self.ip_data[self.project])} posibles.")
@@ -6508,6 +6954,7 @@ class MainWindow(QMainWindow):
                     fixed_w=FIX_W,
                     fixed_h=FIX_H,
                     valid_ips=self.valid_ips,
+                    endpoint_clients=self.endpoint_clients,
                     parent=self,
                 )
 
