@@ -2133,7 +2133,7 @@ class TSCGenerator(QSvgWidget):
 
         # Si no hay nada, dibuja un SVG vacío mínimo (alto antiguo)
         if self.num_coaches == 0:
-            root = Element("svg", xmlns="http://www.w3.org/2000/svg", width="800", height="115")
+            root = Element("svg", xmlns="http://www.w3.org/2000/svg", width="800", height="305")
             return tostring(root, encoding="unicode")
 
         # Tipos y online por coach (para offsets como el antiguo)
@@ -2170,8 +2170,8 @@ class TSCGenerator(QSvgWidget):
             "svg",
             xmlns="http://www.w3.org/2000/svg",
             width=str(corrected_svg_width),
-            height="115",
-            viewBox = f"0 0 {corrected_svg_width} 115"
+            height="305",
+            viewBox = f"0 0 {corrected_svg_width} 305"
         )
 
         self.setFixedSize(int(corrected_svg_width * self.scale_factor), int(300 * self.scale_factor))
@@ -3859,11 +3859,11 @@ class TSCGenerator(QSvgWidget):
 
         coach = Element("g")
 
-        SubElement(coach, "rect", x="0", y="0", width="100", height="130", fill="black", opacity="0.5")
+        SubElement(coach, "rect", x="0", y="0", width="100", height="305", fill="black", opacity="0.5")
         SubElement(
             coach,
             "line",
-            x1="100", y1="0", x2="100", y2="130",
+            x1="100", y1="0", x2="100", y2="315",
             stroke="black",
             **{"stroke-width": "1", "stroke-dasharray": "5, 5"},
             opacity="0.35"
@@ -3871,21 +3871,21 @@ class TSCGenerator(QSvgWidget):
         SubElement(
             coach,
             "text",
-            x="50", y="123",
-            **{"text-anchor": "middle", "font-style": "italic", "font-size": "9"}
+            x="50", y="292",
+            **{"text-anchor": "middle", "font-style": "italic", "font-size": "10"}
         ).text = f"Coche {index+1}"
 
         SubElement(
             coach,
             "text",
-            x="50", y="65",
+            x="50", y="162.5",
             fill="white",
             **{
                 "text-anchor": "middle",
                 "dominant-baseline": "central",
                 "font-style": "italic",
-                "font-size": "18",
-                "transform": "rotate(-90, 50, 65)"
+                "font-size": "30",
+                "transform": "rotate(-90, 50, 152.5)"
             }
         ).text = "OFFLINE"
 
@@ -3919,7 +3919,7 @@ class DoorsGenerator(QSvgWidget):
         self.scale_factor = float(scale_factor)
         self.scaled_doors_width = int(800 * self.scale_factor)
         self.scaled_doors_height = int(130 * self.scale_factor)
-
+       
     def set_snapshot(self, snapshot: dict):
         self.snapshot = snapshot or {"doors": {}}
         self.render_from_snapshot()
@@ -3943,7 +3943,7 @@ class DoorsGenerator(QSvgWidget):
 
         # Si no hay nada, dibuja un SVG vacío mínimo
         if self.num_coaches == 0:
-            root = Element("svg", xmlns="http://www.w3.org/2000/svg", width="800", height="130")
+            root = Element("svg", xmlns="http://www.w3.org/2000/svg", width="800", height="150")
             return tostring(root, encoding="unicode")
 
         # Tipos y online por coach (para offsets como el antiguo)
@@ -3972,8 +3972,8 @@ class DoorsGenerator(QSvgWidget):
             "svg",
             xmlns="http://www.w3.org/2000/svg",
             width=str(corrected_svg_width),
-            height="130",
-            viewBox = f"0 0 {corrected_svg_width} 130"
+            height="135",
+            viewBox = f"0 0 {corrected_svg_width} 135"
         )
 
         self.setFixedSize(int(corrected_svg_width * self.scale_factor), int(130 * self.scale_factor))
@@ -3994,6 +3994,7 @@ class DoorsGenerator(QSvgWidget):
                 coach_type=coach_type,
                 values=values,
                 online=online,
+                pmr_index = self.pmr_pos,
             )
 
             x_pos = idx * 100
@@ -4004,7 +4005,7 @@ class DoorsGenerator(QSvgWidget):
 
         return tostring(svg_root, encoding="unicode")
 
-    def process_coach_from_values(self, coach_id, index, coach_type, values, online=True):
+    def process_coach_from_values(self, coach_id, index, coach_type, values, online=True, pmr_index=None):
 
         READ_ERR = isagrafInterface.READ_ERROR
 
@@ -4121,7 +4122,10 @@ class DoorsGenerator(QSvgWidget):
         _burnin_l = (burn_in_active_l, last_burn_in_ok_l, last_burn_in_nok_l, burn_in_ready_l)
 
         if coach_type in ['3','4','6','8','9','10']:
-                coach = self.normal_coach(label, index, closed_n_locked_r, step_closed_r, door_open_r, step_open_r, uic_15_r, uic_14_r, uic_9_r, tbo_mode_r, obb_mode_r, uic_lat_mode_r, failure_rate_r, code_a_r, code_b_r, door_oos_r, step_oos_r, closed_n_locked_l, step_closed_l, door_open_l, step_open_l, uic_15_l, uic_14_l, uic_9_l, tbo_mode_l, obb_mode_l, uic_lat_mode_l, failure_rate_l, code_a_l, code_b_l, door_oos_l, step_oos_l, burnin_r=_burnin_r, burnin_l=_burnin_l, safe_st_r=safe_st_r, safe_st_l=safe_st_l, maint_r=maint_r, maint_l=maint_l, n3_fb_r=n3_fb_r, n3_fb_l=n3_fb_l)
+                if pmr_index is not None and index > pmr_index:
+                    coach = self.normal_coach(label, index, closed_n_locked_l, step_closed_l, door_open_l, step_open_l, uic_15_l, uic_14_l, uic_9_l, tbo_mode_l, obb_mode_l, uic_lat_mode_l, failure_rate_l, code_a_l, code_b_l, door_oos_l, step_oos_l, closed_n_locked_r, step_closed_r, door_open_r, step_open_r, uic_15_r, uic_14_r, uic_9_r, tbo_mode_r, obb_mode_r, uic_lat_mode_r, failure_rate_r, code_a_r, code_b_r, door_oos_r, step_oos_r, burnin_r=_burnin_l, burnin_l=_burnin_r, safe_st_r=safe_st_l, safe_st_l=safe_st_r, maint_r=maint_l, maint_l=maint_r, n3_fb_r=n3_fb_l, n3_fb_l=n3_fb_r)
+                else:
+                    coach = self.normal_coach(label, index, closed_n_locked_r, step_closed_r, door_open_r, step_open_r, uic_15_r, uic_14_r, uic_9_r, tbo_mode_r, obb_mode_r, uic_lat_mode_r, failure_rate_r, code_a_r, code_b_r, door_oos_r, step_oos_r, closed_n_locked_l, step_closed_l, door_open_l, step_open_l, uic_15_l, uic_14_l, uic_9_l, tbo_mode_l, obb_mode_l, uic_lat_mode_l, failure_rate_l, code_a_l, code_b_l, door_oos_l, step_oos_l, burnin_r=_burnin_r, burnin_l=_burnin_l, safe_st_r=safe_st_r, safe_st_l=safe_st_l, maint_r=maint_r, maint_l=maint_l, n3_fb_r=n3_fb_r, n3_fb_l=n3_fb_l)
         elif coach_type in ['5']:
                 coach = self.pmr_coach(label, index, closed_n_locked_r, step_closed_r, door_open_r, step_open_r, uic_15_r, uic_14_r, uic_9_r, tbo_mode_r, obb_mode_r, uic_lat_mode_r, failure_rate_r, code_a_r, code_b_r, door_oos_r, step_oos_r, closed_n_locked_l, step_closed_l, door_open_l, step_open_l, uic_15_l, uic_14_l, uic_9_l, tbo_mode_l, obb_mode_l, uic_lat_mode_l, failure_rate_l, code_a_l, code_b_l, door_oos_l, step_oos_l, burnin_r=_burnin_r, burnin_l=_burnin_l, safe_st_r=safe_st_r, safe_st_l=safe_st_l, maint_r=maint_r, maint_l=maint_l, n3_fb_r=n3_fb_r, n3_fb_l=n3_fb_l)
         elif coach_type in ['2'] and self.project == "DB":
@@ -4135,7 +4139,7 @@ class DoorsGenerator(QSvgWidget):
 
         return coach, True
 
-    def _burnin_bg(self, active, ok, nok, ready=0) -> str:
+    def _burnin_bg(self, active, ok, nok, ready=0, maintenance = False) -> str:
         """
         Devuelve el color de fondo SVG para una mitad del coche según el estado burnin.
         Prioridad: activo > NOK > OK > ready > '' (sin fondo).
@@ -4146,10 +4150,12 @@ class DoorsGenerator(QSvgWidget):
                 return int(v) == 1
             except (ValueError, TypeError):
                 return False
-        if _on(active): return "#87CEEB"   # azul celeste — burnin en marcha
-        if _on(nok):    return "#FF6666"   # rojo claro   — burnin NOK
-        if _on(ok):     return "#90EE90"   # verde claro  — burnin OK
-        if _on(ready):  return "#FFA040"   # naranja      — listo para burnin
+        if maintenance:    
+            if _on(active): return "#87CEEB"   # azul celeste — burnin en marcha
+            if _on(ready):  return "#FFA040"   # naranja      — listo para burnin
+            if _on(nok):    return "#FF6666"   # rojo claro   — burnin NOK
+            if _on(ok):     return "#90EE90"   # verde claro  — burnin OK
+
         return ""
 
     def _mode_grid(self, parent, safe, tb0, lat, obb, uic15, uic14, x_col1, y_row1):
@@ -4304,15 +4310,15 @@ class DoorsGenerator(QSvgWidget):
         coach = Element("g")
 
         # Fondo de color burnin — mitad superior (puerta R) y mitad inferior (puerta L)
-        bg_r = self._burnin_bg(*burnin_r)
+        bg_r = self._burnin_bg(*burnin_r, maint_r)
         if bg_r:
             SubElement(coach, "rect", x="0", y="0", width="100", height="50", fill=bg_r, opacity="0.30")
-        bg_l = self._burnin_bg(*burnin_l)
+        bg_l = self._burnin_bg(*burnin_l, maint_l)
         if bg_l:
             SubElement(coach, "rect", x="0", y="50", width="100", height="50", fill=bg_l, opacity="0.30")
 
-        SubElement(coach, "line", x1="100", y1="0", x2="100", y2="130", stroke="black", **{"stroke-width": "1", "stroke-dasharray": "5, 5"}, opacity="0.35")
-        SubElement(coach, "text", x="50", y="125", **{"text-anchor": "middle", "font-style": "italic", "font-size": "9"}).text = f"Coche {coach_pos+1}: {coach_name}"
+        SubElement(coach, "line", x1="100", y1="0", x2="100", y2="140", stroke="black", **{"stroke-width": "1", "stroke-dasharray": "5, 5"}, opacity="0.35")
+        SubElement(coach, "text", x="50", y="128", **{"text-anchor": "middle", "font-style": "italic", "font-size": "9"}).text = f"Coche {coach_pos+1}: {coach_name}"
 
         # Matriz de modos — Puerta D (arriba)
         self._mode_grid(coach, safe_st_r, TB0_R, LAT_R, OBB_R, UIC15_R, UIC14_R, x_col1=10, y_row1=10)
@@ -4368,6 +4374,13 @@ class DoorsGenerator(QSvgWidget):
             SubElement(coach, "text", x="50", y="113",
                        **{"text-anchor": "middle", "font-size": "7", "font-family": "sans-serif", "fill": "#664400"}
                        ).text = maint_text
+        else:
+            maint_text = ("Modo Normal")
+            # SubElement(coach, "rect", x="2", y="103", width="96", height="14",
+            #            fill="#664400", stroke="#CC9900", **{"stroke-width": "0.5"})
+            SubElement(coach, "text", x="50", y="113",
+                       **{"text-anchor": "middle", "font-size": "7", "font-family": "sans-serif", "fill": "#664400"}
+                       ).text = maint_text
 
         return coach
 
@@ -4379,15 +4392,15 @@ class DoorsGenerator(QSvgWidget):
 
         coach = Element("g")
 
-        bg_r = self._burnin_bg(*burnin_r)
+        bg_r = self._burnin_bg(*burnin_r, maint_r)
         if bg_r:
             SubElement(coach, "rect", x="0", y="0", width="100", height="50", fill=bg_r, opacity="0.30")
-        bg_l = self._burnin_bg(*burnin_l)
+        bg_l = self._burnin_bg(*burnin_l, maint_l)
         if bg_l:
             SubElement(coach, "rect", x="0", y="50", width="100", height="50", fill=bg_l, opacity="0.30")
 
-        SubElement(coach, "line", x1="100", y1="0", x2="100", y2="130", stroke="black", **{"stroke-width": "1", "stroke-dasharray": "5, 5"}, opacity="0.35")
-        SubElement(coach, "text", x="50", y="125", **{"text-anchor": "middle", "font-style": "italic", "font-size": "9"}).text = f"Coche {coach_pos+1}: {coach_name}"
+        SubElement(coach, "line", x1="100", y1="0", x2="100", y2="140", stroke="black", **{"stroke-width": "1", "stroke-dasharray": "5, 5"}, opacity="0.35")
+        SubElement(coach, "text", x="50", y="128", **{"text-anchor": "middle", "font-style": "italic", "font-size": "9"}).text = f"Coche {coach_pos+1}: {coach_name}"
 
         self._mode_grid(coach, safe_st_r, TB0_R, LAT_R, OBB_R, UIC15_R, UIC14_R, x_col1=10, y_row1=10)
 
@@ -4438,7 +4451,14 @@ class DoorsGenerator(QSvgWidget):
             SubElement(coach, "text", x="50", y="113",
                        **{"text-anchor": "middle", "font-size": "7", "font-family": "sans-serif", "fill": "#664400"}
                        ).text = maint_text
-
+        else:
+            maint_text = ("Modo Normal")
+            # SubElement(coach, "rect", x="2", y="103", width="96", height="14",
+            #            fill="#664400", stroke="#CC9900", **{"stroke-width": "0.5"})
+            SubElement(coach, "text", x="50", y="113",
+                       **{"text-anchor": "middle", "font-size": "7", "font-family": "sans-serif", "fill": "#664400"}
+                       ).text = maint_text
+            
         return coach
 
     def cabcar_coach(self, coach_name, coach_pos):
@@ -4446,7 +4466,7 @@ class DoorsGenerator(QSvgWidget):
         coach = Element("g")
 
         SubElement(coach, "line", x1="100", y1="0", x2="100", y2="130", stroke="black", **{"stroke-width": "1", "stroke-dasharray": "5, 5"}, opacity="0.35")
-        SubElement(coach, "text", x="50", y="92", **{"text-anchor": "middle", "font-style": "italic", "font-size": "10"}).text = f"Coche {coach_pos+1}: {coach_name}"
+        SubElement(coach, "text", x="50", y="128", **{"text-anchor": "middle", "font-style": "italic", "font-size": "9"}).text = f"Coche {coach_pos+1}: {coach_name}"
         
         SubElement(coach, "line", x1="0", y1="40", x2="5", y2="40", stroke="black", stroke_width="1") #Líneas muelles 
         SubElement(coach, "line", x1="0", y1="60", x2="5", y2="60", stroke="black", stroke_width="1") #Líneas muelles
@@ -4473,15 +4493,15 @@ class DoorsGenerator(QSvgWidget):
 
         coach = Element("g")
 
-        bg_r = self._burnin_bg(*burnin_r)
+        bg_r = self._burnin_bg(*burnin_r, maint_r)
         if bg_r:
             SubElement(coach, "rect", x="0", y="0", width="100", height="50", fill=bg_r, opacity="0.30")
-        bg_l = self._burnin_bg(*burnin_l)
+        bg_l = self._burnin_bg(*burnin_l, maint_l)
         if bg_l:
             SubElement(coach, "rect", x="0", y="50", width="100", height="50", fill=bg_l, opacity="0.30")
 
-        SubElement(coach, "line", x1="100", y1="0", x2="100", y2="130", stroke="black", **{"stroke-width": "1", "stroke-dasharray": "5, 5"}, opacity="0.35")
-        SubElement(coach, "text", x="50", y="125", **{"text-anchor": "middle", "font-style": "italic", "font-size": "9"}).text = f"Coche {coach_pos+1}: {coach_name}"
+        SubElement(coach, "line", x1="100", y1="0", x2="100", y2="140", stroke="black", **{"stroke-width": "1", "stroke-dasharray": "5, 5"}, opacity="0.35")
+        SubElement(coach, "text", x="50", y="128", **{"text-anchor": "middle", "font-style": "italic", "font-size": "9"}).text = f"Coche {coach_pos+1}: {coach_name}"
 
         self._mode_grid(coach, safe_st_r, TB0_R, LAT_R, OBB_R, UIC15_R, UIC14_R, x_col1=10, y_row1=10)
 
@@ -4530,15 +4550,22 @@ class DoorsGenerator(QSvgWidget):
             SubElement(coach, "text", x="50", y="113",
                        **{"text-anchor": "middle", "font-size": "7", "font-family": "sans-serif", "fill": "#664400"}
                        ).text = maint_text
-
+        else:
+            maint_text = ("Modo Normal")
+            # SubElement(coach, "rect", x="2", y="103", width="96", height="14",
+            #            fill="#664400", stroke="#CC9900", **{"stroke-width": "0.5"})
+            SubElement(coach, "text", x="50", y="113",
+                       **{"text-anchor": "middle", "font-size": "7", "font-family": "sans-serif", "fill": "#664400"}
+                       ).text = maint_text
+            
         return coach
 
     def family_coach(self, coach_name, coach_pos):
 
         coach = Element("g")
 
-        SubElement(coach, "line", x1="100", y1="0", x2="100", y2="130", stroke="black", **{"stroke-width": "1", "stroke-dasharray": "5, 5"}, opacity="0.35")
-        SubElement(coach, "text", x="50", y="125", **{"text-anchor": "middle", "font-style": "italic", "font-size": "9"}).text = f"Coche {coach_pos+1}: {coach_name}"
+        SubElement(coach, "line", x1="100", y1="0", x2="100", y2="140", stroke="black", **{"stroke-width": "1", "stroke-dasharray": "5, 5"}, opacity="0.35")
+        SubElement(coach, "text", x="50", y="128", **{"text-anchor": "middle", "font-style": "italic", "font-size": "9"}).text = f"Coche {coach_pos+1}: {coach_name}"
 
         SubElement(coach, "line", x1="0", y1="40", x2="5", y2="40", stroke="black", stroke_width="1") #Líneas muelles
         SubElement(coach, "line", x1="0", y1="60", x2="5", y2="60", stroke="black", stroke_width="1") #Líneas muelles
@@ -5587,7 +5614,7 @@ class BurninWorker(QObject):
             n3_par:           número de ciclos a escribir en N3_par antes de BurnInOn
         """
         super().__init__()
-        self.selected_doors   = list(selected_doors)
+        self.selected_doors   = list(selected_doors) 
         self.endpoint_clients = endpoint_clients
         self.wait_time        = float(wait_time)
         self.n3_par           = int(n3_par)
@@ -5698,7 +5725,7 @@ class BurninPanel(QWidget):
         self._btn_header = QPushButton("▶  BURNIN TEST")
         self._btn_header.setCheckable(True)
         self._btn_header.setStyleSheet(
-            "QPushButton { text-align:left; font-weight:bold; padding:4px 8px; }"
+            "QPushButton { text-align:left; padding:4px 8px; }"
         )
         self._btn_header.clicked.connect(self._toggle)
         main_layout.addWidget(self._btn_header)
@@ -5745,33 +5772,33 @@ class BurninPanel(QWidget):
 
         content_layout.addWidget(self._make_separator())
 
-        # -- Estado: MaintMode (local) y BurninReady (desde snapshot) --
-        prereq_layout = QHBoxLayout()
-        self._dot_maint = QLabel("●")
-        self._dot_ready = QLabel("●")
-        self._dot_maint.setStyleSheet("color: #AAAAAA; font-size: 14px;")
-        self._dot_ready.setStyleSheet("color: #AAAAAA; font-size: 14px;")
-        prereq_layout.addWidget(QLabel("MaintMode:"))
-        prereq_layout.addWidget(self._dot_maint)
-        prereq_layout.addSpacing(16)
-        prereq_layout.addWidget(QLabel("Ready:"))
-        prereq_layout.addWidget(self._dot_ready)
-        prereq_layout.addStretch()
-        content_layout.addLayout(prereq_layout)
+        # # -- Estado: MaintMode (local) y BurninReady (desde snapshot) --
+        # prereq_layout = QHBoxLayout()
+        # self._dot_maint = QLabel("●")
+        # self._dot_ready = QLabel("●")
+        # self._dot_maint.setStyleSheet("color: #AAAAAA; font-size: 14px;")
+        # self._dot_ready.setStyleSheet("color: #AAAAAA; font-size: 14px;")
+        # prereq_layout.addWidget(QLabel("MaintMode:"))
+        # prereq_layout.addWidget(self._dot_maint)
+        # prereq_layout.addSpacing(16)
+        # prereq_layout.addWidget(QLabel("Ready:"))
+        # prereq_layout.addWidget(self._dot_ready)
+        # prereq_layout.addStretch()
+        # content_layout.addLayout(prereq_layout)
 
-        content_layout.addWidget(self._make_separator())
+        # content_layout.addWidget(self._make_separator())
 
         # -- Selector de ciclos N3 --
         cycles_layout = QHBoxLayout()
         cycles_layout.addWidget(QLabel("Ciclos N3:"))
         self._slider_cycles = QSlider(Qt.Horizontal)
         self._slider_cycles.setRange(500, 2000)
-        self._slider_cycles.setValue(1000)
+        self._slider_cycles.setValue(500)
         self._slider_cycles.setSingleStep(100)
         self._slider_cycles.setPageStep(100)
         self._slider_cycles.setTickInterval(500)
         self._slider_cycles.setTickPosition(QSlider.TicksBelow)
-        self._lbl_cycles = QLabel("1000")
+        self._lbl_cycles = QLabel("500")
         self._lbl_cycles.setFixedWidth(36)
         self._slider_cycles.valueChanged.connect(lambda v: self._lbl_cycles.setText(str(v)))
         cycles_layout.addWidget(self._slider_cycles)
@@ -5843,6 +5870,7 @@ class BurninPanel(QWidget):
                 cb.setChecked(checked)
 
     def _selected_doors(self) -> list:
+        print([(eid, s) for (eid, s), cb in self._checkboxes.items() if cb.isChecked()])
         return [(eid, s) for (eid, s), cb in self._checkboxes.items() if cb.isChecked()]
 
     # ------------------------------------------------------------------
@@ -5872,9 +5900,9 @@ class BurninPanel(QWidget):
         ready  = _any_active(30, 31)
         active = _any_active(24, 25)
 
-        self._dot_ready.setStyleSheet(
-            "color: #FFA040; font-size: 14px;" if ready else "color: #AAAAAA; font-size: 14px;"
-        )
+        # self._dot_ready.setStyleSheet(
+        #     "color: #FFA040; font-size: 14px;" if ready else "color: #AAAAAA; font-size: 14px;"
+        # )
 
         # Habilitar "Iniciar Burnin" solo si BurninReady activo y burnin no en marcha
         self._btn_burnin.setEnabled(ready and not active)
@@ -5889,7 +5917,7 @@ class BurninPanel(QWidget):
             self._log.appendPlainText("⚠ No hay puertas seleccionadas.")
             return
         self._maint_active = set(selected)
-        self._dot_maint.setStyleSheet("color: #00BB00; font-size: 14px;")
+        # self._dot_maint.setStyleSheet("color: #00BB00; font-size: 14px;")
         self.maint_changed.emit(frozenset(self._maint_active))
         self._start_worker_action("maint", selected)
         self._btn_maint.setEnabled(False)
@@ -5907,14 +5935,14 @@ class BurninPanel(QWidget):
     def _on_stop(self):
         selected = self._selected_doors()
         self._maint_active = set()
-        self._dot_maint.setStyleSheet("color: #AAAAAA; font-size: 14px;")
+        # self._dot_maint.setStyleSheet("color: #AAAAAA; font-size: 14px;")
         self.maint_changed.emit(frozenset())
         self._start_worker_action("stop", selected)
         self._btn_maint.setEnabled(True)
         self._btn_burnin.setEnabled(False)
         self._btn_stop.setEnabled(False)
 
-    def _start_worker_action(self, action: str, selected: list, n3_par: int = 1000):
+    def _start_worker_action(self, action: str, selected: list, n3_par: int = 500):
         # Detener worker anterior si sigue activo
         if self._thread and self._thread.isRunning():
             if self._worker:
@@ -5925,9 +5953,9 @@ class BurninPanel(QWidget):
         self._worker = BurninWorker(selected, self.endpoint_clients, n3_par=n3_par)
         self._thread = QThread()
         self._worker.moveToThread(self._thread)
-        self._worker.log.connect(self._log.appendPlainText)
+        self._worker.log.connect(self._log.appendPlainText) #Conecta la señal de log del worker al método appendPlainText del widget de log para mostrar los mensajes en la interfaz
         self._worker.finished.connect(self._on_worker_finished)
-        method_name = {"maint": "start_maint", "burnin": "start_burnin"}.get(action, action)
+        method_name = {"maint": "start_maint", "burnin": "start_burnin"}.get(action, action) # Mapea el nombre de la acción al método correspondiente del worker
         self._thread.started.connect(getattr(self._worker, method_name))
         self._thread.start()
 
@@ -6019,8 +6047,8 @@ class DOORWindow(DiagnosticWindow):
         doors_h = self.doors.scaled_doors_height
         burnin_h = self.burnin_panel.sizeHint().height()
         btn_h = self.btn_diag.sizeHint().height()
-        content_h = doors_h + burnin_h + btn_h + 30
-        legend_h = self.legend.height()
+        content_h = doors_h + burnin_h + btn_h + 65
+        legend_h = self.legend.height() + 28
         total_h = min(max(content_h, legend_h), self.max_height)
         total_w = min(doors_w + self.legend.panel_width() + 16, self.max_width)
         self.setFixedSize(total_w, total_h)
@@ -6935,7 +6963,7 @@ class MainWindow(QMainWindow):
             if self.doors_window is None:
                 # tamaño fijo definido por ti:
                 FIX_W = 1300
-                FIX_H = 350
+                FIX_H = 400
                
                 doors_vars = self.TCMS_vars.DOORS_LOOP_VARS + self.TCMS_vars.COACH_TYPE
 
