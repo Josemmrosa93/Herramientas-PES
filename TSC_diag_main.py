@@ -3915,6 +3915,8 @@ class DoorsGenerator(QSvgWidget):
 
         # Puertas con MaintMode activo (set de tuplas (endpoint_id, 'R'|'L'))
         self._maint_doors = set()
+        # Ciclos al inicio del burnin: {(eid, side): (door_base, step_base)}
+        self._burnin_baseline = {}
 
         self.scale_factor = float(scale_factor)
         self.scaled_doors_width = int(800 * self.scale_factor)
@@ -3927,6 +3929,14 @@ class DoorsGenerator(QSvgWidget):
     def set_maint_doors(self, doors):
         """Actualiza las puertas en MaintMode y redibuja el SVG."""
         self._maint_doors = set(doors)
+        self.render_from_snapshot()
+
+    def set_burnin_baseline(self, baseline: dict):
+        """Guarda los ciclos de referencia al inicio del burnin y redibuja.
+        baseline: {(eid, side): (door_cycles_base, step_cycles_base)}
+        Si está vacío, elimina el contador de ciclos del SVG.
+        """
+        self._burnin_baseline = dict(baseline)
         self.render_from_snapshot()
 
     def render_from_snapshot(self):
@@ -3972,8 +3982,8 @@ class DoorsGenerator(QSvgWidget):
             "svg",
             xmlns="http://www.w3.org/2000/svg",
             width=str(corrected_svg_width),
-            height="135",
-            viewBox = f"0 0 {corrected_svg_width} 135"
+            height="130",
+            viewBox = f"0 0 {corrected_svg_width} 130"
         )
 
         self.setFixedSize(int(corrected_svg_width * self.scale_factor), int(130 * self.scale_factor))
@@ -4113,27 +4123,44 @@ class DoorsGenerator(QSvgWidget):
         failure_rate_l = g(doors_data, 85)
         n3_order_r = g(doors_data, 86)
         n3_order_l = g(doors_data, 87)
-        n3_fb_r = g(doors_data, 88)
-        n3_fb_l = g(doors_data, 89)
         
         maint_r = (coach_id, 'R') in self._maint_doors
         maint_l = (coach_id, 'L') in self._maint_doors
         _burnin_r = (burn_in_active_r, last_burn_in_ok_r, last_burn_in_nok_r, burn_in_ready_r)
         _burnin_l = (burn_in_active_l, last_burn_in_ok_l, last_burn_in_nok_l, burn_in_ready_l)
 
+        def _cycle_diff(side, current_door, current_step):
+            """Ciclos transcurridos desde el inicio del burnin para este lado.
+            Devuelve (door_diff, step_diff) o None si no hay baseline."""
+            entry = self._burnin_baseline.get((coach_id, side))
+            if entry is None:
+                return None
+            door_base, step_base = entry
+            try:   door_diff = max(0, int(current_door) - door_base)
+            except (ValueError, TypeError): door_diff = 0
+            try:   step_diff = max(0, int(current_step) - step_base)
+            except (ValueError, TypeError): step_diff = 0
+            return (door_diff, step_diff)
+
+        cycles_r = _cycle_diff('R', cycle_count_door_r, cycle_count_step_r)
+        cycles_l = _cycle_diff('L', cycle_count_door_l, cycle_count_step_l)
+
         if coach_type in ['3','4','6','8','9','10']:
                 if pmr_index is not None and index > pmr_index:
-                    coach = self.normal_coach(label, index, closed_n_locked_l, step_closed_l, door_open_l, step_open_l, uic_15_l, uic_14_l, uic_9_l, tbo_mode_l, obb_mode_l, uic_lat_mode_l, failure_rate_l, code_a_l, code_b_l, door_oos_l, step_oos_l, closed_n_locked_r, step_closed_r, door_open_r, step_open_r, uic_15_r, uic_14_r, uic_9_r, tbo_mode_r, obb_mode_r, uic_lat_mode_r, failure_rate_r, code_a_r, code_b_r, door_oos_r, step_oos_r, burnin_r=_burnin_l, burnin_l=_burnin_r, safe_st_r=safe_st_l, safe_st_l=safe_st_r, maint_r=maint_l, maint_l=maint_r, n3_fb_r=n3_fb_l, n3_fb_l=n3_fb_r)
+                    coach = self.normal_coach(label, index, closed_n_locked_l, step_closed_l, door_open_l, step_open_l, uic_15_l, uic_14_l, uic_9_l, tbo_mode_l, obb_mode_l, uic_lat_mode_l, failure_rate_l, code_a_l, code_b_l, door_oos_l, step_oos_l, closed_n_locked_r, step_closed_r, door_open_r, step_open_r, uic_15_r, uic_14_r, uic_9_r, tbo_mode_r, obb_mode_r, uic_lat_mode_r, failure_rate_r, code_a_r, code_b_r, door_oos_r, step_oos_r, burnin_r=_burnin_l, burnin_l=_burnin_r, safe_st_r=safe_st_l, safe_st_l=safe_st_r, maint_r=maint_l, maint_l=maint_r, cycles_r=cycles_l, cycles_l=cycles_r)
                 else:
-                    coach = self.normal_coach(label, index, closed_n_locked_r, step_closed_r, door_open_r, step_open_r, uic_15_r, uic_14_r, uic_9_r, tbo_mode_r, obb_mode_r, uic_lat_mode_r, failure_rate_r, code_a_r, code_b_r, door_oos_r, step_oos_r, closed_n_locked_l, step_closed_l, door_open_l, step_open_l, uic_15_l, uic_14_l, uic_9_l, tbo_mode_l, obb_mode_l, uic_lat_mode_l, failure_rate_l, code_a_l, code_b_l, door_oos_l, step_oos_l, burnin_r=_burnin_r, burnin_l=_burnin_l, safe_st_r=safe_st_r, safe_st_l=safe_st_l, maint_r=maint_r, maint_l=maint_l, n3_fb_r=n3_fb_r, n3_fb_l=n3_fb_l)
+                    coach = self.normal_coach(label, index, closed_n_locked_r, step_closed_r, door_open_r, step_open_r, uic_15_r, uic_14_r, uic_9_r, tbo_mode_r, obb_mode_r, uic_lat_mode_r, failure_rate_r, code_a_r, code_b_r, door_oos_r, step_oos_r, closed_n_locked_l, step_closed_l, door_open_l, step_open_l, uic_15_l, uic_14_l, uic_9_l, tbo_mode_l, obb_mode_l, uic_lat_mode_l, failure_rate_l, code_a_l, code_b_l, door_oos_l, step_oos_l, burnin_r=_burnin_r, burnin_l=_burnin_l, safe_st_r=safe_st_r, safe_st_l=safe_st_l, maint_r=maint_r, maint_l=maint_l, cycles_r=cycles_r, cycles_l=cycles_l)
         elif coach_type in ['5']:
-                coach = self.pmr_coach(label, index, closed_n_locked_r, step_closed_r, door_open_r, step_open_r, uic_15_r, uic_14_r, uic_9_r, tbo_mode_r, obb_mode_r, uic_lat_mode_r, failure_rate_r, code_a_r, code_b_r, door_oos_r, step_oos_r, closed_n_locked_l, step_closed_l, door_open_l, step_open_l, uic_15_l, uic_14_l, uic_9_l, tbo_mode_l, obb_mode_l, uic_lat_mode_l, failure_rate_l, code_a_l, code_b_l, door_oos_l, step_oos_l, burnin_r=_burnin_r, burnin_l=_burnin_l, safe_st_r=safe_st_r, safe_st_l=safe_st_l, maint_r=maint_r, maint_l=maint_l, n3_fb_r=n3_fb_r, n3_fb_l=n3_fb_l)
+                coach = self.pmr_coach(label, index, closed_n_locked_r, step_closed_r, door_open_r, step_open_r, uic_15_r, uic_14_r, uic_9_r, tbo_mode_r, obb_mode_r, uic_lat_mode_r, failure_rate_r, code_a_r, code_b_r, door_oos_r, step_oos_r, closed_n_locked_l, step_closed_l, door_open_l, step_open_l, uic_15_l, uic_14_l, uic_9_l, tbo_mode_l, obb_mode_l, uic_lat_mode_l, failure_rate_l, code_a_l, code_b_l, door_oos_l, step_oos_l, burnin_r=_burnin_r, burnin_l=_burnin_l, safe_st_r=safe_st_r, safe_st_l=safe_st_l, maint_r=maint_r, maint_l=maint_l, cycles_r=cycles_r, cycles_l=cycles_l)
         elif coach_type in ['2'] and self.project == "DB":
                 coach = self.cabcar_coach(label, index)
         elif coach_type in ['7']:
                 coach = self.family_coach(label, index)
         elif coach_type in ['11']:
-                coach = self.end_coach(label, index, closed_n_locked_r, step_closed_r, door_open_r, step_open_r, uic_15_r, uic_14_r, uic_9_r, tbo_mode_r, obb_mode_r, uic_lat_mode_r, failure_rate_r, code_a_r, code_b_r, door_oos_r, step_oos_r, closed_n_locked_l, step_closed_l, door_open_l, step_open_l, uic_15_l, uic_14_l, uic_9_l, tbo_mode_l, obb_mode_l, uic_lat_mode_l, failure_rate_l, code_a_l, code_b_l, door_oos_l, step_oos_l, burnin_r=_burnin_r, burnin_l=_burnin_l, safe_st_r=safe_st_r, safe_st_l=safe_st_l, maint_r=maint_r, maint_l=maint_l, n3_fb_r=n3_fb_r, n3_fb_l=n3_fb_l)
+                if pmr_index is not None and index > pmr_index:
+                    coach = self.end_coach(label, index, closed_n_locked_l, step_closed_l, door_open_l, step_open_l, uic_15_l, uic_14_l, uic_9_l, tbo_mode_l, obb_mode_l, uic_lat_mode_l, failure_rate_l, code_a_l, code_b_l, door_oos_l, step_oos_l, closed_n_locked_r, step_closed_r, door_open_r, step_open_r, uic_15_r, uic_14_r, uic_9_r, tbo_mode_r, obb_mode_r, uic_lat_mode_r, failure_rate_r, code_a_r, code_b_r, door_oos_r, step_oos_r, burnin_r=_burnin_l, burnin_l=_burnin_r, safe_st_r=safe_st_l, safe_st_l=safe_st_r, maint_r=maint_l, maint_l=maint_r, cycles_r=cycles_l, cycles_l=cycles_r)
+                else:
+                    coach = self.end_coach(label, index, closed_n_locked_r, step_closed_r, door_open_r, step_open_r, uic_15_r, uic_14_r, uic_9_r, tbo_mode_r, obb_mode_r, uic_lat_mode_r, failure_rate_r, code_a_r, code_b_r, door_oos_r, step_oos_r, closed_n_locked_l, step_closed_l, door_open_l, step_open_l, uic_15_l, uic_14_l, uic_9_l, tbo_mode_l, obb_mode_l, uic_lat_mode_l, failure_rate_l, code_a_l, code_b_l, door_oos_l, step_oos_l, burnin_r=_burnin_r, burnin_l=_burnin_l, safe_st_r=safe_st_r, safe_st_l=safe_st_l, maint_r=maint_r, maint_l=maint_l, cycles_r=cycles_r, cycles_l=cycles_l)
         else:
             return self.offline_coach(coach_id, index), False
 
@@ -4301,11 +4328,7 @@ class DoorsGenerator(QSvgWidget):
 
         return door
         
-    def normal_coach(self, coach_name, coach_pos, closed_and_locked_R, step_closed_R, door_open_R, step_open_R, UIC15_R, UIC14_R, UIC9_R, TB0_R, OBB_R, LAT_R, Failure_rate_R, fail_type_a_R, fail_type_b_R, oos_r, step_oos_r, closed_and_locked_L, step_closed_L, door_open_L, step_open_L, UIC15_L, UIC14_L, UIC9_L, TB0_L, OBB_L, LAT_L, Failure_rate_L, fail_type_a_L, fail_type_b_L, oos_l, step_oos_l, burnin_r=(0,0,0), burnin_l=(0,0,0), safe_st_r="0", safe_st_l="0", maint_r=False, maint_l=False, n3_fb_r="0", n3_fb_l="0"):
-
-        def _active(v):
-            try: return int(v) == 1
-            except (ValueError, TypeError): return False
+    def normal_coach(self, coach_name, coach_pos, closed_and_locked_R, step_closed_R, door_open_R, step_open_R, UIC15_R, UIC14_R, UIC9_R, TB0_R, OBB_R, LAT_R, Failure_rate_R, fail_type_a_R, fail_type_b_R, oos_r, step_oos_r, closed_and_locked_L, step_closed_L, door_open_L, step_open_L, UIC15_L, UIC14_L, UIC9_L, TB0_L, OBB_L, LAT_L, Failure_rate_L, fail_type_a_L, fail_type_b_L, oos_l, step_oos_l, burnin_r=(0,0,0), burnin_l=(0,0,0), safe_st_r="0", safe_st_l="0", maint_r=False, maint_l=False, cycles_r=None, cycles_l=None):
 
         coach = Element("g")
 
@@ -4347,15 +4370,15 @@ class DoorsGenerator(QSvgWidget):
         else:
             door_l_off = 0
 
-        # Contador de ciclos burnin (solo cuando el burnin está activo)
-        if _active(burnin_r[0] if burnin_r else 0):
+        # Contador de ciclos burnin (desde el inicio del burnin)
+        if cycles_r is not None:
             SubElement(coach, "text", x="37", y="42",
                        **{"text-anchor": "middle", "font-size": "7", "font-family": "sans-serif", "fill": "#005080"}
-                       ).text = f"Ciclos: {n3_fb_r}"
-        if _active(burnin_l[0] if burnin_l else 0):
+                       ).text = f"Ciclos: {cycles_r[0]}"
+        if cycles_l is not None:
             SubElement(coach, "text", x="37", y="60",
                        **{"text-anchor": "middle", "font-size": "7", "font-family": "sans-serif", "fill": "#005080"}
-                       ).text = f"Ciclos: {n3_fb_l}"
+                       ).text = f"Ciclos: {cycles_l[0]}"
 
         # Puerta
         upper_door = SubElement(coach, "g", transform="translate(75, 30)")
@@ -4384,11 +4407,7 @@ class DoorsGenerator(QSvgWidget):
 
         return coach
 
-    def pmr_coach(self, coach_name, coach_pos, closed_and_locked_R, step_closed_R, door_open_R, step_open_R, UIC15_R, UIC14_R, UIC9_R, TB0_R, OBB_R, LAT_R, Failure_rate_R, fail_type_a_R, fail_type_b_R, oos_r, step_oos_r, closed_and_locked_L, step_closed_L, door_open_L, step_open_L, UIC15_L, UIC14_L, UIC9_L, TB0_L, OBB_L, LAT_L, Failure_rate_L, fail_type_a_L, fail_type_b_L, oos_l, step_oos_l, burnin_r=(0,0,0), burnin_l=(0,0,0), safe_st_r="0", safe_st_l="0", maint_r=False, maint_l=False, n3_fb_r="0", n3_fb_l="0"):
-
-        def _active(v):
-            try: return int(v) == 1
-            except (ValueError, TypeError): return False
+    def pmr_coach(self, coach_name, coach_pos, closed_and_locked_R, step_closed_R, door_open_R, step_open_R, UIC15_R, UIC14_R, UIC9_R, TB0_R, OBB_R, LAT_R, Failure_rate_R, fail_type_a_R, fail_type_b_R, oos_r, step_oos_r, closed_and_locked_L, step_closed_L, door_open_L, step_open_L, UIC15_L, UIC14_L, UIC9_L, TB0_L, OBB_L, LAT_L, Failure_rate_L, fail_type_a_L, fail_type_b_L, oos_l, step_oos_l, burnin_r=(0,0,0), burnin_l=(0,0,0), safe_st_r="0", safe_st_l="0", maint_r=False, maint_l=False, cycles_r=None, cycles_l=None):
 
         coach = Element("g")
 
@@ -4428,14 +4447,21 @@ class DoorsGenerator(QSvgWidget):
         else:
             door_l_off = 0
 
-        if _active(burnin_r[0] if burnin_r else 0):
-            SubElement(coach, "text", x="37", y="42",
+        # Contador de ciclos burnin — PMR muestra puerta (Pta) y peldaño (Ped)
+        if cycles_r is not None:
+            SubElement(coach, "text", x="37", y="38",
                        **{"text-anchor": "middle", "font-size": "7", "font-family": "sans-serif", "fill": "#005080"}
-                       ).text = f"Ciclos: {n3_fb_r}"
-        if _active(burnin_l[0] if burnin_l else 0):
-            SubElement(coach, "text", x="37", y="60",
+                       ).text = f"Pta: {cycles_r[0]}"
+            SubElement(coach, "text", x="37", y="46",
                        **{"text-anchor": "middle", "font-size": "7", "font-family": "sans-serif", "fill": "#005080"}
-                       ).text = f"Ciclos: {n3_fb_l}"
+                       ).text = f"Ped: {cycles_r[1]}"
+        if cycles_l is not None:
+            SubElement(coach, "text", x="37", y="57",
+                       **{"text-anchor": "middle", "font-size": "7", "font-family": "sans-serif", "fill": "#005080"}
+                       ).text = f"Pta: {cycles_l[0]}"
+            SubElement(coach, "text", x="37", y="65",
+                       **{"text-anchor": "middle", "font-size": "7", "font-family": "sans-serif", "fill": "#005080"}
+                       ).text = f"Ped: {cycles_l[1]}"
 
         upper_door = SubElement(coach, "g", transform="translate(75, 30)")
         lower_door = SubElement(coach, "g", transform="translate(75, 70)")
@@ -4485,11 +4511,7 @@ class DoorsGenerator(QSvgWidget):
 
         return coach
 
-    def end_coach(self, coach_name, coach_pos, closed_and_locked_R, step_closed_R, door_open_R, step_open_R, UIC15_R, UIC14_R, UIC9_R, TB0_R, OBB_R, LAT_R, Failure_rate_R, fail_type_a_R, fail_type_b_R, oos_r, step_oos_r, closed_and_locked_L, step_closed_L, door_open_L, step_open_L, UIC15_L, UIC14_L, UIC9_L, TB0_L, OBB_L, LAT_L, Failure_rate_L, fail_type_a_L, fail_type_b_L, oos_l, step_oos_l, burnin_r=(0,0,0), burnin_l=(0,0,0), safe_st_r="0", safe_st_l="0", maint_r=False, maint_l=False, n3_fb_r="0", n3_fb_l="0"):
-
-        def _active(v):
-            try: return int(v) == 1
-            except (ValueError, TypeError): return False
+    def end_coach(self, coach_name, coach_pos, closed_and_locked_R, step_closed_R, door_open_R, step_open_R, UIC15_R, UIC14_R, UIC9_R, TB0_R, OBB_R, LAT_R, Failure_rate_R, fail_type_a_R, fail_type_b_R, oos_r, step_oos_r, closed_and_locked_L, step_closed_L, door_open_L, step_open_L, UIC15_L, UIC14_L, UIC9_L, TB0_L, OBB_L, LAT_L, Failure_rate_L, fail_type_a_L, fail_type_b_L, oos_l, step_oos_l, burnin_r=(0,0,0), burnin_l=(0,0,0), safe_st_r="0", safe_st_l="0", maint_r=False, maint_l=False, cycles_r=None, cycles_l=None):
 
         coach = Element("g")
 
@@ -4527,14 +4549,15 @@ class DoorsGenerator(QSvgWidget):
         else:
             door_l_off = 0
 
-        if _active(burnin_r[0] if burnin_r else 0):
+        # Contador de ciclos burnin (desde el inicio del burnin)
+        if cycles_r is not None:
             SubElement(coach, "text", x="37", y="42",
                        **{"text-anchor": "middle", "font-size": "7", "font-family": "sans-serif", "fill": "#005080"}
-                       ).text = f"Ciclos: {n3_fb_r}"
-        if _active(burnin_l[0] if burnin_l else 0):
+                       ).text = f"Ciclos: {cycles_r[0]}"
+        if cycles_l is not None:
             SubElement(coach, "text", x="37", y="60",
                        **{"text-anchor": "middle", "font-size": "7", "font-family": "sans-serif", "fill": "#005080"}
-                       ).text = f"Ciclos: {n3_fb_l}"
+                       ).text = f"Ciclos: {cycles_l[0]}"
 
         upper_door = SubElement(coach, "g", transform="translate(35, 30)")
         lower_door = SubElement(coach, "g", transform="translate(35, 70)")
@@ -5692,8 +5715,9 @@ class BurninPanel(QWidget):
       └────────────────────────────────────────────────┘
     """
 
-    toggled      = Signal()         # expandir/colapsar → DOORWindow redimensiona
-    maint_changed = Signal(object)  # set de (eid, side) en MaintMode activo
+    toggled         = Signal()         # expandir/colapsar → DOORWindow redimensiona
+    maint_changed   = Signal(object)   # frozenset de (eid, side) en MaintMode activo
+    burnin_baseline = Signal(object)   # dict {(eid, side): (door_base, step_base)}
 
     def __init__(self, endpoint_ids: list, endpoint_clients: dict, parent=None):
         """
@@ -5708,6 +5732,9 @@ class BurninPanel(QWidget):
         self._worker          = None
         self._thread          = None
         self._maint_active    = set()   # (eid, side) con MaintMode activo
+        self._pmr_index       = None    # índice del coche PMR; coches posteriores tienen R/L cruzados
+        self._last_snapshot   = {}
+        self._last_doors_vars = []
 
         self._build_ui()
         self._collapse()
@@ -5869,9 +5896,24 @@ class BurninPanel(QWidget):
             if side is None or s == side:
                 cb.setChecked(checked)
 
+    def set_pmr_index(self, idx):
+        """Índice del coche PMR en endpoint_ids. Coches posteriores tienen R/L físicos cruzados."""
+        self._pmr_index = idx
+
     def _selected_doors(self) -> list:
-        print([(eid, s) for (eid, s), cb in self._checkboxes.items() if cb.isChecked()])
-        return [(eid, s) for (eid, s), cb in self._checkboxes.items() if cb.isChecked()]
+        """Devuelve lista de (endpoint_id, physical_side) para los checkboxes marcados.
+        Para coches después del PMR el lado visual D/I se invierte respecto al físico R/L."""
+        result = []
+        for col, eid in enumerate(self.endpoint_ids):
+            for visual_side in ("R", "L"):
+                cb = self._checkboxes.get((eid, visual_side))
+                if cb and cb.isChecked():
+                    if self._pmr_index is not None and col > self._pmr_index:
+                        physical_side = "L" if visual_side == "R" else "R"
+                    else:
+                        physical_side = visual_side
+                    result.append((eid, physical_side))
+        return result
 
     # ------------------------------------------------------------------
     # Actualización de estado desde snapshot
@@ -5883,6 +5925,8 @@ class BurninPanel(QWidget):
         BurninReady R/L → índices 30/31.
         BurninActive R/L → índices 24/25 (solo para bloquear botón si ya activo).
         """
+        self._last_snapshot   = snapshot
+        self._last_doors_vars = doors_vars
         coaches = snapshot.get("doors", snapshot)   # acepta tanto {doors:{}} como dict plano
 
         def _any_active(idx_r, idx_l):
@@ -5928,6 +5972,27 @@ class BurninPanel(QWidget):
         if not selected:
             self._log.appendPlainText("⚠ No hay puertas seleccionadas.")
             return
+        # Capturar baseline de ciclos en el momento de iniciar el burnin
+        # cycle_count_door → índice 32/33 (R/L); cycle_count_step → índice 34/35 (R/L)
+        IDX_DOOR_R, IDX_DOOR_L = 32, 33
+        IDX_STEP_R, IDX_STEP_L = 34, 35
+        coaches  = self._last_snapshot.get("doors", self._last_snapshot)
+        dv       = self._last_doors_vars
+        baseline = {}
+        for eid, side in selected:
+            vals = coaches.get(eid, {}).get("values", {})
+            idx_door = IDX_DOOR_R if side == "R" else IDX_DOOR_L
+            idx_step = IDX_STEP_R if side == "R" else IDX_STEP_L
+            try:
+                door_base = int(vals.get(dv[idx_door], "0")) if dv else 0
+            except (ValueError, TypeError, IndexError):
+                door_base = 0
+            try:
+                step_base = int(vals.get(dv[idx_step], "0")) if dv else 0
+            except (ValueError, TypeError, IndexError):
+                step_base = 0
+            baseline[(eid, side)] = (door_base, step_base)
+        self.burnin_baseline.emit(baseline)
         n3_par = self._slider_cycles.value()
         self._start_worker_action("burnin", selected, n3_par=n3_par)
         self._btn_burnin.setEnabled(False)
@@ -5937,6 +6002,7 @@ class BurninPanel(QWidget):
         self._maint_active = set()
         # self._dot_maint.setStyleSheet("color: #AAAAAA; font-size: 14px;")
         self.maint_changed.emit(frozenset())
+        self.burnin_baseline.emit({})
         self._start_worker_action("stop", selected)
         self._btn_maint.setEnabled(True)
         self._btn_burnin.setEnabled(False)
@@ -6037,6 +6103,7 @@ class DOORWindow(DiagnosticWindow):
 
         self.burnin_panel.toggled.connect(self._resize_window)
         self.burnin_panel.maint_changed.connect(self.doors.set_maint_doors)
+        self.burnin_panel.burnin_baseline.connect(self.doors.set_burnin_baseline)
 
     def _on_legend_toggled(self):
         """Llamado por DoorLegendSvg al expandir/colapsar para reajustar la ventana."""
@@ -6151,6 +6218,7 @@ class DOORWindow(DiagnosticWindow):
 
         # ---- Carga y refresco de la ventana ----
         self.doors.set_snapshot({"doors": coaches})
+        self.burnin_panel.set_pmr_index(getattr(self.doors, "pmr_pos", None))
         self.burnin_panel.refresh_from_snapshot({"doors": coaches}, self.doors.doors_vars)
         self.legend.set_height(self.doors.scaled_doors_height)
         self._resize_window()
@@ -6159,6 +6227,7 @@ class DOORWindow(DiagnosticWindow):
         if DEV_MODE:
             return
         self.doors.set_snapshot(snapshot)
+        self.burnin_panel.set_pmr_index(getattr(self.doors, "pmr_pos", None))
         self.burnin_panel.refresh_from_snapshot(snapshot, self.doors.doors_vars)
         self.legend.set_height(self.doors.scaled_doors_height)
         self._resize_window()
