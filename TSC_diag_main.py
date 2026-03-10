@@ -4133,6 +4133,7 @@ class DoorsGenerator(QSvgWidget):
             """Ciclos transcurridos desde el inicio del burnin para este lado.
             Devuelve (door_diff, step_diff) o None si no hay baseline."""
             entry = self._burnin_baseline.get((coach_id, side))
+            print(coach_id, entry)
             if entry is None:
                 return None
             door_base, step_base = entry
@@ -5974,8 +5975,8 @@ class BurninPanel(QWidget):
             return
         # Capturar baseline de ciclos en el momento de iniciar el burnin
         # cycle_count_door → índice 32/33 (R/L); cycle_count_step → índice 34/35 (R/L)
-        IDX_DOOR_R, IDX_DOOR_L = 32, 33
-        IDX_STEP_R, IDX_STEP_L = 34, 35
+        IDX_DOOR_R, IDX_DOOR_L = 80, 81
+        IDX_STEP_R, IDX_STEP_L = 82, 83
         coaches  = self._last_snapshot.get("doors", self._last_snapshot)
         dv       = self._last_doors_vars
         baseline = {}
@@ -6716,7 +6717,7 @@ class MainWindow(QMainWindow):
                         
         self.project = project_value
     
-        self.max_initial_ips = 21 if self.project == "DB" else 15 if self.project == "DSB" else 1
+        self.max_initial_ips =  9 if self.project == "DB" else 15 if self.project == "DSB" else 1
         
         self.progress_title.setText(f"Escaneando composición: {self.project}")
         self.detected_label.setText(f"Coches detectados: {0 + self.max_initial_ips} de {len(self.ip_data[self.project])} posibles.")
