@@ -74,6 +74,7 @@ import pandas as pd
 import math
 import copy
 from isagrafInterface import isagrafInterface
+from weasyprint import HTML as WPHtml
 
 
 APP_VERSION = "1.0.3"
@@ -6360,6 +6361,10 @@ class DOORWindow(DiagnosticWindow):
         export_menu.addAction(self._action_import_log)
         self._action_export_log.triggered.connect(self._export_burnin_log)
         self._action_import_log.triggered.connect(self._import_burnin_log)
+        export_menu.addSeparator()
+        self._action_export_report = QAction("Exportar informe Burn-In (PDF)...", self)
+        export_menu.addAction(self._action_export_report)
+        self._action_export_report.triggered.connect(self._export_burnin_report)
 
         self.Door_diag_window = Door_Diag_Window(project=self.project, endpoint_ids=endpoint_ids, project_coach_types=project_coach_types,fixed_w=800, fixed_h=400, valid_ips=self.valid_ips)
 
@@ -6643,6 +6648,426 @@ class DOORWindow(DiagnosticWindow):
             return
         self._burnin_log.merge_from(loaded)
         self.burnin_panel.set_completed_doors(self._burnin_log.completed)
+
+    # ------------------------------------------------------------------
+    # PDF report helpers
+    # ------------------------------------------------------------------
+
+    # Tipos de coche sin puertas (se excluyen del informe PDF)
+    _NO_DOOR_TYPES = {"C4340", "C4322"}
+
+    def _build_burnin_report_tree(self) -> list:
+        """
+        Devuelve una lista de dicts, uno por coche con puertas (sin el agregado DB
+        y sin coches de tipo C4340/C4322 que no tienen puertas):
+          {
+            "coach_num": int,      # posición 1-based en la composición
+            "label": str,          # "COCHE 1 — C4302P" etc.
+            "eid": str,
+            "type_label": str,     # "C4302P" etc.
+            "sides": {
+              "R": {"label": str, "result": str|None, "events": list[dict]},
+              "L": {"label": str, "result": str|None, "events": list[dict]},
+            }
+          }
+        El swap D/I se aplica a los coches posteriores al PMR.
+        """
+        pmr_pos        = getattr(self.doors, "pmr_pos", None)
+        eid_list       = list(self.doors.endpoint_ids[:-1])   # sin agregado DB
+        coach_types    = self.doors.project_coach_types        # {int: str}
+        coach_type_var = getattr(self.doors, "coach_type_var", None)
+        snapshot       = getattr(self.doors, "snapshot", {}) or {}
+        doors_dict     = snapshot.get("doors", snapshot)
+
+        tree = []
+        for idx, eid in enumerate(eid_list):
+            coach_num = idx + 1
+            post_pmr  = pmr_pos is not None and idx > pmr_pos
+
+            # Obtener tipo de coche desde el snapshot en vivo
+            type_label = ""
+            if coach_type_var:
+                vals   = doors_dict.get(eid, {}).get("values", {})
+                ct_raw = vals.get(coach_type_var, "")
+                try:
+                    if ct_raw:
+                        type_label = coach_types.get(int(float(ct_raw)), "")
+                except (ValueError, TypeError):
+                    pass
+
+            # Excluir coches sin puertas
+            if type_label in self._NO_DOOR_TYPES:
+                continue
+
+            coach_label = f"COCHE {coach_num}"
+            if type_label:
+                coach_label += f" — {type_label}"
+
+            # Etiquetas de lado (swap post-PMR)
+            label_r = "IZQUIERDA" if post_pmr else "DERECHA"
+            label_l = "DERECHA"   if post_pmr else "IZQUIERDA"
+
+            sides = {}
+            for side, slabel in (("R", label_r), ("L", label_l)):
+                evs    = [e for e in self._burnin_log.events if e.get("eid") == eid and e.get("side") == side]
+                result = self._burnin_log.completed.get((eid, side))
+                sides[side] = {"label": slabel, "result": result, "events": evs}
+
+            tree.append({
+                "coach_num":  coach_num,
+                "label":      coach_label,
+                "eid":        eid,
+                "type_label": type_label,
+                "sides":      sides,
+            })
+        return tree
+
+    def _generate_burnin_pdf_html(self, tree: list, composition: str = "") -> str:
+        """Genera el HTML completo para WeasyPrint."""
+
+        # ---- logo ----
+        _base    = getattr(sys, '_MEIPASS', os.path.dirname(os.path.abspath(__file__)))
+        abs_logo = os.path.join(_base, "Talgo_logo.png")
+        logo_url = f"file:///{abs_logo.replace(os.sep, '/')}"
+
+        # ---- helpers de color ----
+        def result_badge(result):
+            if result == BurninLog.OK:  return '<span style="color:#2E7D32;font-weight:bold;">OK</span>'
+            if result == BurninLog.NOK: return '<span style="color:#B71C1C;font-weight:bold;">NOK</span>'
+            return '<span style="color:#757575;">Pendiente</span>'
+
+        def event_row_color(ev_type):
+            if ev_type == BurninLog.OK:    return "#C8E6C9"
+            if ev_type == BurninLog.NOK:   return "#FFCDD2"
+            if ev_type == BurninLog.ERROR: return "#FFF9C4"
+            if ev_type == BurninLog.START: return "#E3F2FD"
+            if ev_type == BurninLog.STOP:  return "#F3E5F5"
+            if ev_type == BurninLog.ALL_OK:return "#A5D6A7"
+            return "#FFFFFF"
+
+        # ---- cabecera (running header) ----
+        header_html = f"""
+        <div id="header">
+          <div class="header-box">
+            <div class="logo-area">
+              <img src="{logo_url}" alt="Logo">
+            </div>
+            <div class="middle-area">
+              <div class="registro-encabezado">REGISTRO DE PRUEBAS / PRÜFPROTOKOLL</div>
+              <div class="registro-inferior">
+                <div class="registro-codigo">RPTF-2216-20</div>
+                <div class="registro-sublabel">INFORME BURN-IN TEST</div>
+                {f'<div class="registro-composicion">F073 COMPOSICIÓN {composition}</div>' if composition else ''}
+              </div>
+            </div>
+            <div class="pagina-area">
+              <div class="pagina-label">PÁGINA</div>
+              <div class="pagina-numero">
+                <span class="page-number"></span> de <span class="page-count"></span>
+              </div>
+            </div>
+          </div>
+        </div>"""
+
+        footer_html = """
+        <div id="footer">
+          <div class="footer-text">
+            Este documento y su contenido son propiedad de Patentes Talgo S.L.U. o sus filiales.
+            Contiene información confidencial y privada. La reproducción, distribución, utilización
+            o comunicación de este documento o parte de él, sin autorización expresa, está estrictamente
+            prohibida. Aquellos que contravengan esta disposición se considerarán responsables del pago
+            de los daños causados.
+          </div>
+        </div>"""
+
+        # ---- índice con líderes punteados y número de página ----
+        toc_items = ""
+        toc_num = 1
+        for entry in tree:
+            anchor_coach = f"coach-{entry['coach_num']}"
+            toc_items += (
+                f'<div class="toc-entry toc-h2">'
+                f'<a href="#{anchor_coach}">{toc_num}. {entry["label"]}</a>'
+                f'</div>'
+            )
+            sub = 1
+            for side_key in ("R", "L"):
+                sd = entry["sides"][side_key]
+                anchor_side = f"coach-{entry['coach_num']}-{side_key}"
+                toc_items += (
+                    f'<div class="toc-entry toc-h3">'
+                    f'<a href="#{anchor_side}">{toc_num}.{sub} Puerta {sd["label"]}</a>'
+                    f'</div>'
+                )
+                sub += 1
+            toc_num += 1
+
+        toc_html = f"""
+        <section>
+          <h2 class="toc-title">Índice</h2>
+          {toc_items}
+        </section>"""
+
+        # ---- contenido: todos los coches sin salto de página entre ellos ----
+        content_html = '<section class="content-section">'
+        toc_num = 1
+        for entry in tree:
+            anchor_coach = f"coach-{entry['coach_num']}"
+            content_html += f'<h2 id="{anchor_coach}">{toc_num}. {entry["label"]}</h2>'
+
+            sub = 1
+            for side_key in ("R", "L"):
+                sd = entry["sides"][side_key]
+                anchor_side = f"coach-{entry['coach_num']}-{side_key}"
+                coach_id_label = entry["type_label"] if entry["type_label"] else entry["eid"]
+                content_html += (
+                    f'<h3 id="{anchor_side}">'
+                    f'{toc_num}.{sub} PUERTA {sd["label"]} ({coach_id_label}) — {result_badge(sd["result"])}'
+                    f'</h3>'
+                )
+
+                if not sd["events"]:
+                    content_html += '<p class="no-events">Sin eventos registrados.</p>'
+                else:
+                    content_html += (
+                        '<table class="events-table">'
+                        '<tr>'
+                        '<th>Fecha / Hora</th><th>Tipo</th>'
+                        '<th>Ciclos Pta.</th><th>Ciclos Paso</th>'
+                        '<th>Código</th><th>Descripción</th>'
+                        '</tr>'
+                    )
+                    for ev in sd["events"]:
+                        bg       = event_row_color(ev.get("type", ""))
+                        cycles_d = ev.get("cycles_door", "")
+                        cycles_s = ev.get("cycles_step", "")
+                        content_html += (
+                            f'<tr style="background-color:{bg};">'
+                            f'<td>{ev.get("ts","")}</td>'
+                            f'<td style="text-align:center;font-weight:bold;">{ev.get("type","")}</td>'
+                            f'<td style="text-align:center;">{cycles_d if cycles_d else "—"}</td>'
+                            f'<td style="text-align:center;">{cycles_s if cycles_s else "—"}</td>'
+                            f'<td>{ev.get("code","")}</td>'
+                            f'<td>{ev.get("desc","")}</td>'
+                            f'</tr>'
+                        )
+                    content_html += "</table>"
+                sub += 1
+            toc_num += 1
+        content_html += "</section>"
+
+        # ---- CSS ----
+        css = """
+        @page {
+            size: A4;
+            margin-top: 4.2cm;
+            margin-left: 2cm;
+            margin-right: 2cm;
+            margin-bottom: 3cm;
+            @top-center { content: element(header); margin-top: 1cm; }
+            @bottom-center { content: element(footer); }
+        }
+        body { font-family: Calibri, Arial, sans-serif; font-size: 11px; }
+
+        /* ---- Cabecera corriente ---- */
+        #header {
+            position: running(header);
+            height: 2.2cm;
+            width: 17cm;
+        }
+        .header-box {
+            margin-top: 0;
+            width: 17cm;
+            height: 2.2cm;
+            display: table;
+            border: 1px solid black;
+            box-sizing: border-box;
+            table-layout: fixed;
+        }
+        .logo-area {
+            display: table-cell;
+            width: 3.5cm;
+            vertical-align: middle;
+            text-align: center;
+            border-right: 1px solid black;
+        }
+        .logo-area img { max-width: 90%; padding: 2px 4px; }
+        .middle-area {
+            display: table-cell;
+            vertical-align: top;
+            border-right: 1px solid black;
+        }
+        .registro-encabezado {
+            display: block;
+            font-weight: bold;
+            font-size: 16px;
+            text-align: center;
+            padding: 5px 0;
+            border-bottom: 1px solid black;
+            box-sizing: border-box;
+        }
+        .registro-inferior {
+            display: block;
+            text-align: center;
+            padding-top: 5px;
+        }
+        .registro-codigo      { font-weight: bold; font-size: 16px; margin-bottom: 2px; }
+        .registro-sublabel    { font-size: 11px; font-weight: normal; }
+        .registro-composicion { font-size: 10px; font-weight: bold; margin-top: 2px; }
+        .pagina-area {
+            display: table-cell;
+            width: 2.5cm;
+            vertical-align: middle;
+            text-align: center;
+            font-size: 9px;
+        }
+        .pagina-label { margin-bottom: 3px; }
+        .page-number::after { content: counter(page); }
+        .page-count::after  { content: counter(pages); }
+
+        /* ---- Pie de página ---- */
+        #footer {
+            position: running(footer);
+            width: 17cm;
+            margin: 0 auto;
+        }
+        .footer-text {
+            font-size: 9px;
+            text-align: justify;
+            color: rgba(0,0,0,0.4);
+            line-height: 1.5;
+        }
+
+        /* ---- Índice ---- */
+        .toc-title { font-size: 15px; margin-bottom: 0.3cm; border-bottom: 2px solid #455A64; padding-bottom: 3px; }
+        .toc-entry { font-size: 11px; margin: 2px 0; }
+        .toc-h2 { font-weight: bold; margin-top: 6px; }
+        .toc-h3 { margin-left: 1.5cm; font-weight: normal; }
+        .toc-entry a {
+            text-decoration: none;
+            color: black;
+            display: block;
+        }
+        .toc-h2 a::after {
+            content: leader('.') target-counter(attr(href url), page);
+            font-weight: normal;
+        }
+        .toc-h3 a::after {
+            content: leader('.') target-counter(attr(href url), page);
+        }
+
+        /* ---- Salto índice → contenido ---- */
+        .content-section { page-break-before: always; }
+
+        /* ---- Cabeceras de sección ---- */
+        h2 { font-size: 13px; margin-top: 0.4cm; margin-bottom: 0.15cm;
+             border-bottom: 2px solid #455A64; padding-bottom: 3px; }
+        h3 { font-size: 11px; margin-top: 0.25cm; margin-bottom: 0.1cm; color: #37474F; }
+
+        /* ---- Tabla de eventos ---- */
+        .events-table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-bottom: 0.25cm;
+            font-size: 10px;
+        }
+        .events-table th {
+            background-color: #455A64; color: white;
+            border: 1px solid #37474F; padding: 3px 5px;
+            text-align: left;
+        }
+        .events-table td {
+            border: 1px solid #CFD8DC; padding: 2px 5px;
+            vertical-align: top;
+        }
+        .no-events { font-style: italic; color: #757575; margin: 3px 0 0.2cm 0; }
+        """
+
+        html = f"""<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>{css}</style>
+</head>
+<body>
+  {header_html}
+  {footer_html}
+  {toc_html}
+  {content_html}
+</body>
+</html>"""
+        return html
+
+    def _ask_composition_number(self) -> str | None:
+        """
+        Muestra un diálogo para introducir el número de composición F073 (01-23).
+        Devuelve la cadena "01"–"23" o None si se cancela.
+        """
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Número de composición")
+        dlg.setFixedSize(320, 130)
+
+        lay = QVBoxLayout(dlg)
+        lay.addWidget(QLabel("Introduzca el número de composición:"))
+
+        row = QHBoxLayout()
+        row.addWidget(QLabel("F073 Composición"))
+
+        spin = QSpinBox()
+        spin.setRange(1, 23)
+        spin.setValue(1)
+        spin.setFixedWidth(60)
+        # Mostrar siempre con dos dígitos en el visor
+        spin.setDisplayIntegerBase(10)
+
+        # Actualizar el cuadro de texto del spinbox al formato "01"-"23"
+        def _update_display(val):
+            spin.lineEdit().setText(f"{val:02d}")
+        spin.valueChanged.connect(_update_display)
+        _update_display(spin.value())
+
+        row.addWidget(spin)
+        row.addStretch()
+        lay.addLayout(row)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        buttons.button(QDialogButtonBox.Ok).setText("Aceptar")
+        buttons.button(QDialogButtonBox.Cancel).setText("Cancelar")
+        buttons.accepted.connect(dlg.accept)
+        buttons.rejected.connect(dlg.reject)
+        lay.addWidget(buttons)
+
+        if dlg.exec() == QDialog.Accepted:
+            return f"{spin.value():02d}"
+        return None
+
+    def _export_burnin_report(self):
+        if not self._burnin_log.events:
+            if DEV_MODE:
+                self._burnin_log = self._generate_dev_burnin_log()
+            else:
+                QMessageBox.information(self, "Informe Burn-In", "No hay eventos registrados aún.")
+                return
+
+        composition = self._ask_composition_number()
+        if composition is None:
+            return
+
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Exportar informe Burn-In", f"informe_burnin_F073-{composition}.pdf",
+            "PDF (*.pdf);;Todos los archivos (*)"
+        )
+        if not path:
+            return
+
+        try:
+            tree = self._build_burnin_report_tree()
+            html = self._generate_burnin_pdf_html(tree, composition)
+            base_url = os.path.dirname(os.path.abspath(__file__)) + "/"
+            WPHtml(string=html, base_url=base_url).write_pdf(path)
+            QMessageBox.information(self, "Informe exportado", f"PDF guardado en:\n{path}")
+        except Exception as e:
+            QMessageBox.critical(self, "Error al generar PDF", str(e))
 
 class MainWindow(QMainWindow):
     
