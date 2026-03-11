@@ -6191,9 +6191,9 @@ class BurninPanel(QWidget):
         self._btn_pending.setVisible(bool(self._completed_doors))
 
     def _select_pending(self):
-        """Marca solo las puertas que NO tienen resultado en el log cargado."""
+        """Marca puertas sin resultado OK (pendientes o NOK que hay que repetir)."""
         for (eid, side), cb in self._checkboxes.items():
-            cb.setChecked((eid, side) not in self._completed_doors)
+            cb.setChecked(self._completed_doors.get((eid, side)) != "OK")
 
     def _selected_doors(self) -> list:
         """Devuelve lista de (endpoint_id, physical_side) para los checkboxes marcados.
@@ -6718,6 +6718,7 @@ class DOORWindow(DiagnosticWindow):
                 "label":      coach_label,
                 "eid":        eid,
                 "type_label": type_label,
+                "is_pmr":     (pmr_pos is not None and idx == pmr_pos),
                 "sides":      sides,
             })
         return tree
@@ -6826,14 +6827,17 @@ class DOORWindow(DiagnosticWindow):
                     f'</h3>'
                 )
 
+                is_pmr = entry["is_pmr"]
                 if not sd["events"]:
                     content_html += '<p class="no-events">Sin eventos registrados.</p>'
                 else:
+                    header_step = '<th>Ciclos Peldaño</th>' if is_pmr else ''
                     content_html += (
                         '<table class="events-table">'
                         '<tr>'
                         '<th>Fecha / Hora</th><th>Tipo</th>'
-                        '<th>Ciclos Pta.</th><th>Ciclos Paso</th>'
+                        '<th>Ciclos Pta.</th>'
+                        + header_step +
                         '<th>Código</th><th>Descripción</th>'
                         '</tr>'
                     )
@@ -6841,12 +6845,13 @@ class DOORWindow(DiagnosticWindow):
                         bg       = event_row_color(ev.get("type", ""))
                         cycles_d = ev.get("cycles_door", "")
                         cycles_s = ev.get("cycles_step", "")
+                        step_td  = f'<td style="text-align:center;">{cycles_s if cycles_s else "—"}</td>' if is_pmr else ''
                         content_html += (
                             f'<tr style="background-color:{bg};">'
                             f'<td>{ev.get("ts","")}</td>'
                             f'<td style="text-align:center;font-weight:bold;">{ev.get("type","")}</td>'
                             f'<td style="text-align:center;">{cycles_d if cycles_d else "—"}</td>'
-                            f'<td style="text-align:center;">{cycles_s if cycles_s else "—"}</td>'
+                            + step_td +
                             f'<td>{ev.get("code","")}</td>'
                             f'<td>{ev.get("desc","")}</td>'
                             f'</tr>'
