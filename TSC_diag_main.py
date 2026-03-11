@@ -57,6 +57,7 @@ from PySide6.QtSvgWidgets import QSvgWidget
 from pathlib import Path
 import urllib.request
 import json
+import datetime
 import webbrowser
 import subprocess
 import platform
@@ -3931,12 +3932,18 @@ class DoorsGenerator(QSvgWidget):
         self._maint_doors = set(doors)
         self.render_from_snapshot()
 
-    def set_burnin_baseline(self, baseline: dict):
-        """Guarda los ciclos de referencia al inicio del burnin y redibuja.
-        baseline: {(eid, side): (door_cycles_base, step_cycles_base)}
-        Si está vacío, elimina el contador de ciclos del SVG.
+    def set_burnin_baseline(self, baseline):
+        """Actualiza los ciclos de referencia al inicio del burnin y redibuja.
+        baseline: {(eid, side): (door_cycles_base, step_cycles_base) | None}
+        - Valor tupla  → establece/actualiza baseline de esa puerta.
+        - Valor None   → elimina baseline de esa puerta (burnin detenido en ella).
+        Hace merge: las puertas no mencionadas conservan su baseline.
         """
-        self._burnin_baseline = dict(baseline)
+        for key, val in baseline.items():
+            if val is None:
+                self._burnin_baseline.pop(key, None)
+            else:
+                self._burnin_baseline[key] = val
         self.render_from_snapshot()
 
     def render_from_snapshot(self):
@@ -4133,7 +4140,7 @@ class DoorsGenerator(QSvgWidget):
             """Ciclos transcurridos desde el inicio del burnin para este lado.
             Devuelve (door_diff, step_diff) o None si no hay baseline."""
             entry = self._burnin_baseline.get((coach_id, side))
-            print(coach_id, entry)
+            # print(coach_id, entry)
             if entry is None:
                 return None
             door_base, step_base = entry
@@ -4181,7 +4188,7 @@ class DoorsGenerator(QSvgWidget):
         if maintenance:    
             if _on(active): return "#87CEEB"   # azul celeste — burnin en marcha
             if _on(ready):  return "#FFA040"   # naranja      — listo para burnin
-            if _on(nok):    return "#FF6666"   # rojo claro   — burnin NOK
+            if _on(nok):    return "#CC1111"   # rojo claro   — burnin NOK
             if _on(ok):     return "#90EE90"   # verde claro  — burnin OK
 
         return ""
@@ -4756,14 +4763,14 @@ class DoorLegendSvg(QSvgWidget):
                     "font-family": "sans-serif",
                     "fill":        "#333333",
                 }
-            ).text = "FONDO (BURNIN TEST)"
+            ).text = "FONDO (BURN-IN TEST)"
             y += 8
 
             BURNIN_ITEMS = [
-                ("#FFA040", "Listo para Burnin (Ready)"),
-                ("#87CEEB", "Burnin en marcha"),
-                ("#90EE90", "Burnin finalizado OK"),
-                ("#FF6666", "Burnin finalizado NOK"),
+                ("#FFA040", "Listo para Burn-In (Ready)"),
+                ("#87CEEB", "Burn-In en marcha"),
+                ("#90EE90", "Burn-In finalizado OK"),
+                ("#CC1111", "Burn-In finalizado NOK"),
             ]
             for color, desc in BURNIN_ITEMS:
                 SubElement(root, "rect",
@@ -5238,6 +5245,7 @@ class Door_Diag_Window(DiagnosticWindow):
         self.project = project
         self.endpoint_ids = endpoint_ids
         self.project_coach_types = project_coach_types
+        self.valid_ips = list(valid_ips)
 
         super().__init__(
             title="Problemas activos en las puertas",
@@ -5342,15 +5350,34 @@ class Door_Diag_Window(DiagnosticWindow):
                 prev = self.endpoint_ids[-2]
                 coach_types_by_endpoint[last] = coach_types_by_endpoint.get(prev)
 
+            # Índice del coche PMR (tipo 5) para cruzar D/I en coches posteriores
+            pmr_idx = None
+            for i, eid in enumerate(self.endpoint_ids):
+                ct = coach_types_by_endpoint.get(eid)
+                try:
+                    if ct is not None and int(float(ct)) == 5:
+                        pmr_idx = i
+                        break
+                except (ValueError, TypeError):
+                    pass
+
             rows = []
 
             for endpoint_id, data in snapshot.get("doors_diag", {}).items():
                 diag_vals = (data or {}).get("values") or {}
-                 
+
                 try:
                     coach_idx = self.endpoint_ids.index(endpoint_id) + 1
+                    coach_col  = coach_idx - 1
                 except ValueError:
                     coach_idx = "?"
+                    coach_col = -1
+
+                # IP del coche
+                try:
+                    ip = str(self.valid_ips[coach_col]) if coach_col >= 0 else endpoint_id
+                except IndexError:
+                    ip = endpoint_id
 
                 coach_type = coach_types_by_endpoint.get(endpoint_id)
                 coach_type_str = ""
@@ -5366,16 +5393,19 @@ class Door_Diag_Window(DiagnosticWindow):
                 if coach_type_str:
                     coach_label += f" ({coach_type_str})"
 
+                # ¿Coche posterior al PMR? → D/I visual están cruzados respecto al físico
+                post_pmr = pmr_idx is not None and coach_col > pmr_idx
+
                 for var_full, value in diag_vals.items():
                     if any(telegram in var_full for telegram in self.right_side_telegrams):
-                        door_side = "Derecha"
+                        door_side = "Izquierda" if post_pmr else "Derecha"
                     elif any(telegram in var_full for telegram in self.left_side_telegrams):
-                        door_side = "Izquierda"
+                        door_side = "Derecha" if post_pmr else "Izquierda"
                     else:
-                        door_side = "Desconocida"        
+                        door_side = "Desconocida"
                     var_short = var_full.split(".")[-1]
 
-                    if value != "1" and value!= "0":
+                    if value != "1" and value != "0":
                         continue
 
                     if value == "1":
@@ -5387,7 +5417,7 @@ class Door_Diag_Window(DiagnosticWindow):
                             code = var_short
                             desc = "Descripción no disponible"
 
-                        rows.append((coach_label, endpoint_id, door_side, code, desc))
+                        rows.append((coach_label, ip, door_side, code, desc))
 
             self.table.setSortingEnabled(False)
             self.table.clearContents()
@@ -5610,6 +5640,235 @@ class ResetFailuresWorker(QObject):
             # último paso, finalizar
             self._run_next_step()
 
+class BurninLog:
+    """
+    Almacena el historial de eventos del Burn-In Test y el estado final de cada puerta.
+
+    Formato JSON de exportación:
+    {
+      "events": [
+        {"ts": "2026-03-11 14:32:01", "eid": "EP3", "side": "R",
+         "type": "NOK", "cycles_door": 512, "cycles_step": 48,
+         "code": "bFoo", "desc": "Descripción del error"},
+        ...
+      ],
+      "completed": [
+        {"eid": "EP3", "side": "R", "result": "NOK"},
+        ...
+      ]
+    }
+    """
+
+    # Tipos de evento
+    START  = "START"
+    STOP   = "STOP"
+    OK     = "OK"
+    NOK    = "NOK"
+    ERROR  = "ERROR"
+    ALL_OK = "ALL_OK"   # todas las puertas iniciadas han finalizado con OK
+
+    def __init__(self):
+        self.events    = []   # list[dict]
+        self.completed = {}   # {(eid, side): "OK" | "NOK"}
+
+    def add_event(self, eid: str, side: str, event_type: str,
+                  cycles_door: int = 0, cycles_step: int = 0,
+                  code: str = "", desc: str = ""):
+        self.events.append({
+            "ts":          datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "eid":         eid,
+            "side":        side,
+            "type":        event_type,
+            "cycles_door": cycles_door,
+            "cycles_step": cycles_step,
+            "code":        code,
+            "desc":        desc,
+        })
+        if event_type in (self.OK, self.NOK):
+            self.completed[(eid, side)] = event_type
+
+    def merge_from(self, other: "BurninLog"):
+        """Fusiona otro log sobre éste (eventos + completed)."""
+        self.events.extend(other.events)
+        self.completed.update(other.completed)
+
+    def to_dict(self) -> dict:
+        return {
+            "events": self.events,
+            "completed": [
+                {"eid": eid, "side": side, "result": result}
+                for (eid, side), result in self.completed.items()
+            ],
+        }
+
+    @classmethod
+    def from_dict(cls, d: dict) -> "BurninLog":
+        log = cls()
+        log.events = d.get("events", [])
+        for entry in d.get("completed", []):
+            log.completed[(entry["eid"], entry["side"])] = entry["result"]
+        return log
+
+    def to_json(self) -> str:
+        return json.dumps(self.to_dict(), ensure_ascii=False, indent=2)
+
+    @classmethod
+    def from_json(cls, s: str) -> "BurninLog":
+        return cls.from_dict(json.loads(s))
+
+class BurninEventDetector:
+    """
+    Detecta transiciones de estado en el snapshot de puertas y emite eventos al BurninLog.
+
+    Detecta (0→1 edge-triggered):
+      - BurninActive  R/L (índices 24/25): START
+      - LastBurninOK  R/L (índices 28/29): OK
+      - LastBurninNOK R/L (índices 26/27): NOK
+      - Nuevos códigos de error en doors_diag que aparecen mientras hay baseline activo
+
+    Para calcular ciclos relativos consulta DoorsGenerator._burnin_baseline.
+    """
+
+    IDX_ACTIVE_R, IDX_ACTIVE_L = 24, 25
+    IDX_NOK_R,    IDX_NOK_L    = 26, 27
+    IDX_OK_R,     IDX_OK_L     = 28, 29
+    IDX_DOOR_R,   IDX_DOOR_L   = 80, 81
+    IDX_STEP_R,   IDX_STEP_L   = 82, 83
+
+    def __init__(self, doors_generator, burnin_log: BurninLog, dcu_diag_dict: dict,
+                 endpoint_ids: list):
+        """
+        doors_generator : instancia de DoorsGenerator (para baseline y doors_vars)
+        burnin_log      : BurninLog donde se registran los eventos
+        dcu_diag_dict   : dict de diagnóstico DCU para resolver códigos de error
+        endpoint_ids    : lista de endpoints a testear (sin el agregado DB)
+        """
+        self._gen          = doors_generator
+        self._log          = burnin_log
+        self._dcu          = dcu_diag_dict
+        # Estado anterior por (eid, side): dict con claves "active","ok","nok"
+        self._prev         = {}
+        # Códigos de error ya registrados por (eid, side): set de var_short
+        self._prev_errors  = {}
+        # Puertas que han recibido al menos un evento START en esta sesión
+        self._started_doors = set()
+        # Conjunto completo de puertas del tren — referencia para ALL_OK
+        self._all_doors = frozenset(
+            (eid, side) for eid in endpoint_ids for side in ("R", "L")
+        )
+        # Evita emitir ALL_OK más de una vez por sesión
+        self._all_ok_emitted = False
+
+    def _cycles(self, eid: str, side: str, vals: dict, dv: list) -> tuple:
+        """Devuelve (cycles_door, cycles_step) relativos al baseline, o (0,0) si no hay."""
+        entry = self._gen._burnin_baseline.get((eid, side))
+        if entry is None:
+            return (0, 0)
+        door_base, step_base = entry
+        idx_d = self.IDX_DOOR_R if side == "R" else self.IDX_DOOR_L
+        idx_s = self.IDX_STEP_R if side == "R" else self.IDX_STEP_L
+        try:
+            cd = max(0, int(vals.get(dv[idx_d], "0")) - door_base)
+        except (ValueError, TypeError, IndexError):
+            cd = 0
+        try:
+            cs = max(0, int(vals.get(dv[idx_s], "0")) - step_base)
+        except (ValueError, TypeError, IndexError):
+            cs = 0
+        return (cd, cs)
+
+    def _val(self, vals: dict, dv: list, idx: int) -> int:
+        try:
+            return int(vals.get(dv[idx], "0"))
+        except (ValueError, TypeError, IndexError):
+            return 0
+
+    def process(self, snapshot: dict):
+        """Llamar en cada set_snapshot. Detecta transiciones y registra eventos."""
+        coaches = snapshot.get("doors", snapshot)
+        dv      = self._gen.doors_vars
+
+        for eid, coach_data in coaches.items():
+            vals = (coach_data or {}).get("values", {})
+            for side in ("R", "L"):
+                idx_active = self.IDX_ACTIVE_R if side == "R" else self.IDX_ACTIVE_L
+                idx_ok     = self.IDX_OK_R     if side == "R" else self.IDX_OK_L
+                idx_nok    = self.IDX_NOK_R    if side == "R" else self.IDX_NOK_L
+
+                active = self._val(vals, dv, idx_active)
+                ok     = self._val(vals, dv, idx_ok)
+                nok    = self._val(vals, dv, idx_nok)
+
+                prev   = self._prev.get((eid, side), {"active": 0, "ok": 0, "nok": 0})
+
+                cd, cs = self._cycles(eid, side, vals, dv)
+
+                # START
+                if active == 1 and prev["active"] == 0:
+                    self._log.add_event(eid, side, BurninLog.START, cd, cs)
+                    self._started_doors.add((eid, side))
+
+                has_baseline = self._gen._burnin_baseline.get((eid, side)) is not None
+
+                # OK (solo si hubo baseline, es decir el burnin fue nuestro)
+                if ok == 1 and prev["ok"] == 0 and has_baseline:
+                    self._log.add_event(eid, side, BurninLog.OK, cd, cs)
+                    # ALL_OK: todas las puertas del tren han finalizado con OK
+                    if (not self._all_ok_emitted
+                            and self._all_doors.issubset(self._log.completed)
+                            and all(self._log.completed[k] == BurninLog.OK
+                                    for k in self._all_doors)):
+                        self._log.add_event("", "", BurninLog.ALL_OK)
+                        self._all_ok_emitted = True
+
+                # NOK
+                if nok == 1 and prev["nok"] == 0 and has_baseline:
+                    self._log.add_event(eid, side, BurninLog.NOK, cd, cs)
+
+                self._prev[(eid, side)] = {"active": active, "ok": ok, "nok": nok}
+
+        # Errores nuevos en doors_diag (solo si hay baseline activo en alguna puerta)
+        if not self._gen._burnin_baseline:
+            return
+
+        right_tels = {'49A', '19B'}
+        left_tels  = {'49C', '19D'}
+
+        for eid, data in snapshot.get("doors_diag", {}).items():
+            diag_vals = (data or {}).get("values") or {}
+            for var_full, value in diag_vals.items():
+                if value != "1":
+                    continue
+                if any(t in var_full for t in right_tels):
+                    side = "R"
+                elif any(t in var_full for t in left_tels):
+                    side = "L"
+                else:
+                    continue
+
+                # Solo si hay baseline activo para esta puerta
+                if self._gen._burnin_baseline.get((eid, side)) is None:
+                    continue
+
+                var_short = var_full.split(".")[-1]
+                key = (eid, side)
+                known = self._prev_errors.setdefault(key, set())
+                if var_short in known:
+                    continue
+
+                known.add(var_short)
+                dcu_hit = self._dcu.get(var_short, {})
+                code = dcu_hit.get("Error Code", var_short)
+                desc = dcu_hit.get("Description", "Descripción no disponible")
+                vals = (snapshot.get("doors", {}).get(eid) or {}).get("values", {})
+                dv   = self._gen.doors_vars
+                cd, cs = self._cycles(eid, side, vals, dv)
+                self._log.add_event(eid, side, BurninLog.ERROR, cd, cs, code, desc)
+
+    def reset_errors(self):
+        """Limpia el registro de errores ya notificados (llamar al parar el burnin)."""
+        self._prev_errors.clear()
+
 class BurninWorker(QObject):
     """
     Gestiona la secuencia de escritura del Burnin Test de forma asíncrona.
@@ -5666,7 +5925,7 @@ class BurninWorker(QObject):
                 self.log.emit("Cancelado.")
                 return
             self._write(eid, f"{self._can_ep(side)}.bSW_MaintMode", 1)
-        self.log.emit("MaintMode activado. Esperando BurninReady…")
+        self.log.emit("MaintMode activado. Esperando Burn-In Ready…")
 
     def start_burnin(self):
         """Paso 2: escribe N3_par y activa BurnInOn en las puertas seleccionadas."""
@@ -5684,16 +5943,16 @@ class BurninWorker(QObject):
                 self.finished.emit(False)
                 return
             self._write(eid, f"{self._can_ep(side)}.bSW_BurnInOn", 1)
-        self.log.emit("Burnin Test iniciado.")
+        self.log.emit("Burn-In Test iniciado.")
         self.finished.emit(True)
 
     def stop(self):
         """Detiene el Burnin Test y desactiva MaintMode."""
-        self.log.emit("Deteniendo Burnin Test…")
+        self.log.emit("Deteniendo Burn-In Test…")
         for eid, side in self.selected_doors:
             self._write(eid, f"{self._can_ep(side)}.bSW_BurnInOn",  0)
             self._write(eid, f"{self._can_ep(side)}.bSW_MaintMode", 0)
-        self.log.emit("Burnin Test detenido.")
+        self.log.emit("Burn-In Test detenido.")
         self.finished.emit(False)
 
 class BurninPanel(QWidget):
@@ -5701,7 +5960,7 @@ class BurninPanel(QWidget):
     Panel colapsable para lanzar el Burnin Test sobre las puertas seleccionadas.
 
     Layout (expandido):
-      ┌─[▼ BURNIN TEST]────────────────────────────────┐
+      ┌─[▼ BURN-IN TEST]────────────────────────────────┐
       │  Selección de puertas:                          │
       │  [✓ D] [✓ I]  Coche 1   [✓ D] [✓ I]  Coche 2 … │
       │  [Sel. todo D]  [Sel. todo I]  [Sel. todo]      │
@@ -5736,6 +5995,7 @@ class BurninPanel(QWidget):
         self._pmr_index       = None    # índice del coche PMR; coches posteriores tienen R/L cruzados
         self._last_snapshot   = {}
         self._last_doors_vars = []
+        self._completed_doors = {}      # {(eid, side): "OK"|"NOK"} cargado desde log
 
         self._build_ui()
         self._collapse()
@@ -5750,7 +6010,7 @@ class BurninPanel(QWidget):
         main_layout.setSpacing(2)
 
         # ---- Cabecera (botón colapsar/expandir) ----
-        self._btn_header = QPushButton("▶  BURNIN TEST")
+        self._btn_header = QPushButton("▶  BURN-IN TEST")
         self._btn_header.setCheckable(True)
         self._btn_header.setStyleSheet(
             "QPushButton { text-align:left; padding:4px 8px; }"
@@ -5772,15 +6032,23 @@ class BurninPanel(QWidget):
         self._checkboxes = {}   # {(endpoint_id, side): QCheckBox}
         for col, eid in enumerate(self.endpoint_ids):
             coach_num = col + 1
-            cb_r = QCheckBox(f"D")
-            cb_l = QCheckBox(f"I")
+            cb_r = QCheckBox("D")
+            cb_l = QCheckBox("I")
             cb_r.setChecked(True)
             cb_l.setChecked(True)
-            self._grid_layout.addWidget(QLabel(f"C{coach_num}"), 0, col * 3)
-            self._grid_layout.addWidget(cb_r,                    1, col * 3)
-            self._grid_layout.addWidget(cb_l,                    1, col * 3 + 1)
+            lbl = QLabel(f"C{coach_num}")
+            lbl.setAlignment(Qt.AlignCenter)
+            self._grid_layout.addWidget(lbl,  0, col * 3, 1, 2, Qt.AlignCenter)
+            self._grid_layout.addWidget(cb_r, 1, col * 3,       Qt.AlignCenter)
+            self._grid_layout.addWidget(cb_l, 1, col * 3 + 1,   Qt.AlignCenter)
             self._checkboxes[(eid, "R")] = cb_r
             self._checkboxes[(eid, "L")] = cb_l
+            # Separador vertical entre coches (excepto el último)
+            if col < len(self.endpoint_ids) - 1:
+                sep = QFrame()
+                sep.setFrameShape(QFrame.VLine)
+                sep.setFrameShadow(QFrame.Sunken)
+                self._grid_layout.addWidget(sep, 0, col * 3 + 2, 2, 1)
         content_layout.addWidget(grid_widget)
 
         # -- Botones de selección rápida --
@@ -5789,11 +6057,14 @@ class BurninPanel(QWidget):
         btn_all_l = QPushButton("Todas I")
         btn_all   = QPushButton("Todas")
         btn_none  = QPushButton("Ninguna")
+        self._btn_pending = QPushButton("Pendientes")
+        self._btn_pending.setVisible(False)
         btn_all_r.clicked.connect(lambda: self._quick_select("R", True))
         btn_all_l.clicked.connect(lambda: self._quick_select("L", True))
         btn_all.clicked.connect(lambda: self._quick_select(None, True))
         btn_none.clicked.connect(lambda: self._quick_select(None, False))
-        for b in (btn_all_r, btn_all_l, btn_all, btn_none):
+        self._btn_pending.clicked.connect(self._select_pending)
+        for b in (btn_all_r, btn_all_l, btn_all, btn_none, self._btn_pending):
             b.setFixedHeight(22)
             sel_layout.addWidget(b)
         content_layout.addLayout(sel_layout)
@@ -5838,7 +6109,7 @@ class BurninPanel(QWidget):
         # -- Botones de control --
         ctrl_layout = QHBoxLayout()
         self._btn_maint  = QPushButton("1. Iniciar Maint")
-        self._btn_burnin = QPushButton("2. Iniciar Burnin")
+        self._btn_burnin = QPushButton("2. Iniciar Burn-In")
         self._btn_stop   = QPushButton("Detener")
         self._btn_maint.clicked.connect(self._on_start_maint)
         self._btn_burnin.clicked.connect(self._on_start_burnin)
@@ -5879,13 +6150,13 @@ class BurninPanel(QWidget):
     def _collapse(self):
         self._expanded = False
         self._content.hide()
-        self._btn_header.setText("▶  BURNIN TEST")
+        self._btn_header.setText("▶  BURN-IN TEST")
         self._btn_header.setChecked(False)
 
     def _expand(self):
         self._expanded = True
         self._content.show()
-        self._btn_header.setText("▼  BURNIN TEST")
+        self._btn_header.setText("▼  BURN-IN TEST")
         self._btn_header.setChecked(True)
 
     # ------------------------------------------------------------------
@@ -5900,6 +6171,28 @@ class BurninPanel(QWidget):
     def set_pmr_index(self, idx):
         """Índice del coche PMR en endpoint_ids. Coches posteriores tienen R/L físicos cruzados."""
         self._pmr_index = idx
+
+    def set_completed_doors(self, completed: dict):
+        """
+        Recibe {(eid, side): "OK"|"NOK"} del log cargado.
+        Colorea en verde los checkboxes de puertas ya completadas y
+        muestra el botón "Pendientes".
+        """
+        self._completed_doors = dict(completed)
+        for (eid, side), result in self._completed_doors.items():
+            cb = self._checkboxes.get((eid, side))
+            if cb is None:
+                continue
+            color = "#4CAF50" if result == "OK" else "#E57373"
+            cb.setStyleSheet(
+                f"QCheckBox {{ background-color: {color}; border-radius: 3px; padding: 1px 3px; }}"
+            )
+        self._btn_pending.setVisible(bool(self._completed_doors))
+
+    def _select_pending(self):
+        """Marca solo las puertas que NO tienen resultado en el log cargado."""
+        for (eid, side), cb in self._checkboxes.items():
+            cb.setChecked((eid, side) not in self._completed_doors)
 
     def _selected_doors(self) -> list:
         """Devuelve lista de (endpoint_id, physical_side) para los checkboxes marcados.
@@ -5973,12 +6266,25 @@ class BurninPanel(QWidget):
         if not selected:
             self._log.appendPlainText("⚠ No hay puertas seleccionadas.")
             return
-        # Capturar baseline de ciclos en el momento de iniciar el burnin
-        # cycle_count_door → índice 32/33 (R/L); cycle_count_step → índice 34/35 (R/L)
-        IDX_DOOR_R, IDX_DOOR_L = 80, 81
-        IDX_STEP_R, IDX_STEP_L = 82, 83
+        # Avisar de puertas seleccionadas sin BurninReady
+        # BurninReady R/L → índices 30/31
+        IDX_READY_R, IDX_READY_L = 30, 31
         coaches  = self._last_snapshot.get("doors", self._last_snapshot)
         dv       = self._last_doors_vars
+        for eid, side in selected:
+            vals = coaches.get(eid, {}).get("values", {})
+            idx_ready = IDX_READY_R if side == "R" else IDX_READY_L
+            try:
+                ready = int(vals.get(dv[idx_ready], "0")) if dv else 0
+            except (ValueError, TypeError, IndexError):
+                ready = 0
+            if not ready:
+                self._log.appendPlainText(f"⚠ {eid} lado {side}: Burn-In Ready no activo, se lanza igualmente.")
+
+        # Capturar baseline de ciclos en el momento de iniciar el burnin
+        # cycle_count_door → índice 80/81 (R/L); cycle_count_step → índice 82/83 (R/L)
+        IDX_DOOR_R, IDX_DOOR_L = 80, 81
+        IDX_STEP_R, IDX_STEP_L = 82, 83
         baseline = {}
         for eid, side in selected:
             vals = coaches.get(eid, {}).get("values", {})
@@ -6003,7 +6309,7 @@ class BurninPanel(QWidget):
         self._maint_active = set()
         # self._dot_maint.setStyleSheet("color: #AAAAAA; font-size: 14px;")
         self.maint_changed.emit(frozenset())
-        self.burnin_baseline.emit({})
+        self.burnin_baseline.emit({(eid, side): None for eid, side in selected})
         self._start_worker_action("stop", selected)
         self._btn_maint.setEnabled(True)
         self._btn_burnin.setEnabled(False)
@@ -6043,10 +6349,17 @@ class DOORWindow(DiagnosticWindow):
         self.project = project
 
         menubar = self.menuBar()
-        export_menu = menubar.addMenu("Exportar")
+        export_menu = menubar.addMenu("Importar / Exportar")
 
         self.export_Doors_loop_action = QAction("Guardar como PNG...", self)
         export_menu.addAction(self.export_Doors_loop_action)
+        export_menu.addSeparator()
+        self._action_export_log = QAction("Exportar log Burn-In (.json)...", self)
+        self._action_import_log = QAction("Importar log Burn-In (.json)...", self)
+        export_menu.addAction(self._action_export_log)
+        export_menu.addAction(self._action_import_log)
+        self._action_export_log.triggered.connect(self._export_burnin_log)
+        self._action_import_log.triggered.connect(self._import_burnin_log)
 
         self.Door_diag_window = Door_Diag_Window(project=self.project, endpoint_ids=endpoint_ids, project_coach_types=project_coach_types,fixed_w=800, fixed_h=400, valid_ips=self.valid_ips)
 
@@ -6064,6 +6377,14 @@ class DOORWindow(DiagnosticWindow):
 
         self.export_Doors_loop_action.triggered.connect(self.doors.save_as_png)
         self.scroll.setWidget(self.doors)
+
+        # ---- Log y detector de eventos Burn-In ----
+        _dcu_diag_dict       = getattr(TCMS_vars(), "DCU_DIAGNOSIS_DICT", {})
+        _burnin_ids          = list(self.doors.endpoint_ids[:-1])  # sin el agregado DB
+        self._burnin_log     = BurninLog()
+        self._event_detector = BurninEventDetector(
+            self.doors, self._burnin_log, _dcu_diag_dict, _burnin_ids
+        )
 
         self.btn_diag = QPushButton("Mostrar errores de puertas")
         self.btn_diag.setCheckable(True)
@@ -6115,7 +6436,7 @@ class DOORWindow(DiagnosticWindow):
         doors_h = self.doors.scaled_doors_height
         burnin_h = self.burnin_panel.sizeHint().height()
         btn_h = self.btn_diag.sizeHint().height()
-        content_h = doors_h + burnin_h + btn_h + 65
+        content_h = doors_h + burnin_h + btn_h + 75
         legend_h = self.legend.height() + 28
         total_h = min(max(content_h, legend_h), self.max_height)
         total_w = min(doors_w + self.legend.panel_width() + 16, self.max_width)
@@ -6232,6 +6553,96 @@ class DOORWindow(DiagnosticWindow):
         self.burnin_panel.refresh_from_snapshot(snapshot, self.doors.doors_vars)
         self.legend.set_height(self.doors.scaled_doors_height)
         self._resize_window()
+        self._event_detector.process(snapshot)
+
+    # ------------------------------------------------------------------
+    # Log Burn-In: exportar / importar
+    # ------------------------------------------------------------------
+
+    def _generate_dev_burnin_log(self):
+        """Genera un BurninLog con datos aleatorios para pruebas en DEV_MODE."""
+        log = BurninLog()
+        endpoint_ids = self.doors.endpoint_ids[:-1]  # sin el agregado DB
+        base_dt = datetime.datetime(2026, 3, 11, 8, 0, 0)
+        delta = datetime.timedelta(minutes=0)
+        for eid in endpoint_ids:
+            for side in ("R", "L"):
+                door_cycles = random.randint(0, 200)
+                step_cycles = random.randint(0, door_cycles)
+                log.events.append({
+                    "ts": (base_dt + delta).strftime("%Y-%m-%d %H:%M:%S"),
+                    "eid": eid, "side": side, "type": BurninLog.START,
+                    "cycles_door": 0, "cycles_step": 0, "code": "", "desc": "",
+                })
+                delta += datetime.timedelta(minutes=random.randint(1, 5))
+                # Posibilidad de uno o dos errores durante el test
+                for _ in range(random.randint(0, 2)):
+                    err_cycles = random.randint(1, door_cycles) if door_cycles else 0
+                    log.events.append({
+                        "ts": (base_dt + delta).strftime("%Y-%m-%d %H:%M:%S"),
+                        "eid": eid, "side": side, "type": BurninLog.ERROR,
+                        "cycles_door": err_cycles, "cycles_step": err_cycles // 2,
+                        "code": random.choice(["bFaultA", "bFaultB", "bOvertemp"]),
+                        "desc": "Error simulado (DEV_MODE)",
+                    })
+                    delta += datetime.timedelta(minutes=random.randint(1, 10))
+                # Resultado final: OK 70%, NOK 30%
+                result = BurninLog.OK if random.random() < 0.7 else BurninLog.NOK
+                log.events.append({
+                    "ts": (base_dt + delta).strftime("%Y-%m-%d %H:%M:%S"),
+                    "eid": eid, "side": side, "type": result,
+                    "cycles_door": door_cycles, "cycles_step": step_cycles,
+                    "code": "", "desc": "",
+                })
+                log.completed[(eid, side)] = result
+                delta += datetime.timedelta(minutes=random.randint(5, 30))
+
+        # Si todas las puertas terminaron OK → añadir evento ALL_OK
+        if log.completed and all(v == BurninLog.OK for v in log.completed.values()):
+            log.events.append({
+                "ts": (base_dt + delta).strftime("%Y-%m-%d %H:%M:%S"),
+                "eid": "", "side": "", "type": BurninLog.ALL_OK,
+                "cycles_door": 0, "cycles_step": 0, "code": "", "desc": "",
+            })
+
+        return log
+
+    def _export_burnin_log(self):
+        if not self._burnin_log.events:
+            if DEV_MODE:
+                self._burnin_log = self._generate_dev_burnin_log()
+            else:
+                QMessageBox.information(self, "Log Burn-In", "No hay eventos registrados aún.")
+                return
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Exportar log Burn-In", "",
+            "JSON (*.json);;Todos los archivos (*)"
+        )
+        if not path:
+            return
+        if not path.lower().endswith(".json"):
+            path += ".json"
+        try:
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(self._burnin_log.to_json())
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"No se pudo guardar:\n{e}")
+
+    def _import_burnin_log(self):
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Importar log Burn-In", "",
+            "JSON (*.json);;Todos los archivos (*)"
+        )
+        if not path:
+            return
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                loaded = BurninLog.from_json(f.read())
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"No se pudo cargar:\n{e}")
+            return
+        self._burnin_log.merge_from(loaded)
+        self.burnin_panel.set_completed_doors(self._burnin_log.completed)
 
 class MainWindow(QMainWindow):
     
@@ -6717,7 +7128,7 @@ class MainWindow(QMainWindow):
                         
         self.project = project_value
     
-        self.max_initial_ips =  9 if self.project == "DB" else 15 if self.project == "DSB" else 1
+        self.max_initial_ips =  21 if self.project == "DB" else 15 if self.project == "DSB" else 1
         
         self.progress_title.setText(f"Escaneando composición: {self.project}")
         self.detected_label.setText(f"Coches detectados: {0 + self.max_initial_ips} de {len(self.ip_data[self.project])} posibles.")
