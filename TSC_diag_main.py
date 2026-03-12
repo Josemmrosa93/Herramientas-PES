@@ -6777,7 +6777,10 @@ class DOORWindow(DiagnosticWindow):
             Contiene información confidencial y privada. La reproducción, distribución, utilización
             o comunicación de este documento o parte de él, sin autorización expresa, está estrictamente
             prohibida. Aquellos que contravengan esta disposición se considerarán responsables del pago
-            de los daños causados.
+            de los daños causados. / <i> Dieses Dokument und sein Inhalt sind
+            Eigentum von Patentes Talgo S.L.U. oder seiner Tochtergesellschaften. Dieses Dokument enthält vertrauliche und private Informationen. Die
+            vollständige oder teilweise Vervielfältigung, Verbreitung, Verwendung oder Weitergabe dieses Dokuments ohne Genehmigung von Talgo ist
+            strengstens verboten. Personen, die gegen diese Bestimmung verstoßen, werden für die entstandenen Schäden haftbar gemacht. </i>
           </div>
         </div>"""
 
