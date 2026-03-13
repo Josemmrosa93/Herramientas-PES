@@ -3990,13 +3990,13 @@ class DoorsGenerator(QSvgWidget):
             "svg",
             xmlns="http://www.w3.org/2000/svg",
             width=str(corrected_svg_width),
-            height="130",
-            viewBox = f"0 0 {corrected_svg_width} 130"
+            height="150",
+            viewBox = f"0 0 {corrected_svg_width} 150"
         )
 
-        self.setFixedSize(int(corrected_svg_width * self.scale_factor), int(130 * self.scale_factor))
+        self.setFixedSize(int(corrected_svg_width * self.scale_factor), int(150 * self.scale_factor))
         self.scaled_doors_width = int(corrected_svg_width * self.scale_factor)
-        self.scaled_doors_height = int(130 * self.scale_factor)
+        self.scaled_doors_height = int(145 * self.scale_factor)
         # print(f"Adjusted SVG width: {corrected_svg_width}, scaled size: {self.scaled_tsc_width}x{self.scaled_tsc_height}")
 
         # Genera cada coche (grupo <g>) y lo traslada en X
@@ -4156,20 +4156,20 @@ class DoorsGenerator(QSvgWidget):
 
         if coach_type in ['3','4','6','8','9','10']:
                 if pmr_index is not None and index > pmr_index:
-                    coach = self.normal_coach(label, index, closed_n_locked_l, step_closed_l, door_open_l, step_open_l, uic_15_l, uic_14_l, uic_9_l, tbo_mode_l, obb_mode_l, uic_lat_mode_l, failure_rate_l, code_a_l, code_b_l, door_oos_l, step_oos_l, closed_n_locked_r, step_closed_r, door_open_r, step_open_r, uic_15_r, uic_14_r, uic_9_r, tbo_mode_r, obb_mode_r, uic_lat_mode_r, failure_rate_r, code_a_r, code_b_r, door_oos_r, step_oos_r, burnin_r=_burnin_l, burnin_l=_burnin_r, safe_st_r=safe_st_l, safe_st_l=safe_st_r, maint_r=maint_l, maint_l=maint_r, cycles_r=cycles_l, cycles_l=cycles_r)
+                    coach = self.normal_coach(label, index, closed_n_locked_l, step_closed_l, door_open_l, step_open_l, uic_15_l, uic_14_l, uic_9_l, tbo_mode_l, obb_mode_l, uic_lat_mode_l, failure_rate_l, code_a_l, code_b_l, door_oos_l, step_oos_l, closed_n_locked_r, step_closed_r, door_open_r, step_open_r, uic_15_r, uic_14_r, uic_9_r, tbo_mode_r, obb_mode_r, uic_lat_mode_r, failure_rate_r, code_a_r, code_b_r, door_oos_r, step_oos_r, burnin_r=_burnin_l, burnin_l=_burnin_r, safe_st_r=safe_st_l, safe_st_l=safe_st_r, maint_r=maint_l, maint_l=maint_r, cycles_r=cycles_l, cycles_l=cycles_r, standstill_R=echo_OH_l, standstill_L=echo_OH_r)
                 else:
-                    coach = self.normal_coach(label, index, closed_n_locked_r, step_closed_r, door_open_r, step_open_r, uic_15_r, uic_14_r, uic_9_r, tbo_mode_r, obb_mode_r, uic_lat_mode_r, failure_rate_r, code_a_r, code_b_r, door_oos_r, step_oos_r, closed_n_locked_l, step_closed_l, door_open_l, step_open_l, uic_15_l, uic_14_l, uic_9_l, tbo_mode_l, obb_mode_l, uic_lat_mode_l, failure_rate_l, code_a_l, code_b_l, door_oos_l, step_oos_l, burnin_r=_burnin_r, burnin_l=_burnin_l, safe_st_r=safe_st_r, safe_st_l=safe_st_l, maint_r=maint_r, maint_l=maint_l, cycles_r=cycles_r, cycles_l=cycles_l)
+                    coach = self.normal_coach(label, index, closed_n_locked_r, step_closed_r, door_open_r, step_open_r, uic_15_r, uic_14_r, uic_9_r, tbo_mode_r, obb_mode_r, uic_lat_mode_r, failure_rate_r, code_a_r, code_b_r, door_oos_r, step_oos_r, closed_n_locked_l, step_closed_l, door_open_l, step_open_l, uic_15_l, uic_14_l, uic_9_l, tbo_mode_l, obb_mode_l, uic_lat_mode_l, failure_rate_l, code_a_l, code_b_l, door_oos_l, step_oos_l, burnin_r=_burnin_r, burnin_l=_burnin_l, safe_st_r=safe_st_r, safe_st_l=safe_st_l, maint_r=maint_r, maint_l=maint_l, cycles_r=cycles_r, cycles_l=cycles_l, standstill_R=echo_OH_r, standstill_L=echo_OH_l)
         elif coach_type in ['5']:
-                coach = self.pmr_coach(label, index, closed_n_locked_r, step_closed_r, door_open_r, step_open_r, uic_15_r, uic_14_r, uic_9_r, tbo_mode_r, obb_mode_r, uic_lat_mode_r, failure_rate_r, code_a_r, code_b_r, door_oos_r, step_oos_r, closed_n_locked_l, step_closed_l, door_open_l, step_open_l, uic_15_l, uic_14_l, uic_9_l, tbo_mode_l, obb_mode_l, uic_lat_mode_l, failure_rate_l, code_a_l, code_b_l, door_oos_l, step_oos_l, burnin_r=_burnin_r, burnin_l=_burnin_l, safe_st_r=safe_st_r, safe_st_l=safe_st_l, maint_r=maint_r, maint_l=maint_l, cycles_r=cycles_r, cycles_l=cycles_l)
+                coach = self.pmr_coach(label, index, closed_n_locked_l, step_closed_l, door_open_l, step_open_l, uic_15_l, uic_14_l, uic_9_l, tbo_mode_l, obb_mode_l, uic_lat_mode_l, failure_rate_l, code_a_l, code_b_l, door_oos_l, step_oos_l, closed_n_locked_r, step_closed_r, door_open_r, step_open_r, uic_15_r, uic_14_r, uic_9_r, tbo_mode_r, obb_mode_r, uic_lat_mode_r, failure_rate_r, code_a_r, code_b_r, door_oos_r, step_oos_r, burnin_r=_burnin_l, burnin_l=_burnin_r, safe_st_r=safe_st_l, safe_st_l=safe_st_r, maint_r=maint_l, maint_l=maint_r, cycles_r=cycles_l, cycles_l=cycles_r, standstill_R=echo_OH_l, standstill_L=echo_OH_r)
         elif coach_type in ['2'] and self.project == "DB":
                 coach = self.cabcar_coach(label, index)
         elif coach_type in ['7']:
                 coach = self.family_coach(label, index)
         elif coach_type in ['11']:
                 if pmr_index is not None and index > pmr_index:
-                    coach = self.end_coach(label, index, closed_n_locked_l, step_closed_l, door_open_l, step_open_l, uic_15_l, uic_14_l, uic_9_l, tbo_mode_l, obb_mode_l, uic_lat_mode_l, failure_rate_l, code_a_l, code_b_l, door_oos_l, step_oos_l, closed_n_locked_r, step_closed_r, door_open_r, step_open_r, uic_15_r, uic_14_r, uic_9_r, tbo_mode_r, obb_mode_r, uic_lat_mode_r, failure_rate_r, code_a_r, code_b_r, door_oos_r, step_oos_r, burnin_r=_burnin_l, burnin_l=_burnin_r, safe_st_r=safe_st_l, safe_st_l=safe_st_r, maint_r=maint_l, maint_l=maint_r, cycles_r=cycles_l, cycles_l=cycles_r)
+                    coach = self.end_coach(label, index, closed_n_locked_l, step_closed_l, door_open_l, step_open_l, uic_15_l, uic_14_l, uic_9_l, tbo_mode_l, obb_mode_l, uic_lat_mode_l, failure_rate_l, code_a_l, code_b_l, door_oos_l, step_oos_l, closed_n_locked_r, step_closed_r, door_open_r, step_open_r, uic_15_r, uic_14_r, uic_9_r, tbo_mode_r, obb_mode_r, uic_lat_mode_r, failure_rate_r, code_a_r, code_b_r, door_oos_r, step_oos_r, burnin_r=_burnin_l, burnin_l=_burnin_r, safe_st_r=safe_st_l, safe_st_l=safe_st_r, maint_r=maint_l, maint_l=maint_r, cycles_r=cycles_l, cycles_l=cycles_r, standstill_R=echo_OH_l, standstill_L=echo_OH_r)
                 else:
-                    coach = self.end_coach(label, index, closed_n_locked_r, step_closed_r, door_open_r, step_open_r, uic_15_r, uic_14_r, uic_9_r, tbo_mode_r, obb_mode_r, uic_lat_mode_r, failure_rate_r, code_a_r, code_b_r, door_oos_r, step_oos_r, closed_n_locked_l, step_closed_l, door_open_l, step_open_l, uic_15_l, uic_14_l, uic_9_l, tbo_mode_l, obb_mode_l, uic_lat_mode_l, failure_rate_l, code_a_l, code_b_l, door_oos_l, step_oos_l, burnin_r=_burnin_r, burnin_l=_burnin_l, safe_st_r=safe_st_r, safe_st_l=safe_st_l, maint_r=maint_r, maint_l=maint_l, cycles_r=cycles_r, cycles_l=cycles_l)
+                    coach = self.end_coach(label, index, closed_n_locked_r, step_closed_r, door_open_r, step_open_r, uic_15_r, uic_14_r, uic_9_r, tbo_mode_r, obb_mode_r, uic_lat_mode_r, failure_rate_r, code_a_r, code_b_r, door_oos_r, step_oos_r, closed_n_locked_l, step_closed_l, door_open_l, step_open_l, uic_15_l, uic_14_l, uic_9_l, tbo_mode_l, obb_mode_l, uic_lat_mode_l, failure_rate_l, code_a_l, code_b_l, door_oos_l, step_oos_l, burnin_r=_burnin_r, burnin_l=_burnin_l, safe_st_r=safe_st_r, safe_st_l=safe_st_l, maint_r=maint_r, maint_l=maint_l, cycles_r=cycles_r, cycles_l=cycles_l, standstill_R=echo_OH_r, standstill_L=echo_OH_l)
         else:
             return self.offline_coach(coach_id, index), False
 
@@ -4194,7 +4194,7 @@ class DoorsGenerator(QSvgWidget):
 
         return ""
 
-    def _mode_grid(self, parent, safe, tb0, lat, obb, uic15, uic14, x_col1, y_row1):
+    def _mode_grid(self, parent, safe, tb0, lat, obb, uic15, uic14, uic9, standstill, x_col1, y_row1):
         """
         Dibuja una matriz 2x3 de indicadores de modo en el elemento SVG 'parent'.
         Cada celda: círculo coloreado (verde=activo, gris=inactivo) + label negro.
@@ -4213,13 +4213,16 @@ class DoorsGenerator(QSvgWidget):
         x2 = x_col1 + 28
         x3 = x_col1 + 56
         y2 = y_row1 + 10
+        y3 = y_row1 + 20
         items = [
             (safe,  "Safe",  x_col1, y_row1),
             (tb0,   "TB0",   x2,     y_row1),
-            (uic15, "U15",   x3,     y_row1),
+            (uic15, "UIC15",   x3,     y_row1),
             (lat,   "LAT",   x_col1, y2),
             (obb,   "OBB",   x2,     y2),
-            (uic14, "U14",   x3,     y2),
+            (uic14, "UIC14",   x3,     y2),
+            (uic9, "UIC9", x3, y3),
+            (standstill, "SStill", x_col1, y3)
         ]
         for val, label, x, y in items:
             color = "#00BB00" if _on(val) else "#AAAAAA"
@@ -4337,38 +4340,38 @@ class DoorsGenerator(QSvgWidget):
 
         return door
         
-    def normal_coach(self, coach_name, coach_pos, closed_and_locked_R, step_closed_R, door_open_R, step_open_R, UIC15_R, UIC14_R, UIC9_R, TB0_R, OBB_R, LAT_R, Failure_rate_R, fail_type_a_R, fail_type_b_R, oos_r, step_oos_r, closed_and_locked_L, step_closed_L, door_open_L, step_open_L, UIC15_L, UIC14_L, UIC9_L, TB0_L, OBB_L, LAT_L, Failure_rate_L, fail_type_a_L, fail_type_b_L, oos_l, step_oos_l, burnin_r=(0,0,0), burnin_l=(0,0,0), safe_st_r="0", safe_st_l="0", maint_r=False, maint_l=False, cycles_r=None, cycles_l=None):
+    def normal_coach(self, coach_name, coach_pos, closed_and_locked_R, step_closed_R, door_open_R, step_open_R, UIC15_R, UIC14_R, UIC9_R, TB0_R, OBB_R, LAT_R, Failure_rate_R, fail_type_a_R, fail_type_b_R, oos_r, step_oos_r, closed_and_locked_L, step_closed_L, door_open_L, step_open_L, UIC15_L, UIC14_L, UIC9_L, TB0_L, OBB_L, LAT_L, Failure_rate_L, fail_type_a_L, fail_type_b_L, oos_l, step_oos_l, burnin_r=(0,0,0), burnin_l=(0,0,0), safe_st_r="0", safe_st_l="0", maint_r=False, maint_l=False, cycles_r=None, cycles_l=None, standstill_R="0", standstill_L="0"):
 
         coach = Element("g")
 
         # Fondo de color burnin — mitad superior (puerta R) y mitad inferior (puerta L)
         bg_r = self._burnin_bg(*burnin_r, maint_r)
         if bg_r:
-            SubElement(coach, "rect", x="0", y="0", width="100", height="50", fill=bg_r, opacity="0.30")
+            SubElement(coach, "rect", x="0", y="0", width="100", height="60", fill=bg_r, opacity="0.30")
         bg_l = self._burnin_bg(*burnin_l, maint_l)
         if bg_l:
-            SubElement(coach, "rect", x="0", y="50", width="100", height="50", fill=bg_l, opacity="0.30")
+            SubElement(coach, "rect", x="0", y="60", width="100", height="60", fill=bg_l, opacity="0.30")
 
-        SubElement(coach, "line", x1="100", y1="0", x2="100", y2="140", stroke="black", **{"stroke-width": "1", "stroke-dasharray": "5, 5"}, opacity="0.35")
-        SubElement(coach, "text", x="50", y="128", **{"text-anchor": "middle", "font-style": "italic", "font-size": "9"}).text = f"Coche {coach_pos+1}: {coach_name}"
+        SubElement(coach, "line", x1="100", y1="5", x2="100", y2="180", stroke="black", **{"stroke-width": "1", "stroke-dasharray": "3, 3"}, opacity="0.35")
+        SubElement(coach, "text", x="50", y="148", **{"text-anchor": "middle", "font-style": "italic", "font-size": "9"}).text = f"Coche {coach_pos+1}: {coach_name}"
 
         # Matriz de modos — Puerta D (arriba)
-        self._mode_grid(coach, safe_st_r, TB0_R, LAT_R, OBB_R, UIC15_R, UIC14_R, x_col1=10, y_row1=10)
+        self._mode_grid(coach, safe_st_r, TB0_R, LAT_R, OBB_R, UIC15_R, UIC14_R, UIC9_R, standstill_R, x_col1=10, y_row1=10)
 
-        SubElement(coach, "line", x1="0", y1="40", x2="5", y2="40", stroke="black", stroke_width="1")
-        SubElement(coach, "line", x1="0", y1="60", x2="5", y2="60", stroke="black", stroke_width="1")
-        SubElement(coach, "line", x1="95", y1="40", x2="100", y2="40", stroke="black", stroke_width="1")
-        SubElement(coach, "line", x1="95", y1="60", x2="100", y2="60", stroke="black", stroke_width="1")
+        SubElement(coach, "line", x1="0", y1="50", x2="5", y2="50", stroke="black", stroke_width="1")
+        SubElement(coach, "line", x1="0", y1="70", x2="5", y2="70", stroke="black", stroke_width="1")
+        SubElement(coach, "line", x1="95", y1="50", x2="100", y2="50", stroke="black", stroke_width="1")
+        SubElement(coach, "line", x1="95", y1="70", x2="100", y2="70", stroke="black", stroke_width="1")
 
-        SubElement(coach, "line", x1="5", y1="40", x2="5", y2="30", stroke="black", stroke_width="1")
-        SubElement(coach, "line", x1="5", y1="60", x2="5", y2="70", stroke="black", stroke_width="1")
-        SubElement(coach, "line", x1="95", y1="40", x2="95", y2="30", stroke="black", stroke_width="1")
-        SubElement(coach, "line", x1="95", y1="60", x2="95", y2="70", stroke="black", stroke_width="1")
+        SubElement(coach, "line", x1="5", y1="50", x2="5", y2="40", stroke="black", stroke_width="1")
+        SubElement(coach, "line", x1="5", y1="70", x2="5", y2="80", stroke="black", stroke_width="1")
+        SubElement(coach, "line", x1="95", y1="50", x2="95", y2="40", stroke="black", stroke_width="1")
+        SubElement(coach, "line", x1="95", y1="70", x2="95", y2="80", stroke="black", stroke_width="1")
 
-        SubElement(coach, "line", x1="5", y1="30", x2="65", y2="30", stroke="black", stroke_width="1")
-        SubElement(coach, "line", x1="5", y1="70", x2="65", y2="70", stroke="black", stroke_width="1")
-        SubElement(coach, "line", x1="85", y1="30", x2="95", y2="30", stroke="black", stroke_width="1")
-        SubElement(coach, "line", x1="85", y1="70", x2="95", y2="70", stroke="black", stroke_width="1")
+        SubElement(coach, "line", x1="5", y1="40", x2="65", y2="40", stroke="black", stroke_width="1")
+        SubElement(coach, "line", x1="5", y1="80", x2="65", y2="80", stroke="black", stroke_width="1")
+        SubElement(coach, "line", x1="85", y1="40", x2="95", y2="40", stroke="black", stroke_width="1")
+        SubElement(coach, "line", x1="85", y1="80", x2="95", y2="80", stroke="black", stroke_width="1")
 
         if int(Failure_rate_R) > 240:
             door_r_off = 1
@@ -4381,71 +4384,78 @@ class DoorsGenerator(QSvgWidget):
 
         # Contador de ciclos burnin (desde el inicio del burnin)
         if cycles_r is not None:
-            SubElement(coach, "text", x="37", y="42",
+            SubElement(coach, "text", x="37", y="52",
                        **{"text-anchor": "middle", "font-size": "7", "font-family": "sans-serif", "fill": "#005080"}
                        ).text = f"Ciclos: {cycles_r[0]}"
         if cycles_l is not None:
-            SubElement(coach, "text", x="37", y="60",
+            SubElement(coach, "text", x="37", y="70",
                        **{"text-anchor": "middle", "font-size": "7", "font-family": "sans-serif", "fill": "#005080"}
                        ).text = f"Ciclos: {cycles_l[0]}"
+            
+        SubElement(coach, "text", x="15", y="52",
+                       **{"text-anchor": "middle", "font-size": "7", "font-family": "sans-serif", "fill": "#664400"}
+                       ).text = "D"
+        SubElement(coach, "text", x="15", y="72",
+                       **{"text-anchor": "middle", "font-size": "7", "font-family": "sans-serif", "fill": "#664400"}
+                       ).text = "I"
 
         # Puerta
-        upper_door = SubElement(coach, "g", transform="translate(75, 30)")
-        lower_door = SubElement(coach, "g", transform="translate(75, 70)")
+        upper_door = SubElement(coach, "g", transform="translate(75, 40)")
+        lower_door = SubElement(coach, "g", transform="translate(75, 80)")
         upper_door.append(self.create_door_svg(0, int(closed_and_locked_R), int(step_closed_R), int(door_open_R), int(step_open_R), int(fail_type_a_R), int(fail_type_b_R), int(door_r_off), "R", int(oos_r), int(step_oos_r), x_offset=0, label=""))
         lower_door.append(self.create_door_svg(0, int(closed_and_locked_L), int(step_closed_L), int(door_open_L), int(step_open_L), int(fail_type_a_L), int(fail_type_b_L), int(door_l_off), "L", int(oos_l), int(step_oos_l), x_offset=0, label=""))
 
         # Matriz de modos — Puerta I (abajo)
-        self._mode_grid(coach, safe_st_l, TB0_L, LAT_L, OBB_L, UIC15_L, UIC14_L, x_col1=10, y_row1=86)
+        self._mode_grid(coach, safe_st_l, TB0_L, LAT_L, OBB_L, UIC15_L, UIC14_L,  UIC9_L, standstill_L, x_col1=10, y_row1=96)
 
         # Indicador de Modo Mantenimiento
         if maint_r or maint_l:
             maint_text = "Mantenimiento D+I" if (maint_r and maint_l) else ("Mantenimiento D" if maint_r else "Mantenimiento I")
-            SubElement(coach, "rect", x="2", y="103", width="96", height="14",
+            SubElement(coach, "rect", x="2", y="123", width="96", height="14",
                        fill="#FFD580", stroke="#CC9900", **{"stroke-width": "0.5"})
-            SubElement(coach, "text", x="50", y="113",
+            SubElement(coach, "text", x="50", y="133",
                        **{"text-anchor": "middle", "font-size": "7", "font-family": "sans-serif", "fill": "#664400"}
                        ).text = maint_text
         else:
             maint_text = ("Modo Normal")
             # SubElement(coach, "rect", x="2", y="103", width="96", height="14",
             #            fill="#664400", stroke="#CC9900", **{"stroke-width": "0.5"})
-            SubElement(coach, "text", x="50", y="113",
+            SubElement(coach, "text", x="50", y="133",
                        **{"text-anchor": "middle", "font-size": "7", "font-family": "sans-serif", "fill": "#664400"}
                        ).text = maint_text
 
         return coach
 
-    def pmr_coach(self, coach_name, coach_pos, closed_and_locked_R, step_closed_R, door_open_R, step_open_R, UIC15_R, UIC14_R, UIC9_R, TB0_R, OBB_R, LAT_R, Failure_rate_R, fail_type_a_R, fail_type_b_R, oos_r, step_oos_r, closed_and_locked_L, step_closed_L, door_open_L, step_open_L, UIC15_L, UIC14_L, UIC9_L, TB0_L, OBB_L, LAT_L, Failure_rate_L, fail_type_a_L, fail_type_b_L, oos_l, step_oos_l, burnin_r=(0,0,0), burnin_l=(0,0,0), safe_st_r="0", safe_st_l="0", maint_r=False, maint_l=False, cycles_r=None, cycles_l=None):
+    def pmr_coach(self, coach_name, coach_pos, closed_and_locked_R, step_closed_R, door_open_R, step_open_R, UIC15_R, UIC14_R, UIC9_R, TB0_R, OBB_R, LAT_R, Failure_rate_R, fail_type_a_R, fail_type_b_R, oos_r, step_oos_r, closed_and_locked_L, step_closed_L, door_open_L, step_open_L, UIC15_L, UIC14_L, UIC9_L, TB0_L, OBB_L, LAT_L, Failure_rate_L, fail_type_a_L, fail_type_b_L, oos_l, step_oos_l, burnin_r=(0,0,0), burnin_l=(0,0,0), safe_st_r="0", safe_st_l="0", maint_r=False, maint_l=False, cycles_r=None, cycles_l=None, standstill_R="0", standstill_L="0"):
 
         coach = Element("g")
 
         bg_r = self._burnin_bg(*burnin_r, maint_r)
         if bg_r:
-            SubElement(coach, "rect", x="0", y="0", width="100", height="50", fill=bg_r, opacity="0.30")
+            SubElement(coach, "rect", x="0", y="0", width="100", height="60", fill=bg_r, opacity="0.30")
         bg_l = self._burnin_bg(*burnin_l, maint_l)
         if bg_l:
-            SubElement(coach, "rect", x="0", y="50", width="100", height="50", fill=bg_l, opacity="0.30")
+            SubElement(coach, "rect", x="0", y="60", width="100", height="60", fill=bg_l, opacity="0.30")
 
-        SubElement(coach, "line", x1="100", y1="0", x2="100", y2="140", stroke="black", **{"stroke-width": "1", "stroke-dasharray": "5, 5"}, opacity="0.35")
-        SubElement(coach, "text", x="50", y="128", **{"text-anchor": "middle", "font-style": "italic", "font-size": "9"}).text = f"Coche {coach_pos+1}: {coach_name}"
+        SubElement(coach, "line", x1="100", y1="5", x2="100", y2="180", stroke="black", **{"stroke-width": "1", "stroke-dasharray": "3, 3"}, opacity="0.35")
+        SubElement(coach, "text", x="50", y="148", **{"text-anchor": "middle", "font-style": "italic", "font-size": "9"}).text = f"Coche {coach_pos+1}: {coach_name}"
 
-        self._mode_grid(coach, safe_st_r, TB0_R, LAT_R, OBB_R, UIC15_R, UIC14_R, x_col1=10, y_row1=10)
+        self._mode_grid(coach, safe_st_r, TB0_R, LAT_R, OBB_R, UIC15_R, UIC14_R, UIC9_R, standstill_R, x_col1=10, y_row1=10)
 
-        SubElement(coach, "line", x1="0", y1="40", x2="5", y2="40", stroke="black", stroke_width="1")
-        SubElement(coach, "line", x1="0", y1="60", x2="5", y2="60", stroke="black", stroke_width="1")
-        SubElement(coach, "line", x1="95", y1="40", x2="100", y2="40", stroke="black", stroke_width="1")
-        SubElement(coach, "line", x1="95", y1="60", x2="100", y2="60", stroke="black", stroke_width="1")
+        SubElement(coach, "line", x1="0", y1="50", x2="5", y2="50", stroke="black", stroke_width="1")
+        SubElement(coach, "line", x1="0", y1="70", x2="5", y2="70", stroke="black", stroke_width="1")
+        SubElement(coach, "line", x1="95", y1="50", x2="100", y2="50", stroke="black", stroke_width="1")
+        SubElement(coach, "line", x1="95", y1="70", x2="100", y2="70", stroke="black", stroke_width="1")
 
-        SubElement(coach, "line", x1="5", y1="40", x2="5", y2="30", stroke="black", stroke_width="1")
-        SubElement(coach, "line", x1="5", y1="60", x2="5", y2="70", stroke="black", stroke_width="1")
-        SubElement(coach, "line", x1="95", y1="40", x2="95", y2="30", stroke="black", stroke_width="1")
-        SubElement(coach, "line", x1="95", y1="60", x2="95", y2="70", stroke="black", stroke_width="1")
+        SubElement(coach, "line", x1="5", y1="50", x2="5", y2="40", stroke="black", stroke_width="1")
+        SubElement(coach, "line", x1="5", y1="70", x2="5", y2="80", stroke="black", stroke_width="1")
+        SubElement(coach, "line", x1="95", y1="50", x2="95", y2="40", stroke="black", stroke_width="1")
+        SubElement(coach, "line", x1="95", y1="70", x2="95", y2="80", stroke="black", stroke_width="1")
 
-        SubElement(coach, "line", x1="5", y1="30", x2="65", y2="30", stroke="black", stroke_width="1")
-        SubElement(coach, "line", x1="5", y1="70", x2="65", y2="70", stroke="black", stroke_width="1")
-        SubElement(coach, "line", x1="85", y1="30", x2="95", y2="30", stroke="black", stroke_width="1")
-        SubElement(coach, "line", x1="85", y1="70", x2="95", y2="70", stroke="black", stroke_width="1")
+        SubElement(coach, "line", x1="5", y1="40", x2="65", y2="40", stroke="black", stroke_width="1")
+        SubElement(coach, "line", x1="5", y1="80", x2="65", y2="80", stroke="black", stroke_width="1")
+        SubElement(coach, "line", x1="85", y1="40", x2="95", y2="40", stroke="black", stroke_width="1")
+        SubElement(coach, "line", x1="85", y1="80", x2="95", y2="80", stroke="black", stroke_width="1")
 
         if int(Failure_rate_R) > 240:
             door_r_off = 1
@@ -4458,96 +4468,103 @@ class DoorsGenerator(QSvgWidget):
 
         # Contador de ciclos burnin — PMR muestra puerta (Pta) y peldaño (Ped)
         if cycles_r is not None:
-            SubElement(coach, "text", x="37", y="38",
+            SubElement(coach, "text", x="37", y="48",
                        **{"text-anchor": "middle", "font-size": "7", "font-family": "sans-serif", "fill": "#005080"}
                        ).text = f"Pta: {cycles_r[0]}"
-            SubElement(coach, "text", x="37", y="46",
+            SubElement(coach, "text", x="37", y="56",
                        **{"text-anchor": "middle", "font-size": "7", "font-family": "sans-serif", "fill": "#005080"}
                        ).text = f"Ped: {cycles_r[1]}"
         if cycles_l is not None:
-            SubElement(coach, "text", x="37", y="57",
+            SubElement(coach, "text", x="37", y="67",
                        **{"text-anchor": "middle", "font-size": "7", "font-family": "sans-serif", "fill": "#005080"}
                        ).text = f"Pta: {cycles_l[0]}"
-            SubElement(coach, "text", x="37", y="65",
+            SubElement(coach, "text", x="37", y="75",
                        **{"text-anchor": "middle", "font-size": "7", "font-family": "sans-serif", "fill": "#005080"}
                        ).text = f"Ped: {cycles_l[1]}"
 
-        upper_door = SubElement(coach, "g", transform="translate(75, 30)")
-        lower_door = SubElement(coach, "g", transform="translate(75, 70)")
+        upper_door = SubElement(coach, "g", transform="translate(75, 40)")
+        lower_door = SubElement(coach, "g", transform="translate(75, 80)")
         upper_door.append(self.create_door_svg(1, int(closed_and_locked_R), int(step_closed_R), int(door_open_R), int(step_open_R), int(fail_type_a_R), int(fail_type_b_R), int(door_r_off), "R", int(oos_r), int(step_oos_r), x_offset=0, label=""))
         lower_door.append(self.create_door_svg(1, int(closed_and_locked_L), int(step_closed_L), int(door_open_L), int(step_open_L), int(fail_type_a_L), int(fail_type_b_L), int(door_l_off), "L", int(oos_l), int(step_oos_l), x_offset=0, label=""))
 
-        self._mode_grid(coach, safe_st_l, TB0_L, LAT_L, OBB_L, UIC15_L, UIC14_L, x_col1=10, y_row1=86)
+        self._mode_grid(coach, safe_st_l, TB0_L, LAT_L, OBB_L, UIC15_L, UIC14_L, UIC9_L, standstill_L, x_col1=10, y_row1=96)
 
         if maint_r or maint_l:
             maint_text = "Mantenimiento D+I" if (maint_r and maint_l) else ("Mantenimiento D" if maint_r else "Mantenimiento I")
-            SubElement(coach, "rect", x="2", y="103", width="96", height="14",
+            SubElement(coach, "rect", x="2", y="123", width="96", height="14",
                        fill="#FFD580", stroke="#CC9900", **{"stroke-width": "0.5"})
-            SubElement(coach, "text", x="50", y="113",
+            SubElement(coach, "text", x="50", y="133",
                        **{"text-anchor": "middle", "font-size": "7", "font-family": "sans-serif", "fill": "#664400"}
                        ).text = maint_text
         else:
             maint_text = ("Modo Normal")
             # SubElement(coach, "rect", x="2", y="103", width="96", height="14",
             #            fill="#664400", stroke="#CC9900", **{"stroke-width": "0.5"})
-            SubElement(coach, "text", x="50", y="113",
+            SubElement(coach, "text", x="50", y="133",
                        **{"text-anchor": "middle", "font-size": "7", "font-family": "sans-serif", "fill": "#664400"}
                        ).text = maint_text
-            
+
+        SubElement(coach, "text", x="15", y="52",
+                       **{"text-anchor": "middle", "font-size": "7", "font-family": "sans-serif", "fill": "#664400"}
+                       ).text = "D"
+        SubElement(coach, "text", x="15", y="72",
+                       **{"text-anchor": "middle", "font-size": "7", "font-family": "sans-serif", "fill": "#664400"}
+                       ).text = "I"           
+
         return coach
 
     def cabcar_coach(self, coach_name, coach_pos):
 
         coach = Element("g")
 
-        SubElement(coach, "line", x1="100", y1="0", x2="100", y2="130", stroke="black", **{"stroke-width": "1", "stroke-dasharray": "5, 5"}, opacity="0.35")
-        SubElement(coach, "text", x="50", y="128", **{"text-anchor": "middle", "font-style": "italic", "font-size": "9"}).text = f"Coche {coach_pos+1}: {coach_name}"
+        SubElement(coach, "line", x1="100", y1="5", x2="100", y2="180", stroke="black", **{"stroke-width": "1", "stroke-dasharray": "3, 3"}, opacity="0.35")
+        SubElement(coach, "text", x="50", y="148", **{"text-anchor": "middle", "font-style": "italic", "font-size": "9"}).text = f"Coche {coach_pos+1}: {coach_name}"
         
-        SubElement(coach, "line", x1="0", y1="40", x2="5", y2="40", stroke="black", stroke_width="1") #Líneas muelles 
-        SubElement(coach, "line", x1="0", y1="60", x2="5", y2="60", stroke="black", stroke_width="1") #Líneas muelles
+        SubElement(coach, "line", x1="0", y1="50", x2="5", y2="50", stroke="black", stroke_width="1") #Líneas muelles 
+        SubElement(coach, "line", x1="0", y1="70", x2="5", y2="70", stroke="black", stroke_width="1") #Líneas muelles
         
-        SubElement(coach, "line", x1="5", y1="40", x2="5", y2="30", stroke="black", stroke_width="1") #Líneas muelles
-        SubElement(coach, "line", x1="5", y1="60", x2="5", y2="70", stroke="black", stroke_width="1") #Líneas muelles
+        SubElement(coach, "line", x1="5", y1="50", x2="5", y2="40", stroke="black", stroke_width="1") #Líneas muelles
+        SubElement(coach, "line", x1="5", y1="70", x2="5", y2="80", stroke="black", stroke_width="1") #Líneas muelles
 
-        SubElement(coach, "line", x1="5", y1="30", x2="65", y2="30", stroke="black", stroke_width="1") #Líneas horizontales
-        SubElement(coach, "line", x1="5", y1="70", x2="65", y2="70", stroke="black", stroke_width="1") #Líneas horizontales
+        SubElement(coach, "line", x1="5", y1="40", x2="65", y2="40", stroke="black", stroke_width="1") #Líneas horizontales
+        SubElement(coach, "line", x1="5", y1="80", x2="65", y2="80", stroke="black", stroke_width="1") #Líneas horizontales
 
-        SubElement(coach, "line", x1="65", y1="30", x2="95", y2="45", stroke="black", stroke_width="1") #Líneas diagonales
-        SubElement(coach, "line", x1="65", y1="70", x2="95", y2="55", stroke="black", stroke_width="1") #Líneas diagonales
+        SubElement(coach, "line", x1="65", y1="40", x2="95", y2="55", stroke="black", stroke_width="1") #Líneas diagonales
+        SubElement(coach, "line", x1="65", y1="80", x2="95", y2="65", stroke="black", stroke_width="1") #Líneas diagonales
 
-        SubElement(coach, "line", x1="95", y1="45", x2="95", y2="55", stroke="black", stroke_width="1") #Líneas diagonales
+        SubElement(coach, "line", x1="95", y1="55", x2="95", y2="65", stroke="black", stroke_width="1") #Líneas diagonales
 
 
         return coach
 
-    def end_coach(self, coach_name, coach_pos, closed_and_locked_R, step_closed_R, door_open_R, step_open_R, UIC15_R, UIC14_R, UIC9_R, TB0_R, OBB_R, LAT_R, Failure_rate_R, fail_type_a_R, fail_type_b_R, oos_r, step_oos_r, closed_and_locked_L, step_closed_L, door_open_L, step_open_L, UIC15_L, UIC14_L, UIC9_L, TB0_L, OBB_L, LAT_L, Failure_rate_L, fail_type_a_L, fail_type_b_L, oos_l, step_oos_l, burnin_r=(0,0,0), burnin_l=(0,0,0), safe_st_r="0", safe_st_l="0", maint_r=False, maint_l=False, cycles_r=None, cycles_l=None):
+    def end_coach(self, coach_name, coach_pos, closed_and_locked_R, step_closed_R, door_open_R, step_open_R, UIC15_R, UIC14_R, UIC9_R, TB0_R, OBB_R, LAT_R, Failure_rate_R, fail_type_a_R, fail_type_b_R, oos_r, step_oos_r, closed_and_locked_L, step_closed_L, door_open_L, step_open_L, UIC15_L, UIC14_L, UIC9_L, TB0_L, OBB_L, LAT_L, Failure_rate_L, fail_type_a_L, fail_type_b_L, oos_l, step_oos_l, burnin_r=(0,0,0), burnin_l=(0,0,0), safe_st_r="0", safe_st_l="0", maint_r=False, maint_l=False, cycles_r=None, cycles_l=None, standstill_R="0", standstill_L="0"):
 
         coach = Element("g")
 
         bg_r = self._burnin_bg(*burnin_r, maint_r)
         if bg_r:
-            SubElement(coach, "rect", x="0", y="0", width="100", height="50", fill=bg_r, opacity="0.30")
+            SubElement(coach, "rect", x="0", y="0", width="100", height="60", fill=bg_r, opacity="0.30")
         bg_l = self._burnin_bg(*burnin_l, maint_l)
         if bg_l:
-            SubElement(coach, "rect", x="0", y="50", width="100", height="50", fill=bg_l, opacity="0.30")
+            SubElement(coach, "rect", x="0", y="60", width="100", height="60", fill=bg_l, opacity="0.30")
 
-        SubElement(coach, "line", x1="100", y1="0", x2="100", y2="140", stroke="black", **{"stroke-width": "1", "stroke-dasharray": "5, 5"}, opacity="0.35")
-        SubElement(coach, "text", x="50", y="128", **{"text-anchor": "middle", "font-style": "italic", "font-size": "9"}).text = f"Coche {coach_pos+1}: {coach_name}"
+        SubElement(coach, "line", x1="100", y1="5", x2="100", y2="180", stroke="black", **{"stroke-width": "1", "stroke-dasharray": "3, 3"}, opacity="0.35")
+        SubElement(coach, "text", x="50", y="148", **{"text-anchor": "middle", "font-style": "italic", "font-size": "9"}).text = f"Coche {coach_pos+1}: {coach_name}"
 
-        self._mode_grid(coach, safe_st_r, TB0_R, LAT_R, OBB_R, UIC15_R, UIC14_R, x_col1=10, y_row1=10)
+        self._mode_grid(coach, safe_st_r, TB0_R, LAT_R, OBB_R, UIC15_R, UIC14_R, UIC9_R, standstill_R, x_col1=10, y_row1=10)
 
-        SubElement(coach, "line", x1="95", y1="40", x2="100", y2="40", stroke="black", stroke_width="1")
-        SubElement(coach, "line", x1="95", y1="60", x2="100", y2="60", stroke="black", stroke_width="1")
+        SubElement(coach, "line", x1="95", y1="50", x2="100", y2="50", stroke="black", stroke_width="1")
+        SubElement(coach, "line", x1="95", y1="70", x2="100", y2="70", stroke="black", stroke_width="1")
 
-        SubElement(coach, "line", x1="95", y1="40", x2="95", y2="30", stroke="black", stroke_width="1")
-        SubElement(coach, "line", x1="95", y1="60", x2="95", y2="70", stroke="black", stroke_width="1")
+        SubElement(coach, "line", x1="95", y1="50", x2="95", y2="40", stroke="black", stroke_width="1")
+        SubElement(coach, "line", x1="95", y1="70", x2="95", y2="80", stroke="black", stroke_width="1")
 
-        SubElement(coach, "line", x1="95", y1="30", x2="45", y2="30", stroke="black", stroke_width="1")
-        SubElement(coach, "line", x1="5", y1="30", x2="30", y2="30", stroke="black", stroke_width="1")
-        SubElement(coach, "line", x1="95", y1="70", x2="45", y2="70", stroke="black", stroke_width="1")
-        SubElement(coach, "line", x1="5", y1="70", x2="30", y2="70", stroke="black", stroke_width="1")
+        SubElement(coach, "line", x1="95", y1="40", x2="45", y2="40", stroke="black", stroke_width="1")
+        SubElement(coach, "line", x1="5", y1="40", x2="30", y2="40", stroke="black", stroke_width="1")
+        SubElement(coach, "line", x1="95", y1="80", x2="45", y2="80", stroke="black", stroke_width="1")
+        SubElement(coach, "line", x1="5", y1="80", x2="30", y2="80", stroke="black", stroke_width="1")
 
-        SubElement(coach, "line", x1="5", y1="70", x2="5", y2="30", stroke="black", stroke_width="1")
+        SubElement(coach, "line", x1="5", y1="80", x2="5", y2="40", stroke="black", stroke_width="1")
 
         if int(Failure_rate_R) > 240:
             door_r_off = 1
@@ -4560,57 +4577,64 @@ class DoorsGenerator(QSvgWidget):
 
         # Contador de ciclos burnin (desde el inicio del burnin)
         if cycles_r is not None:
-            SubElement(coach, "text", x="37", y="42",
+            SubElement(coach, "text", x="37", y="52",
                        **{"text-anchor": "middle", "font-size": "7", "font-family": "sans-serif", "fill": "#005080"}
                        ).text = f"Ciclos: {cycles_r[0]}"
         if cycles_l is not None:
-            SubElement(coach, "text", x="37", y="60",
+            SubElement(coach, "text", x="37", y="70",
                        **{"text-anchor": "middle", "font-size": "7", "font-family": "sans-serif", "fill": "#005080"}
                        ).text = f"Ciclos: {cycles_l[0]}"
 
-        upper_door = SubElement(coach, "g", transform="translate(35, 30)")
-        lower_door = SubElement(coach, "g", transform="translate(35, 70)")
+        upper_door = SubElement(coach, "g", transform="translate(35, 40)")
+        lower_door = SubElement(coach, "g", transform="translate(35, 80)")
         upper_door.append(self.create_door_svg(0, int(closed_and_locked_R), int(step_closed_R), int(door_open_R), int(step_open_R), int(fail_type_a_R), int(fail_type_b_R), int(door_r_off), "R", int(oos_r), int(step_oos_r), x_offset=0, label=""))
         lower_door.append(self.create_door_svg(0, int(closed_and_locked_L), int(step_closed_L), int(door_open_L), int(step_open_L), int(fail_type_a_L), int(fail_type_b_L), int(door_l_off), "L", int(oos_l), int(step_oos_l), x_offset=0, label=""))
 
-        self._mode_grid(coach, safe_st_l, TB0_L, LAT_L, OBB_L, UIC15_L, UIC14_L, x_col1=10, y_row1=86)
+        self._mode_grid(coach, safe_st_l, TB0_L, LAT_L, OBB_L, UIC15_L, UIC14_L, UIC9_L, standstill_L, x_col1=10, y_row1=96)
 
         if maint_r or maint_l:
             maint_text = "Mantenimiento D+I" if (maint_r and maint_l) else ("Mantenimiento D" if maint_r else "Mantenimiento I")
-            SubElement(coach, "rect", x="2", y="103", width="96", height="14",
+            SubElement(coach, "rect", x="2", y="123", width="96", height="14",
                        fill="#FFD580", stroke="#CC9900", **{"stroke-width": "0.5"})
-            SubElement(coach, "text", x="50", y="113",
+            SubElement(coach, "text", x="50", y="133",
                        **{"text-anchor": "middle", "font-size": "7", "font-family": "sans-serif", "fill": "#664400"}
                        ).text = maint_text
         else:
             maint_text = ("Modo Normal")
             # SubElement(coach, "rect", x="2", y="103", width="96", height="14",
             #            fill="#664400", stroke="#CC9900", **{"stroke-width": "0.5"})
-            SubElement(coach, "text", x="50", y="113",
+            SubElement(coach, "text", x="50", y="133",
                        **{"text-anchor": "middle", "font-size": "7", "font-family": "sans-serif", "fill": "#664400"}
                        ).text = maint_text
             
+
+        SubElement(coach, "text", x="15", y="52",
+                       **{"text-anchor": "middle", "font-size": "7", "font-family": "sans-serif", "fill": "#664400"}
+                       ).text = "D"
+        SubElement(coach, "text", x="15", y="72",
+                       **{"text-anchor": "middle", "font-size": "7", "font-family": "sans-serif", "fill": "#664400"}
+                       ).text = "I"
         return coach
 
     def family_coach(self, coach_name, coach_pos):
 
         coach = Element("g")
 
-        SubElement(coach, "line", x1="100", y1="0", x2="100", y2="140", stroke="black", **{"stroke-width": "1", "stroke-dasharray": "5, 5"}, opacity="0.35")
-        SubElement(coach, "text", x="50", y="128", **{"text-anchor": "middle", "font-style": "italic", "font-size": "9"}).text = f"Coche {coach_pos+1}: {coach_name}"
+        SubElement(coach, "line", x1="100", y1="5", x2="100", y2="180", stroke="black", **{"stroke-width": "1", "stroke-dasharray": "3, 3"}, opacity="0.35")
+        SubElement(coach, "text", x="50", y="148", **{"text-anchor": "middle", "font-style": "italic", "font-size": "9"}).text = f"Coche {coach_pos+1}: {coach_name}"
 
-        SubElement(coach, "line", x1="0", y1="40", x2="5", y2="40", stroke="black", stroke_width="1") #Líneas muelles
-        SubElement(coach, "line", x1="0", y1="60", x2="5", y2="60", stroke="black", stroke_width="1") #Líneas muelles
-        SubElement(coach, "line", x1="95", y1="40", x2="100", y2="40", stroke="black", stroke_width="1") #Líneas muelles 
-        SubElement(coach, "line", x1="95", y1="60", x2="100", y2="60", stroke="black", stroke_width="1") #Líneas muelles
+        SubElement(coach, "line", x1="0", y1="50", x2="5", y2="50", stroke="black", stroke_width="1") #Líneas muelles
+        SubElement(coach, "line", x1="0", y1="70", x2="5", y2="70", stroke="black", stroke_width="1") #Líneas muelles
+        SubElement(coach, "line", x1="95", y1="50", x2="100", y2="50", stroke="black", stroke_width="1") #Líneas muelles 
+        SubElement(coach, "line", x1="95", y1="70", x2="100", y2="70", stroke="black", stroke_width="1") #Líneas muelles
         
-        SubElement(coach, "line", x1="5", y1="40", x2="5", y2="30", stroke="black", stroke_width="1") #Líneas muelles
-        SubElement(coach, "line", x1="5", y1="60", x2="5", y2="70", stroke="black", stroke_width="1") #Líneas muelles
-        SubElement(coach, "line", x1="95", y1="40", x2="95", y2="30", stroke="black", stroke_width="1") #Líneas muelles
-        SubElement(coach, "line", x1="95", y1="60", x2="95", y2="70", stroke="black", stroke_width="1") #Líneas muelles
+        SubElement(coach, "line", x1="5", y1="50", x2="5", y2="40", stroke="black", stroke_width="1") #Líneas muelles
+        SubElement(coach, "line", x1="5", y1="70", x2="5", y2="80", stroke="black", stroke_width="1") #Líneas muelles
+        SubElement(coach, "line", x1="95", y1="50", x2="95", y2="40", stroke="black", stroke_width="1") #Líneas muelles
+        SubElement(coach, "line", x1="95", y1="70", x2="95", y2="80", stroke="black", stroke_width="1") #Líneas muelles
 
-        SubElement(coach, "line", x1="5", y1="30", x2="95", y2="30", stroke="black", stroke_width="1") #Líneas horizontales
-        SubElement(coach, "line", x1="5", y1="70", x2="95", y2="70", stroke="black", stroke_width="1") #Líneas horizontales
+        SubElement(coach, "line", x1="5", y1="40", x2="95", y2="40", stroke="black", stroke_width="1") #Líneas horizontales
+        SubElement(coach, "line", x1="5", y1="80", x2="95", y2="80", stroke="black", stroke_width="1") #Líneas horizontales
 
         return coach
 
@@ -4619,13 +4643,13 @@ class DoorsGenerator(QSvgWidget):
 
         coach = Element("g")
 
-        SubElement(coach, "rect", x="0", y="0", width="100", height="130", fill="black", opacity="0.5")
-        SubElement(coach, "line", x1="100", y1="0", x2="100", y2="130",
-                   stroke="black", **{"stroke-width": "1", "stroke-dasharray": "5, 5"}, opacity="0.35")
-        SubElement(coach, "text", x="50", y="123",
+        SubElement(coach, "rect", x="0", y="0", width="100", height="150", fill="black", opacity="0.5")
+        SubElement(coach, "line", x1="100", y1="0", x2="100", y2="180",
+                   stroke="black", **{"stroke-width": "1", "stroke-dasharray": "3, 3"}, opacity="0.35")
+        SubElement(coach, "text", x="50", y="143",
                    **{"text-anchor": "middle", "font-style": "italic", "font-size": "9"}
                    ).text = f"Coche {index+1}"
-        SubElement(coach, "text", x="50", y="65", fill="white",
+        SubElement(coach, "text", x="50", y="75", fill="white",
                    **{"text-anchor": "middle", "dominant-baseline": "central",
                       "font-style": "italic", "font-size": "18", "transform": "rotate(-90, 50, 65)"}
                    ).text = "OFFLINE"
@@ -5395,7 +5419,7 @@ class Door_Diag_Window(DiagnosticWindow):
                     coach_label += f" ({coach_type_str})"
 
                 # ¿Coche posterior al PMR? → D/I visual están cruzados respecto al físico
-                post_pmr = pmr_idx is not None and coach_col > pmr_idx
+                post_pmr = pmr_idx is not None and coach_col >= pmr_idx
 
                 for var_full, value in diag_vals.items():
                     if any(telegram in var_full for telegram in self.right_side_telegrams):
@@ -5924,9 +5948,11 @@ class BurninWorker(QObject):
         for eid, side in self.selected_doors:
             if self._cancel:
                 self.log.emit("Cancelado.")
+                self.finished.emit(False)
                 return
             self._write(eid, f"{self._can_ep(side)}.bSW_MaintMode", 1)
         self.log.emit("MaintMode activado. Esperando Burn-In Ready…")
+        self.finished.emit(True)
 
     def start_burnin(self):
         """Paso 2: escribe N3_par y activa BurnInOn en las puertas seleccionadas."""
@@ -5998,6 +6024,8 @@ class BurninPanel(QWidget):
         self._last_doors_vars = []
         self._completed_doors = {}      # {(eid, side): "OK"|"NOK"} cargado desde log
 
+        self._current_action = None
+        self._burnin_running = False
         self._build_ui()
         self._collapse()
 
@@ -6180,20 +6208,44 @@ class BurninPanel(QWidget):
         muestra el botón "Pendientes".
         """
         self._completed_doors = dict(completed)
-        for (eid, side), result in self._completed_doors.items():
-            cb = self._checkboxes.get((eid, side))
+
+        for (eid, physical_side), result in self._completed_doors.items():
+            try:
+                col = self.endpoint_ids.index(eid)
+            except ValueError:
+                continue
+        
+            if self._pmr_index is not None and col >= self._pmr_index:
+                visual_side = "L" if physical_side == "R" else "R"
+            else:
+                visual_side = physical_side
+        
+            cb = self._checkboxes.get((eid, visual_side))
             if cb is None:
                 continue
             color = "#4CAF50" if result == "OK" else "#E57373"
             cb.setStyleSheet(
                 f"QCheckBox {{ background-color: {color}; border-radius: 3px; padding: 1px 3px; }}"
             )
+
         self._btn_pending.setVisible(bool(self._completed_doors))
 
     def _select_pending(self):
         """Marca puertas sin resultado OK (pendientes o NOK que hay que repetir)."""
-        for (eid, side), cb in self._checkboxes.items():
-            cb.setChecked(self._completed_doors.get((eid, side)) != "OK")
+        for (eid, visual_side), cb in self._checkboxes.items():
+
+            try:
+                col = self.endpoint_ids.index(eid)
+            except ValueError:
+                physical_side = visual_side
+            
+            else: 
+                if self._pmr_index is not None and col >= self._pmr_index:
+                    physical_side = "L" if visual_side == "R" else "R"
+                else: 
+                    physical_side = visual_side
+
+            cb.setChecked(self._completed_doors.get((eid, physical_side)) != "OK")
 
     def _selected_doors(self) -> list:
         """Devuelve lista de (endpoint_id, physical_side) para los checkboxes marcados.
@@ -6203,7 +6255,7 @@ class BurninPanel(QWidget):
             for visual_side in ("R", "L"):
                 cb = self._checkboxes.get((eid, visual_side))
                 if cb and cb.isChecked():
-                    if self._pmr_index is not None and col > self._pmr_index:
+                    if self._pmr_index is not None and col >= self._pmr_index:
                         physical_side = "L" if visual_side == "R" else "R"
                     else:
                         physical_side = visual_side
@@ -6255,11 +6307,12 @@ class BurninPanel(QWidget):
         if not selected:
             self._log.appendPlainText("⚠ No hay puertas seleccionadas.")
             return
-        self._maint_active = set(selected)
+        self._maint_active |= set(selected)
         # self._dot_maint.setStyleSheet("color: #00BB00; font-size: 14px;")
         self.maint_changed.emit(frozenset(self._maint_active))
         self._start_worker_action("maint", selected)
         self._btn_maint.setEnabled(False)
+        self._btn_burnin.setEnabled(False)
         self._btn_stop.setEnabled(True)
 
     def _on_start_burnin(self):
@@ -6304,10 +6357,14 @@ class BurninPanel(QWidget):
         n3_par = self._slider_cycles.value()
         self._start_worker_action("burnin", selected, n3_par=n3_par)
         self._btn_burnin.setEnabled(False)
+        self._burnin_running = True
+        self._btn_maint.setEnabled(False)
+        self._btn_stop.setEnabled(True)
 
     def _on_stop(self):
         selected = self._selected_doors()
         self._maint_active = set()
+        self._burnin_running = False
         # self._dot_maint.setStyleSheet("color: #AAAAAA; font-size: 14px;")
         self.maint_changed.emit(frozenset())
         self.burnin_baseline.emit({(eid, side): None for eid, side in selected})
@@ -6324,6 +6381,7 @@ class BurninPanel(QWidget):
             self._thread.quit()
             self._thread.wait(2000)
 
+        self._current_action = action
         self._worker = BurninWorker(selected, self.endpoint_clients, n3_par=n3_par)
         self._thread = QThread()
         self._worker.moveToThread(self._thread)
@@ -6336,6 +6394,19 @@ class BurninPanel(QWidget):
     def _on_worker_finished(self, success: bool):
         if self._thread:
             self._thread.quit()
+            self._thread.wait(1000)
+
+            if self._current_action == "maint":
+                if not self._burnin_running:
+                    self._btn_maint.setEnabled(True)
+                self._btn_stop.setEnabled(bool(self._maint_active) or self._burnin_running)
+            elif self._current_action == "burnin":
+                self._btn_stop.setEnabled(True)
+            elif self._current_action == "stop":
+                self._btn_maint.setEnabled(True)
+                self._btn_burnin.setEnabled(False)
+                self._btn_stop.setEnabled(False)
+            self._current_action = None
 
 class DOORWindow(DiagnosticWindow):
 
@@ -6588,7 +6659,7 @@ class DOORWindow(DiagnosticWindow):
                         "eid": eid, "side": side, "type": BurninLog.ERROR,
                         "cycles_door": err_cycles, "cycles_step": err_cycles // 2,
                         "code": random.choice(["bFaultA", "bFaultB", "bOvertemp"]),
-                        "desc": "Error simulado (DEV_MODE)",
+                        "desc": "Error simulado con texto muy largo para que salte más de una línea, pero muy muy largo, tan largo que veremos como se comporta el software. (DEV_MODE)",
                     })
                     delta += datetime.timedelta(minutes=random.randint(1, 10))
                 # Resultado final: OK 70%, NOK 30%
@@ -6682,7 +6753,7 @@ class DOORWindow(DiagnosticWindow):
         tree = []
         for idx, eid in enumerate(eid_list):
             coach_num = idx + 1
-            post_pmr  = pmr_pos is not None and idx > pmr_pos
+            post_pmr  = pmr_pos is not None and idx >= pmr_pos
 
             # Obtener tipo de coche desde el snapshot en vivo
             type_label = ""
