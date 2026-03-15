@@ -2354,7 +2354,7 @@ class TSCGenerator(QSvgWidget):
         img_h = max(1, int(round(logical_h * scale)))
 
         image = QImage(img_w, img_h, QImage.Format_ARGB32_Premultiplied)
-        image.fill(Qt.transparent)
+        image.fill(Qt.white)
 
         painter = QPainter(image)
         try:
@@ -2371,7 +2371,7 @@ class TSCGenerator(QSvgWidget):
             QMessageBox.information(self, "Éxito", f"Imagen guardada correctamente en:\n{filename}")
         else:
             QMessageBox.critical(self, "Error", f"No se pudo guardar el PNG:\n{filename}")
-            
+
     def create_contact_svg(self, closed, x_offset=0, label=""):
         """
         Representa el estado de un contacto con una etiqueta.
@@ -4156,20 +4156,20 @@ class DoorsGenerator(QSvgWidget):
 
         if coach_type in ['3','4','6','8','9','10']:
                 if pmr_index is not None and index > pmr_index:
-                    coach = self.normal_coach(label, index, closed_n_locked_l, step_closed_l, door_open_l, step_open_l, uic_15_l, uic_14_l, uic_9_l, tbo_mode_l, obb_mode_l, uic_lat_mode_l, failure_rate_l, code_a_l, code_b_l, door_oos_l, step_oos_l, closed_n_locked_r, step_closed_r, door_open_r, step_open_r, uic_15_r, uic_14_r, uic_9_r, tbo_mode_r, obb_mode_r, uic_lat_mode_r, failure_rate_r, code_a_r, code_b_r, door_oos_r, step_oos_r, burnin_r=_burnin_l, burnin_l=_burnin_r, safe_st_r=safe_st_l, safe_st_l=safe_st_r, maint_r=maint_l, maint_l=maint_r, cycles_r=cycles_l, cycles_l=cycles_r, standstill_R=echo_OH_l, standstill_L=echo_OH_r)
+                    coach = self.normal_coach(label, index, closed_n_locked_l, step_closed_l, door_open_l, step_open_l, uic_15_l, uic_14_l, uic_9_l, tbo_mode_l, obb_mode_l, uic_lat_mode_l, failure_rate_l, code_a_l, code_b_l, door_oos_l, step_oos_l, closed_n_locked_r, step_closed_r, door_open_r, step_open_r, uic_15_r, uic_14_r, uic_9_r, tbo_mode_r, obb_mode_r, uic_lat_mode_r, failure_rate_r, code_a_r, code_b_r, door_oos_r, step_oos_r, burnin_r=_burnin_l, burnin_l=_burnin_r, safe_st_r=safe_st_l, safe_st_l=safe_st_r, maint_r=maint_l, maint_l=maint_r, cycles_r=cycles_l, cycles_l=cycles_r, standstill_R=echo_OH_l, standstill_L=echo_OH_r, active_release_r=active_release_l, active_release_l=active_release_r)
                 else:
-                    coach = self.normal_coach(label, index, closed_n_locked_r, step_closed_r, door_open_r, step_open_r, uic_15_r, uic_14_r, uic_9_r, tbo_mode_r, obb_mode_r, uic_lat_mode_r, failure_rate_r, code_a_r, code_b_r, door_oos_r, step_oos_r, closed_n_locked_l, step_closed_l, door_open_l, step_open_l, uic_15_l, uic_14_l, uic_9_l, tbo_mode_l, obb_mode_l, uic_lat_mode_l, failure_rate_l, code_a_l, code_b_l, door_oos_l, step_oos_l, burnin_r=_burnin_r, burnin_l=_burnin_l, safe_st_r=safe_st_r, safe_st_l=safe_st_l, maint_r=maint_r, maint_l=maint_l, cycles_r=cycles_r, cycles_l=cycles_l, standstill_R=echo_OH_r, standstill_L=echo_OH_l)
+                    coach = self.normal_coach(label, index, closed_n_locked_r, step_closed_r, door_open_r, step_open_r, uic_15_r, uic_14_r, uic_9_r, tbo_mode_r, obb_mode_r, uic_lat_mode_r, failure_rate_r, code_a_r, code_b_r, door_oos_r, step_oos_r, closed_n_locked_l, step_closed_l, door_open_l, step_open_l, uic_15_l, uic_14_l, uic_9_l, tbo_mode_l, obb_mode_l, uic_lat_mode_l, failure_rate_l, code_a_l, code_b_l, door_oos_l, step_oos_l, burnin_r=_burnin_r, burnin_l=_burnin_l, safe_st_r=safe_st_r, safe_st_l=safe_st_l, maint_r=maint_r, maint_l=maint_l, cycles_r=cycles_r, cycles_l=cycles_l, standstill_R=echo_OH_r, standstill_L=echo_OH_l, active_release_r=active_release_r, active_release_l=active_release_l)
         elif coach_type in ['5']:
-                coach = self.pmr_coach(label, index, closed_n_locked_l, step_closed_l, door_open_l, step_open_l, uic_15_l, uic_14_l, uic_9_l, tbo_mode_l, obb_mode_l, uic_lat_mode_l, failure_rate_l, code_a_l, code_b_l, door_oos_l, step_oos_l, closed_n_locked_r, step_closed_r, door_open_r, step_open_r, uic_15_r, uic_14_r, uic_9_r, tbo_mode_r, obb_mode_r, uic_lat_mode_r, failure_rate_r, code_a_r, code_b_r, door_oos_r, step_oos_r, burnin_r=_burnin_l, burnin_l=_burnin_r, safe_st_r=safe_st_l, safe_st_l=safe_st_r, maint_r=maint_l, maint_l=maint_r, cycles_r=cycles_l, cycles_l=cycles_r, standstill_R=echo_OH_l, standstill_L=echo_OH_r)
+                coach = self.pmr_coach(label, index, closed_n_locked_l, step_closed_l, door_open_l, step_open_l, uic_15_l, uic_14_l, uic_9_l, tbo_mode_l, obb_mode_l, uic_lat_mode_l, failure_rate_l, code_a_l, code_b_l, door_oos_l, step_oos_l, closed_n_locked_r, step_closed_r, door_open_r, step_open_r, uic_15_r, uic_14_r, uic_9_r, tbo_mode_r, obb_mode_r, uic_lat_mode_r, failure_rate_r, code_a_r, code_b_r, door_oos_r, step_oos_r, burnin_r=_burnin_l, burnin_l=_burnin_r, safe_st_r=safe_st_l, safe_st_l=safe_st_r, maint_r=maint_l, maint_l=maint_r, cycles_r=cycles_l, cycles_l=cycles_r, standstill_R=echo_OH_l, standstill_L=echo_OH_r, active_release_r=active_release_l, active_release_l=active_release_r)
         elif coach_type in ['2'] and self.project == "DB":
                 coach = self.cabcar_coach(label, index)
         elif coach_type in ['7']:
                 coach = self.family_coach(label, index)
         elif coach_type in ['11']:
                 if pmr_index is not None and index > pmr_index:
-                    coach = self.end_coach(label, index, closed_n_locked_l, step_closed_l, door_open_l, step_open_l, uic_15_l, uic_14_l, uic_9_l, tbo_mode_l, obb_mode_l, uic_lat_mode_l, failure_rate_l, code_a_l, code_b_l, door_oos_l, step_oos_l, closed_n_locked_r, step_closed_r, door_open_r, step_open_r, uic_15_r, uic_14_r, uic_9_r, tbo_mode_r, obb_mode_r, uic_lat_mode_r, failure_rate_r, code_a_r, code_b_r, door_oos_r, step_oos_r, burnin_r=_burnin_l, burnin_l=_burnin_r, safe_st_r=safe_st_l, safe_st_l=safe_st_r, maint_r=maint_l, maint_l=maint_r, cycles_r=cycles_l, cycles_l=cycles_r, standstill_R=echo_OH_l, standstill_L=echo_OH_r)
+                    coach = self.end_coach(label, index, closed_n_locked_l, step_closed_l, door_open_l, step_open_l, uic_15_l, uic_14_l, uic_9_l, tbo_mode_l, obb_mode_l, uic_lat_mode_l, failure_rate_l, code_a_l, code_b_l, door_oos_l, step_oos_l, closed_n_locked_r, step_closed_r, door_open_r, step_open_r, uic_15_r, uic_14_r, uic_9_r, tbo_mode_r, obb_mode_r, uic_lat_mode_r, failure_rate_r, code_a_r, code_b_r, door_oos_r, step_oos_r, burnin_r=_burnin_l, burnin_l=_burnin_r, safe_st_r=safe_st_l, safe_st_l=safe_st_r, maint_r=maint_l, maint_l=maint_r, cycles_r=cycles_l, cycles_l=cycles_r, standstill_R=echo_OH_l, standstill_L=echo_OH_r, active_release_r=active_release_l, active_release_l=active_release_r)
                 else:
-                    coach = self.end_coach(label, index, closed_n_locked_r, step_closed_r, door_open_r, step_open_r, uic_15_r, uic_14_r, uic_9_r, tbo_mode_r, obb_mode_r, uic_lat_mode_r, failure_rate_r, code_a_r, code_b_r, door_oos_r, step_oos_r, closed_n_locked_l, step_closed_l, door_open_l, step_open_l, uic_15_l, uic_14_l, uic_9_l, tbo_mode_l, obb_mode_l, uic_lat_mode_l, failure_rate_l, code_a_l, code_b_l, door_oos_l, step_oos_l, burnin_r=_burnin_r, burnin_l=_burnin_l, safe_st_r=safe_st_r, safe_st_l=safe_st_l, maint_r=maint_r, maint_l=maint_l, cycles_r=cycles_r, cycles_l=cycles_l, standstill_R=echo_OH_r, standstill_L=echo_OH_l)
+                    coach = self.end_coach(label, index, closed_n_locked_r, step_closed_r, door_open_r, step_open_r, uic_15_r, uic_14_r, uic_9_r, tbo_mode_r, obb_mode_r, uic_lat_mode_r, failure_rate_r, code_a_r, code_b_r, door_oos_r, step_oos_r, closed_n_locked_l, step_closed_l, door_open_l, step_open_l, uic_15_l, uic_14_l, uic_9_l, tbo_mode_l, obb_mode_l, uic_lat_mode_l, failure_rate_l, code_a_l, code_b_l, door_oos_l, step_oos_l, burnin_r=_burnin_r, burnin_l=_burnin_l, safe_st_r=safe_st_r, safe_st_l=safe_st_l, maint_r=maint_r, maint_l=maint_l, cycles_r=cycles_r, cycles_l=cycles_l, standstill_R=echo_OH_r, standstill_L=echo_OH_l, active_release_r=active_release_r, active_release_l=active_release_l)
         else:
             return self.offline_coach(coach_id, index), False
 
@@ -4194,15 +4194,16 @@ class DoorsGenerator(QSvgWidget):
 
         return ""
 
-    def _mode_grid(self, parent, safe, tb0, lat, obb, uic15, uic14, uic9, standstill, x_col1, y_row1):
+    def _mode_grid(self, parent, safe, tb0, lat, obb, uic15, uic14, uic9, standstill, active_release="0", x_col1=10, y_row1=10):
         """
-        Dibuja una matriz 2x3 de indicadores de modo en el elemento SVG 'parent'.
+        Dibuja una matriz 3x3 de indicadores de modo en el elemento SVG 'parent'.
         Cada celda: círculo coloreado (verde=activo, gris=inactivo) + label negro.
-          Col 1 (x_col1)    : Safe   /  LAT
-          Col 2 (x_col1+28) : TB0    /  OBB
-          Col 3 (x_col1+56) : UIC15  /  UIC14
+          Col 1 (x_col1)    : Safe   /  LAT    / SStill
+          Col 2 (x_col1+28) : TB0    /  OBB    / AcRel
+          Col 3 (x_col1+56) : UIC15  /  UIC14  / UIC9
           Fila 1 (y_row1)   : Safe / TB0 / UIC15
           Fila 2 (y_row1+10): LAT  / OBB / UIC14
+          Fila 3 (y_row1+20): SStill / AcRel / UIC9
         """
         def _on(v):
             try:
@@ -4215,14 +4216,15 @@ class DoorsGenerator(QSvgWidget):
         y2 = y_row1 + 10
         y3 = y_row1 + 20
         items = [
-            (safe,  "Safe",  x_col1, y_row1),
-            (tb0,   "TB0",   x2,     y_row1),
-            (uic15, "UIC15",   x3,     y_row1),
-            (lat,   "LAT",   x_col1, y2),
-            (obb,   "OBB",   x2,     y2),
-            (uic14, "UIC14",   x3,     y2),
-            (uic9, "UIC9", x3, y3),
-            (standstill, "SStill", x_col1, y3)
+            (safe,           "Safe",   x_col1, y_row1),
+            (tb0,            "TB0",    x2,     y_row1),
+            (uic15,          "UIC15",  x3,     y_row1),
+            (lat,            "LAT",    x_col1, y2),
+            (obb,            "OBB",    x2,     y2),
+            (uic14,          "UIC14",  x3,     y2),
+            (standstill,     "SStill", x_col1, y3),
+            (active_release, "AcRel",  x2,     y3),
+            (uic9,           "UIC9",   x3,     y3),
         ]
         for val, label, x, y in items:
             color = "#00BB00" if _on(val) else "#AAAAAA"
@@ -4263,7 +4265,7 @@ class DoorsGenerator(QSvgWidget):
         img_h = max(1, int(round(logical_h * scale)))
 
         image = QImage(img_w, img_h, QImage.Format_ARGB32_Premultiplied)
-        image.fill(Qt.transparent)
+        image.fill(Qt.white)
 
         painter = QPainter(image)
         try:
@@ -4280,7 +4282,7 @@ class DoorsGenerator(QSvgWidget):
             QMessageBox.information(self, "Éxito", f"Imagen guardada correctamente en:\n{filename}")
         else:
             QMessageBox.critical(self, "Error", f"No se pudo guardar el PNG:\n{filename}")
-            
+
     def create_door_svg(self, pmr, closed_and_locked, step_closed, door_open, step_open, code_a, code_b, failure_rate, side, oos, step_oos, x_offset=0, label=""):
         """
         Representa el estado de un contacto con una etiqueta.
@@ -4340,7 +4342,7 @@ class DoorsGenerator(QSvgWidget):
 
         return door
         
-    def normal_coach(self, coach_name, coach_pos, closed_and_locked_R, step_closed_R, door_open_R, step_open_R, UIC15_R, UIC14_R, UIC9_R, TB0_R, OBB_R, LAT_R, Failure_rate_R, fail_type_a_R, fail_type_b_R, oos_r, step_oos_r, closed_and_locked_L, step_closed_L, door_open_L, step_open_L, UIC15_L, UIC14_L, UIC9_L, TB0_L, OBB_L, LAT_L, Failure_rate_L, fail_type_a_L, fail_type_b_L, oos_l, step_oos_l, burnin_r=(0,0,0), burnin_l=(0,0,0), safe_st_r="0", safe_st_l="0", maint_r=False, maint_l=False, cycles_r=None, cycles_l=None, standstill_R="0", standstill_L="0"):
+    def normal_coach(self, coach_name, coach_pos, closed_and_locked_R, step_closed_R, door_open_R, step_open_R, UIC15_R, UIC14_R, UIC9_R, TB0_R, OBB_R, LAT_R, Failure_rate_R, fail_type_a_R, fail_type_b_R, oos_r, step_oos_r, closed_and_locked_L, step_closed_L, door_open_L, step_open_L, UIC15_L, UIC14_L, UIC9_L, TB0_L, OBB_L, LAT_L, Failure_rate_L, fail_type_a_L, fail_type_b_L, oos_l, step_oos_l, burnin_r=(0,0,0), burnin_l=(0,0,0), safe_st_r="0", safe_st_l="0", maint_r=False, maint_l=False, cycles_r=None, cycles_l=None, standstill_R="0", standstill_L="0", active_release_r="0", active_release_l="0"):
 
         coach = Element("g")
 
@@ -4356,7 +4358,7 @@ class DoorsGenerator(QSvgWidget):
         SubElement(coach, "text", x="50", y="148", **{"text-anchor": "middle", "font-style": "italic", "font-size": "9"}).text = f"Coche {coach_pos+1}: {coach_name}"
 
         # Matriz de modos — Puerta D (arriba)
-        self._mode_grid(coach, safe_st_r, TB0_R, LAT_R, OBB_R, UIC15_R, UIC14_R, UIC9_R, standstill_R, x_col1=10, y_row1=10)
+        self._mode_grid(coach, safe_st_r, TB0_R, LAT_R, OBB_R, UIC15_R, UIC14_R, UIC9_R, standstill_R, active_release_r, x_col1=10, y_row1=10)
 
         SubElement(coach, "line", x1="0", y1="50", x2="5", y2="50", stroke="black", stroke_width="1")
         SubElement(coach, "line", x1="0", y1="70", x2="5", y2="70", stroke="black", stroke_width="1")
@@ -4406,7 +4408,7 @@ class DoorsGenerator(QSvgWidget):
         lower_door.append(self.create_door_svg(0, int(closed_and_locked_L), int(step_closed_L), int(door_open_L), int(step_open_L), int(fail_type_a_L), int(fail_type_b_L), int(door_l_off), "L", int(oos_l), int(step_oos_l), x_offset=0, label=""))
 
         # Matriz de modos — Puerta I (abajo)
-        self._mode_grid(coach, safe_st_l, TB0_L, LAT_L, OBB_L, UIC15_L, UIC14_L,  UIC9_L, standstill_L, x_col1=10, y_row1=96)
+        self._mode_grid(coach, safe_st_l, TB0_L, LAT_L, OBB_L, UIC15_L, UIC14_L, UIC9_L, standstill_L, active_release_l, x_col1=10, y_row1=96)
 
         # Indicador de Modo Mantenimiento
         if maint_r or maint_l:
@@ -4426,7 +4428,7 @@ class DoorsGenerator(QSvgWidget):
 
         return coach
 
-    def pmr_coach(self, coach_name, coach_pos, closed_and_locked_R, step_closed_R, door_open_R, step_open_R, UIC15_R, UIC14_R, UIC9_R, TB0_R, OBB_R, LAT_R, Failure_rate_R, fail_type_a_R, fail_type_b_R, oos_r, step_oos_r, closed_and_locked_L, step_closed_L, door_open_L, step_open_L, UIC15_L, UIC14_L, UIC9_L, TB0_L, OBB_L, LAT_L, Failure_rate_L, fail_type_a_L, fail_type_b_L, oos_l, step_oos_l, burnin_r=(0,0,0), burnin_l=(0,0,0), safe_st_r="0", safe_st_l="0", maint_r=False, maint_l=False, cycles_r=None, cycles_l=None, standstill_R="0", standstill_L="0"):
+    def pmr_coach(self, coach_name, coach_pos, closed_and_locked_R, step_closed_R, door_open_R, step_open_R, UIC15_R, UIC14_R, UIC9_R, TB0_R, OBB_R, LAT_R, Failure_rate_R, fail_type_a_R, fail_type_b_R, oos_r, step_oos_r, closed_and_locked_L, step_closed_L, door_open_L, step_open_L, UIC15_L, UIC14_L, UIC9_L, TB0_L, OBB_L, LAT_L, Failure_rate_L, fail_type_a_L, fail_type_b_L, oos_l, step_oos_l, burnin_r=(0,0,0), burnin_l=(0,0,0), safe_st_r="0", safe_st_l="0", maint_r=False, maint_l=False, cycles_r=None, cycles_l=None, standstill_R="0", standstill_L="0", active_release_r="0", active_release_l="0"):
 
         coach = Element("g")
 
@@ -4440,7 +4442,7 @@ class DoorsGenerator(QSvgWidget):
         SubElement(coach, "line", x1="100", y1="5", x2="100", y2="180", stroke="black", **{"stroke-width": "1", "stroke-dasharray": "3, 3"}, opacity="0.35")
         SubElement(coach, "text", x="50", y="148", **{"text-anchor": "middle", "font-style": "italic", "font-size": "9"}).text = f"Coche {coach_pos+1}: {coach_name}"
 
-        self._mode_grid(coach, safe_st_r, TB0_R, LAT_R, OBB_R, UIC15_R, UIC14_R, UIC9_R, standstill_R, x_col1=10, y_row1=10)
+        self._mode_grid(coach, safe_st_r, TB0_R, LAT_R, OBB_R, UIC15_R, UIC14_R, UIC9_R, standstill_R, active_release_r, x_col1=10, y_row1=10)
 
         SubElement(coach, "line", x1="0", y1="50", x2="5", y2="50", stroke="black", stroke_width="1")
         SubElement(coach, "line", x1="0", y1="70", x2="5", y2="70", stroke="black", stroke_width="1")
@@ -4487,7 +4489,7 @@ class DoorsGenerator(QSvgWidget):
         upper_door.append(self.create_door_svg(1, int(closed_and_locked_R), int(step_closed_R), int(door_open_R), int(step_open_R), int(fail_type_a_R), int(fail_type_b_R), int(door_r_off), "R", int(oos_r), int(step_oos_r), x_offset=0, label=""))
         lower_door.append(self.create_door_svg(1, int(closed_and_locked_L), int(step_closed_L), int(door_open_L), int(step_open_L), int(fail_type_a_L), int(fail_type_b_L), int(door_l_off), "L", int(oos_l), int(step_oos_l), x_offset=0, label=""))
 
-        self._mode_grid(coach, safe_st_l, TB0_L, LAT_L, OBB_L, UIC15_L, UIC14_L, UIC9_L, standstill_L, x_col1=10, y_row1=96)
+        self._mode_grid(coach, safe_st_l, TB0_L, LAT_L, OBB_L, UIC15_L, UIC14_L, UIC9_L, standstill_L, active_release_l, x_col1=10, y_row1=96)
 
         if maint_r or maint_l:
             maint_text = "Mantenimiento D+I" if (maint_r and maint_l) else ("Mantenimiento D" if maint_r else "Mantenimiento I")
@@ -4537,7 +4539,7 @@ class DoorsGenerator(QSvgWidget):
 
         return coach
 
-    def end_coach(self, coach_name, coach_pos, closed_and_locked_R, step_closed_R, door_open_R, step_open_R, UIC15_R, UIC14_R, UIC9_R, TB0_R, OBB_R, LAT_R, Failure_rate_R, fail_type_a_R, fail_type_b_R, oos_r, step_oos_r, closed_and_locked_L, step_closed_L, door_open_L, step_open_L, UIC15_L, UIC14_L, UIC9_L, TB0_L, OBB_L, LAT_L, Failure_rate_L, fail_type_a_L, fail_type_b_L, oos_l, step_oos_l, burnin_r=(0,0,0), burnin_l=(0,0,0), safe_st_r="0", safe_st_l="0", maint_r=False, maint_l=False, cycles_r=None, cycles_l=None, standstill_R="0", standstill_L="0"):
+    def end_coach(self, coach_name, coach_pos, closed_and_locked_R, step_closed_R, door_open_R, step_open_R, UIC15_R, UIC14_R, UIC9_R, TB0_R, OBB_R, LAT_R, Failure_rate_R, fail_type_a_R, fail_type_b_R, oos_r, step_oos_r, closed_and_locked_L, step_closed_L, door_open_L, step_open_L, UIC15_L, UIC14_L, UIC9_L, TB0_L, OBB_L, LAT_L, Failure_rate_L, fail_type_a_L, fail_type_b_L, oos_l, step_oos_l, burnin_r=(0,0,0), burnin_l=(0,0,0), safe_st_r="0", safe_st_l="0", maint_r=False, maint_l=False, cycles_r=None, cycles_l=None, standstill_R="0", standstill_L="0", active_release_r="0", active_release_l="0"):
 
         coach = Element("g")
 
@@ -4551,7 +4553,7 @@ class DoorsGenerator(QSvgWidget):
         SubElement(coach, "line", x1="100", y1="5", x2="100", y2="180", stroke="black", **{"stroke-width": "1", "stroke-dasharray": "3, 3"}, opacity="0.35")
         SubElement(coach, "text", x="50", y="148", **{"text-anchor": "middle", "font-style": "italic", "font-size": "9"}).text = f"Coche {coach_pos+1}: {coach_name}"
 
-        self._mode_grid(coach, safe_st_r, TB0_R, LAT_R, OBB_R, UIC15_R, UIC14_R, UIC9_R, standstill_R, x_col1=10, y_row1=10)
+        self._mode_grid(coach, safe_st_r, TB0_R, LAT_R, OBB_R, UIC15_R, UIC14_R, UIC9_R, standstill_R, active_release_r, x_col1=10, y_row1=10)
 
         SubElement(coach, "line", x1="95", y1="50", x2="100", y2="50", stroke="black", stroke_width="1")
         SubElement(coach, "line", x1="95", y1="70", x2="100", y2="70", stroke="black", stroke_width="1")
@@ -4590,7 +4592,7 @@ class DoorsGenerator(QSvgWidget):
         upper_door.append(self.create_door_svg(0, int(closed_and_locked_R), int(step_closed_R), int(door_open_R), int(step_open_R), int(fail_type_a_R), int(fail_type_b_R), int(door_r_off), "R", int(oos_r), int(step_oos_r), x_offset=0, label=""))
         lower_door.append(self.create_door_svg(0, int(closed_and_locked_L), int(step_closed_L), int(door_open_L), int(step_open_L), int(fail_type_a_L), int(fail_type_b_L), int(door_l_off), "L", int(oos_l), int(step_oos_l), x_offset=0, label=""))
 
-        self._mode_grid(coach, safe_st_l, TB0_L, LAT_L, OBB_L, UIC15_L, UIC14_L, UIC9_L, standstill_L, x_col1=10, y_row1=96)
+        self._mode_grid(coach, safe_st_l, TB0_L, LAT_L, OBB_L, UIC15_L, UIC14_L, UIC9_L, standstill_L, active_release_l, x_col1=10, y_row1=96)
 
         if maint_r or maint_l:
             maint_text = "Mantenimiento D+I" if (maint_r and maint_l) else ("Mantenimiento D" if maint_r else "Mantenimiento I")
@@ -5593,7 +5595,7 @@ class ResetFailuresWorker(QObject):
         self._steps = [
             ("MaintenaceMode = 1", {v: 1 for v in self.MAINT_VARS}),
             ("ReleaseFailure = 1", {v: 1 for v in self.RELEASE_VARS}),
-            ("ReleaseFailure = 0", {v: 0 for v in self.RELEASE_VARS}),  # “reles a 0”
+            ("ReleaseFailure = 0", {v: 0 for v in self.RELEASE_VARS}), 
             ("MaintenaceMode = 0", {v: 0 for v in self.MAINT_VARS}),
         ]
         self._step_idx = 0
@@ -6320,11 +6322,31 @@ class BurninPanel(QWidget):
         if not selected:
             self._log.appendPlainText("⚠ No hay puertas seleccionadas.")
             return
+        # Filtrar puertas donde burn_in_active ya está activo
+        # burn_in_active R/L → índices 24/25
+        IDX_ACTIVE_R, IDX_ACTIVE_L = 24, 25
+        coaches  = self._last_snapshot.get("doors", self._last_snapshot)
+        dv       = self._last_doors_vars
+        filtered = []
+        for eid, side in selected:
+            vals = coaches.get(eid, {}).get("values", {})
+            idx_active = IDX_ACTIVE_R if side == "R" else IDX_ACTIVE_L
+            try:
+                active = int(vals.get(dv[idx_active], "0")) if dv else 0
+            except (ValueError, TypeError, IndexError):
+                active = 0
+            if active:
+                self._log.appendPlainText(f"ℹ {eid} lado {side}: Burn-In ya en marcha, se omite.")
+            else:
+                filtered.append((eid, side))
+        selected = filtered
+        if not selected:
+            self._log.appendPlainText("⚠ Todas las puertas seleccionadas ya tienen Burn-In activo.")
+            return
+
         # Avisar de puertas seleccionadas sin BurninReady
         # BurninReady R/L → índices 30/31
         IDX_READY_R, IDX_READY_L = 30, 31
-        coaches  = self._last_snapshot.get("doors", self._last_snapshot)
-        dv       = self._last_doors_vars
         for eid, side in selected:
             vals = coaches.get(eid, {}).get("values", {})
             idx_ready = IDX_READY_R if side == "R" else IDX_READY_L
@@ -6363,10 +6385,10 @@ class BurninPanel(QWidget):
 
     def _on_stop(self):
         selected = self._selected_doors()
-        self._maint_active = set()
+        self._maint_active -= set(selected)
         self._burnin_running = False
         # self._dot_maint.setStyleSheet("color: #AAAAAA; font-size: 14px;")
-        self.maint_changed.emit(frozenset())
+        self.maint_changed.emit(frozenset(self._maint_active))
         self.burnin_baseline.emit({(eid, side): None for eid, side in selected})
         self._start_worker_action("stop", selected)
         self._btn_maint.setEnabled(True)
