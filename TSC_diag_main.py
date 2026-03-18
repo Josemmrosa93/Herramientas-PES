@@ -78,7 +78,7 @@ from weasyprint import HTML as WPHtml
 
 
 APP_VERSION = "1.0.3"
-DEV_MODE = True  # True → lazo de puertas con datos simulados, sin conexión al tren
+DEV_MODE = False  # True → lazo de puertas con datos simulados, sin conexión al tren
 GITHUB_OWNER = "Josemmrosa93"
 GITHUB_REPO = "Herramientas-PES"
 
@@ -5836,10 +5836,12 @@ class BurninEventDetector:
                     self._started_doors.add((eid, side))
 
                 has_baseline = self._gen._burnin_baseline.get((eid, side)) is not None
+                owned_session = has_baseline or ((eid, side) in self._started_doors)
 
                 # OK (solo si hubo baseline, es decir el burnin fue nuestro)
-                if ok == 1 and prev["ok"] == 0 and has_baseline:
+                if ok == 1 and prev["ok"] == 0 and owned_session:
                     self._log.add_event(eid, side, BurninLog.OK, cd, cs)
+                    self._started_doors.discard((eid, side))
                     # ALL_OK: todas las puertas del tren han finalizado con OK
                     if (not self._all_ok_emitted
                             and self._all_doors.issubset(self._log.completed)
@@ -5849,8 +5851,9 @@ class BurninEventDetector:
                         self._all_ok_emitted = True
 
                 # NOK
-                if nok == 1 and prev["nok"] == 0 and has_baseline:
+                if nok == 1 and prev["nok"] == 0 and owned_session:
                     self._log.add_event(eid, side, BurninLog.NOK, cd, cs)
+                    self._started_doors.discard((eid, side))
 
                 self._prev[(eid, side)] = {"active": active, "ok": ok, "nok": nok}
 
@@ -5874,7 +5877,7 @@ class BurninEventDetector:
                     continue
 
                 # Solo si hay baseline activo para esta puerta
-                if self._gen._burnin_baseline.get((eid, side)) is None:
+                if self._gen._burnin_baseline.get((eid, side)) is None and owned_session is None:
                     continue
 
                 var_short = var_full.split(".")[-1]
@@ -5953,6 +5956,7 @@ class BurninWorker(QObject):
                 self.finished.emit(False)
                 return
             self._write(eid, f"{self._can_ep(side)}.bSW_MaintMode", 1)
+            
         self.log.emit("MaintMode activado. Esperando Burn-In Ready…")
         self.finished.emit(True)
 
@@ -6028,6 +6032,7 @@ class BurninPanel(QWidget):
 
         self._current_action = None
         self._burnin_running = False
+
         self._build_ui()
         self._collapse()
 
@@ -6145,8 +6150,6 @@ class BurninPanel(QWidget):
         self._btn_maint.clicked.connect(self._on_start_maint)
         self._btn_burnin.clicked.connect(self._on_start_burnin)
         self._btn_stop.clicked.connect(self._on_stop)
-        self._btn_burnin.setEnabled(False)
-        self._btn_stop.setEnabled(False)
         for b in (self._btn_maint, self._btn_burnin, self._btn_stop):
             ctrl_layout.addWidget(b)
         content_layout.addLayout(ctrl_layout)
@@ -6298,7 +6301,7 @@ class BurninPanel(QWidget):
         # )
 
         # Habilitar "Iniciar Burnin" solo si BurninReady activo y burnin no en marcha
-        self._btn_burnin.setEnabled(ready and not active)
+        # self._btn_burnin.setEnabled(ready and not active)
 
     # ------------------------------------------------------------------
     # Acciones de los botones
@@ -6313,9 +6316,6 @@ class BurninPanel(QWidget):
         # self._dot_maint.setStyleSheet("color: #00BB00; font-size: 14px;")
         self.maint_changed.emit(frozenset(self._maint_active))
         self._start_worker_action("maint", selected)
-        self._btn_maint.setEnabled(False)
-        self._btn_burnin.setEnabled(False)
-        self._btn_stop.setEnabled(True)
 
     def _on_start_burnin(self):
         selected = self._selected_doors()
@@ -6378,10 +6378,8 @@ class BurninPanel(QWidget):
         self.burnin_baseline.emit(baseline)
         n3_par = self._slider_cycles.value()
         self._start_worker_action("burnin", selected, n3_par=n3_par)
-        self._btn_burnin.setEnabled(False)
+
         self._burnin_running = True
-        self._btn_maint.setEnabled(False)
-        self._btn_stop.setEnabled(True)
 
     def _on_stop(self):
         selected = self._selected_doors()
@@ -6389,11 +6387,9 @@ class BurninPanel(QWidget):
         self._burnin_running = False
         # self._dot_maint.setStyleSheet("color: #AAAAAA; font-size: 14px;")
         self.maint_changed.emit(frozenset(self._maint_active))
-        self.burnin_baseline.emit({(eid, side): None for eid, side in selected})
         self._start_worker_action("stop", selected)
-        self._btn_maint.setEnabled(True)
-        self._btn_burnin.setEnabled(False)
-        self._btn_stop.setEnabled(False)
+        self.burnin_baseline.emit({(eid, side): None for eid, side in selected})
+
 
     def _start_worker_action(self, action: str, selected: list, n3_par: int = 500):
         # Detener worker anterior si sigue activo
@@ -6418,16 +6414,6 @@ class BurninPanel(QWidget):
             self._thread.quit()
             self._thread.wait(1000)
 
-            if self._current_action == "maint":
-                if not self._burnin_running:
-                    self._btn_maint.setEnabled(True)
-                self._btn_stop.setEnabled(bool(self._maint_active) or self._burnin_running)
-            elif self._current_action == "burnin":
-                self._btn_stop.setEnabled(True)
-            elif self._current_action == "stop":
-                self._btn_maint.setEnabled(True)
-                self._btn_burnin.setEnabled(False)
-                self._btn_stop.setEnabled(False)
             self._current_action = None
 
 class DOORWindow(DiagnosticWindow):
@@ -7654,7 +7640,7 @@ class MainWindow(QMainWindow):
                         
         self.project = project_value
     
-        self.max_initial_ips =  21 if self.project == "DB" else 15 if self.project == "DSB" else 1
+        self.max_initial_ips =  9 if self.project == "DB" else 15 if self.project == "DSB" else 1
         
         self.progress_title.setText(f"Escaneando composición: {self.project}")
         self.detected_label.setText(f"Coches detectados: {0 + self.max_initial_ips} de {len(self.ip_data[self.project])} posibles.")
