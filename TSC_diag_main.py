@@ -2052,9 +2052,11 @@ class ScanThread(QThread):
             try:
                 if platform.system().lower().startswith("win"):
                     cmd = ["ping", "-n", "1", "-w", "100", host]
+                    flags = subprocess.CREATE_NO_WINDOW
                 else:
                     cmd = ["ping", "-c", "1", "-W", "1", host]
-                r = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    flags = 0
+                r = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=flags)
                 # print(ip, r.returncode == 0)
                 return r.returncode == 0
             except Exception:
@@ -4670,13 +4672,13 @@ class DoorLegendSvg(QSvgWidget):
     CONTENT_W = 220
 
     LEGEND_ITEMS = [
-        ("black",   "Cerrada y bloqueada"),
+        ("black",   "Cerrada"),
         ("blue",    "Abierta"),
         ("magenta", "En movimiento"),
         ("orange",  "Condenada"),
         ("red",     "Fallo tipo A (crítico)"),
         ("yellow",  "Fallo tipo B (advertencia)"),
-        ("grey",    "Tasa de fallos excedida"),
+        ("grey",    "Fallo de comunicación"),
     ]
 
     def __init__(self, parent=None):
