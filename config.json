@@ -3,9 +3,9 @@
         "ping_timeout": 500
     },
     "massive_ping": {
-        "ping_count": 1,
+        "ping_count": 10,
         "max_threads": 21,
         "auto_export": true,
-        "export_path": ""
+        "export_path": "C:/Users/75815/Desktop/network_report.xlsx"
     }
 }

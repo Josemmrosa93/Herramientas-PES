@@ -77,7 +77,7 @@ from isagrafInterface import isagrafInterface
 from weasyprint import HTML as WPHtml
 
 
-APP_VERSION = "1.0.3"
+APP_VERSION = "1.0.4"
 DEV_MODE = False  # True → lazo de puertas con datos simulados, sin conexión al tren
 GITHUB_OWNER = "Josemmrosa93"
 GITHUB_REPO = "Herramientas-PES"
@@ -4887,7 +4887,7 @@ class TSCWindow(DiagnosticWindow):
         self.btn_diag.toggled.connect(self.TSC_Diag_window._on_toggled)
         self.TSC_Diag_window.closed.connect(lambda: self.btn_diag.setChecked(False))  # Para que el botón se desactive si se cierra la ventana de diagnóstico
 
-        self.reset_failures = QPushButton("Reset de fallos de inestabilidad, temperaturas y sensores de rueda")
+        self.reset_failures = QPushButton("Reset de fallos de inestabilidad y temperaturas de rodamientos")
         self.reset_failures.clicked.connect(self._on_reset_failures_clicked)
 
 
@@ -4925,7 +4925,7 @@ class TSCWindow(DiagnosticWindow):
         lay.addWidget(btn_cancel)
         dlg.show()
 
-        th = QThread(self)
+        th = QThread()
         w = ResetFailuresWorker(mw.endpoint_ids, mw.endpoint_clients, wait_time=1.0, project = self.project)
         w.moveToThread(th)
 
@@ -5592,6 +5592,8 @@ class ResetFailuresWorker(QObject):
         self.RELEASE_VARS = [
             "VCUCH_MVB2_DS_64.ReleaseFailureRunInstabCH",
             "VCUCH_MVB1_DS_64.ReleaseFailureRunInstabCH",
+            "VCUCH_MVB2_DS_64.ReleaseFailureBearingCH",
+            "VCUCH_MVB1_DS_64.ReleaseFailureBearingCH",
         ]
 
         self._steps = [
@@ -5666,8 +5668,9 @@ class ResetFailuresWorker(QObject):
             self.log.emit("Esperando 2 segundos…")
             QTimer.singleShot(2000, self._run_next_step)
         else:
-            # último paso, finalizar
-            self._run_next_step()
+            # último paso, finalizar            
+            self.log.emit("✅ Reseteo terminado.")
+            self.finished.emit(True)
 
 class BurninLog:
     """
@@ -7642,7 +7645,7 @@ class MainWindow(QMainWindow):
                         
         self.project = project_value
     
-        self.max_initial_ips =  9 if self.project == "DB" else 15 if self.project == "DSB" else 1
+        self.max_initial_ips =  3 if self.project == "DB" else 15 if self.project == "DSB" else 1
         
         self.progress_title.setText(f"Escaneando composición: {self.project}")
         self.detected_label.setText(f"Coches detectados: {0 + self.max_initial_ips} de {len(self.ip_data[self.project])} posibles.")
@@ -8649,7 +8652,7 @@ class MainWindow(QMainWindow):
 
             self.ping_result_signal.emit(row, col, ok, enviados, recibidos, perdidos, minimo, maximo, media)
         else:
-            print("IP NO válida:", ip)
+            # print("IP NO válida:", ip)
             pass
 
     def is_valid_ip(self, ip: str) -> bool:
